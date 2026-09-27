@@ -23,7 +23,7 @@ If you landed here from a release link and have not read the tree:
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.0.0...HEAD
 
-## [2.0.0] - 2026-09-26
+## [2.0.0] - 2026-09-27
 
 ### Added
 
@@ -41,6 +41,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Changed
 
+- Shared vs static follows CMake `BUILD_SHARED_LIBS`. There is no `STORMBYTE_SHARED` CMake option. When the library is shared, the compile definition `STORMBYTE_SHARED` is still set so `visibility.h` can distinguish `dllexport` / `dllimport` / static.
 - **License change** — original source in this repository is dual-licensed: GNU LGPL v3 or later, or a commercial license from the copyright holder. The grant applies only to original StormByte source in this repository. It does not cover other StormByte modules or third-party material (including `thirdparty/`). No patent rights are granted.
 - **Visibility** — `STORMBYTE_PUBLIC` comes first on a function declaration (`STORMBYTE_PUBLIC CString Foo();`). clang-cl rejects `__declspec` after a reference return. `class STORMBYTE_PUBLIC` stays on the type. Exported templates are declared `extern template STORMBYTE_PUBLIC` / `extern template class STORMBYTE_PUBLIC` in the header and instantiated in the `.cxx` with `STORMBYTE_INSTANTIATE` (`dllexport` on Windows, empty on ELF so GCC does not warn `-Wattributes`). The `extern` line in the header is what ELF uses to export; do not put `STORMBYTE_INSTANTIATE` on that line.
 - **Breaking**: **Exception.** `StormByte::Component` is gone. `what()` is `StormByte: <message>`, or `StormByte.<path>: <message>` when a parent passes the segments under `StormByte` (`Crypto.Crypter`), joined with `.`. A parent passes `Exception::Path` (a `std::string_view` of its segments) and forwards the format and the arguments. A bare string is not a path, because that is ambiguous with the format constructor. It does not format. `Exception` calls `std::format` in the caller's translation unit and copies a `const char*` into a `CString`. The view is not stored and no `std::string` enters the DLL. A final leaf inherits the parent constructors and adds no segment. A literal with no arguments is the message as-is. `DeserializeError`, `OutOfBoundsError` and `Base64Error` are leaves of the root (`StormByte: …`). Each of those types, and the root, defines its destructor in Base's `.cxx` so the `typeinfo` is unique across a DLL. Named types in other modules do the same.
