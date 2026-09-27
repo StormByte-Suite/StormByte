@@ -26,7 +26,7 @@ The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multime
 - **UUID** — RFC 4122 version 4 (`GenerateUUIDv4`).
 - **Bitmask** — CRTP flags over `Type::UnsignedEnum`.
 - **Safe pointers** — `Shared<T>`, `Unique<T>` and `Weak<T>` complement `std::shared_ptr`, `std::unique_ptr` and `std::weak_ptr`. They do not replace them: use the standard pointers unless the object must be freed on Base's heap. `Shared` converts implicitly to `std::shared_ptr<T>` (deleter stays Base). `Unique` converts on move only to `std::unique_ptr<T, Heap::ObjectDeleter>`. No `release`, and no constructor from a raw or standard pointer. `Heap` is not installed.
-- **Clonable** — polymorphic `Clone` / `Move`. Not an owner: the result is a `Shared` or `Unique`.
+- **Clonable** — polymorphic `Clone` / `Move`. Not an owner: the result is a `Shared` or a `Unique`.
 - **ThreadLock** — owner-thread reentry; `Unlock` from a non-owner is a no-op.
 - **Type concepts** — `StormByte::Type::*` (`String`, `Container`, `Optional`, `Pair`, `Numeral`, `Array`, …). `Numeral` includes `Size` and `ByteSize`. No `enable_if` / `void_t` next to them.
 - **Platform / visibility** — `WINDOWS` / `LINUX` / `MACOS`, `BIT32` / `BIT64`, `CLANG` / `GCC` / `MSVC` (clang-cl is `CLANG`, not `MSVC`).
@@ -80,6 +80,10 @@ cd StormByte
 cmake -S . -B build
 cmake --build build
 ```
+
+Shared vs static follows CMake `BUILD_SHARED_LIBS`. Leave it on (or pass `-DBUILD_SHARED_LIBS=ON`) for a shared library. `-DBUILD_SHARED_LIBS=OFF` builds a static archive; on Windows the headers then do not use `dllimport`.
+
+A shared build keeps this library as its own `.so` / `.dll`. Under the LGPL that is usually the simpler way to ship: the user can replace that file. A static archive is folded into your binary. The LGPL still applies to this code; you must give the recipient a way to relink your product with a different build of this library. If that does not fit how you distribute the final product, a commercial license is available from the copyright holder (see [License](#license)).
 
 ## Usage
 
@@ -526,6 +530,8 @@ Since 2.0.0, original source in this repository is dual-licensed: GNU Lesser Gen
 The grant applies only to original StormByte source in this repository. It does not cover other StormByte modules or third-party material shipped here (including everything under `thirdparty/`), which remains under its own license. Neither license grants patent rights.
 
 See [LICENSE](LICENSE) for the dual-license notice and [COPYING.LGPLv3](COPYING.LGPLv3) for the full GNU LGPL version 3 text. Also <https://www.gnu.org/licenses/lgpl-3.0.html>.
+
+Static linking under the LGPL is described under [Installation](#installation).
 
 ## Support
 
