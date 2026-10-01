@@ -58,6 +58,10 @@ if(ENABLE_TEST)
 	target_link_libraries(TestHandlersTests StormByte)
 	add_test(NAME TestHandlersTests COMMAND TestHandlersTests)
 
+	add_executable(TelemetryTests telemetry_test.cxx)
+	target_link_libraries(TelemetryTests StormByte)
+	add_test(NAME TelemetryTests COMMAND TelemetryTests)
+
 	add_executable(ThreadLockTests thread_lock_test.cxx)
 	target_link_libraries(ThreadLockTests StormByte)
 	add_test(NAME ThreadLockTests COMMAND ThreadLockTests)

@@ -67,6 +67,7 @@ Public Base APIs do not take or return a raw `std::size_t` / `std::uint64_t` whe
 - [Clonable](#clonable)
 - [Type concepts](#type-concepts)
 - [Bitmask](#bitmask)
+- [Telemetry](#telemetry)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -514,6 +515,29 @@ enum class MyFlags : uint8_t { FlagA = 0x01, FlagB = 0x02 };
 class MyBitmask : public Bitmask<MyBitmask, MyFlags> {
 public:
 	using Bitmask<MyBitmask, MyFlags>::Bitmask;
+};
+```
+
+### Telemetry
+
+`Telemetry` is the derive-and-extend session object for operations across the StormByte suite. Clocks are protected named stopwatches (`Clock`) managed in a thread-safe drawer, while modules add their own domain counters and metrics.
+
+```cpp
+#include <StormByte/telemetry.hxx>
+
+using namespace StormByte;
+
+class MyTelemetry final : public Telemetry {
+public:
+	void TrackJob() {
+		Clock("job").Start();
+		// ... perform work ...
+		Clock("job").Stop();
+	}
+
+	operator CString() const override {
+		return CString("job_count=") + CString(std::to_string(Clock("job").Count()));
+	}
 };
 ```
 
