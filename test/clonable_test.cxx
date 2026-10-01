@@ -257,8 +257,8 @@ int test_unique_reset_releases() {
 int test_module_typeinfo_is_shared() {
 	int result = 0;
 	ASSERT_TRUE("test_module_typeinfo_is_shared", typeid(Clonable<PluginItem>) == PluginClonableType());
-#ifndef WINDOWS
-	// ELF / Mach-O: one merged type_info, so address-comparing runtimes (libc++) agree too.
+#ifdef LINUX
+	// ELF interposition merges the copies into one object; Mach-O and PE may keep one per image.
 	ASSERT_TRUE("test_module_typeinfo_is_shared", &typeid(Clonable<PluginItem>) == &PluginClonableType());
 #endif
 	RETURN_TEST("test_module_typeinfo_is_shared", result);

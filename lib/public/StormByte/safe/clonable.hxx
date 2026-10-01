@@ -87,9 +87,10 @@ namespace StormByte {
 		 * @ref Heap::Allocate / @ref Heap::Free, so it is always Base's heap. Every
 		 * module instantiates its own `Clonable<T>` (vtable and `typeinfo`);
 		 * @ref STORMBYTE_PUBLIC_TYPE gives those copies default visibility on
-		 * ELF and Mach-O so the loader merges them, and `dynamic_cast` /
-		 * `typeid` agree across modules even when the deriving module builds
-		 * with hidden visibility. @p T must be exported by its own module.
+		 * ELF and Mach-O, so `dynamic_cast` and `typeid` agree across modules
+		 * even when the deriving module builds with hidden visibility (on ELF
+		 * the loader also merges them into one object). @p T must be exported
+		 * by its own module.
 		 */
 		template<class T, typename SmartPointer = Shared<T>>
 		requires ValidSmartPointer<SmartPointer, T> class STORMBYTE_PUBLIC_TYPE Clonable {
