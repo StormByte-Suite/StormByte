@@ -155,7 +155,8 @@ int test_copy_assign_overwrites() {
 int test_copy_assign_self() {
 	int result = 0;
 	CString text("self");
-	text = text;
+	CString& alias = text;
+	text = alias;
 	ASSERT_EQUAL("test_copy_assign_self", 0, std::strcmp(View(text), "self"));
 	RETURN_TEST("test_copy_assign_self", result);
 }
@@ -184,7 +185,8 @@ int test_move_assign_leaves_source_null() {
 int test_move_assign_self() {
 	int result = 0;
 	CString text("self-move");
-	text = std::move(text);
+	CString& alias = text;
+	text = std::move(alias);
 	ASSERT_EQUAL("test_move_assign_self", 0, std::strcmp(View(text), "self-move"));
 	RETURN_TEST("test_move_assign_self", result);
 }

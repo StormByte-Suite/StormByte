@@ -165,7 +165,8 @@ int test_copy_assign_overwrites() {
 int test_copy_assign_self() {
 	int result = 0;
 	WCString text(L"self");
-	text = text;
+	WCString& alias = text;
+	text = alias;
 	ASSERT_EQUAL("test_copy_assign_self", 0, std::wcscmp(View(text), L"self"));
 	RETURN_TEST("test_copy_assign_self", result);
 }
@@ -194,7 +195,8 @@ int test_move_assign_leaves_source_null() {
 int test_move_assign_self() {
 	int result = 0;
 	WCString text(L"self-move");
-	text = std::move(text);
+	WCString& alias = text;
+	text = std::move(alias);
 	ASSERT_EQUAL("test_move_assign_self", 0, std::wcscmp(View(text), L"self-move"));
 	RETURN_TEST("test_move_assign_self", result);
 }

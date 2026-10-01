@@ -137,11 +137,11 @@ int test_many_writers_do_not_interleave() {
 	ThreadLock lock;
 	std::string shared;
 	const int thread_count = 8;
-	const int iterations = 200;
-	const int token_size = 8;
+	static constexpr int iterations = 200;
+	static constexpr int token_size = 8;
 	std::vector<std::thread> threads;
 	for (int t = 0; t < thread_count; ++t) {
-		threads.emplace_back([t, iterations, token_size, &lock, &shared]() {
+		threads.emplace_back([t, &lock, &shared]() {
 			const char c = static_cast<char>('A' + (t % 26));
 			const std::string token(static_cast<std::size_t>(token_size), c);
 			for (int i = 0; i < iterations; ++i) {

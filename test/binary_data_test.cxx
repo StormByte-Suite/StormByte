@@ -83,10 +83,6 @@ namespace {
 		}
 		return true;
 	}
-
-	bool SameBytes(const BinaryData& data, const BinaryData& other) {
-		return data == other;
-	}
 }
 
 // -------------------
@@ -1091,12 +1087,12 @@ int test_binary_data_access_front_back() {
 int test_binary_data_access_span() {
 	BinaryData data = Bytes({1, 2, 3});
 	std::span<std::byte> view = data;
-	ASSERT_EQUAL("test_binary_data_access_span", 3, view.size());
+	ASSERT_EQUAL("test_binary_data_access_span", std::size_t{3}, view.size());
 	view[1] = std::byte{9};
 	ASSERT_TRUE("test_binary_data_access_span", data[ByteSize{1}] == std::byte{9});
 	const BinaryData& cref = data;
 	std::span<const std::byte> cview = cref;
-	ASSERT_EQUAL("test_binary_data_access_span", 3, cview.size());
+	ASSERT_EQUAL("test_binary_data_access_span", std::size_t{3}, cview.size());
 	RETURN_TEST("test_binary_data_access_span", 0);
 }
 
