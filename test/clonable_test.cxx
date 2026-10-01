@@ -37,14 +37,18 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/clonable.hxx>
+#include "clonable_plugin.hxx"
+
+#include <StormByte/safe/clonable.hxx>
 #include <StormByte/test_handlers.h>
 #include <StormByte/type_traits.hxx>
 
 #include <memory>
+#include <typeinfo>
 #include <utility>
 
 using namespace StormByte;
+using namespace StormByte::Safe;
 
 namespace {
 	class SharedItem: public Clonable<SharedItem, Shared<SharedItem>> {
@@ -246,6 +250,45 @@ int test_unique_reset_releases() {
 	RETURN_TEST("test_unique_reset_releases", result);
 }
 
+// -------------------
+// Module boundary
+// -------------------
+
+int test_module_typeinfo_is_shared() {
+	int result = 0;
+	ASSERT_TRUE("test_module_typeinfo_is_shared", typeid(Clonable<PluginItem>) == PluginClonableType());
+#ifndef WINDOWS
+	// ELF / Mach-O: one merged type_info, so address-comparing runtimes (libc++) agree too.
+	ASSERT_TRUE("test_module_typeinfo_is_shared", &typeid(Clonable<PluginItem>) == &PluginClonableType());
+#endif
+	RETURN_TEST("test_module_typeinfo_is_shared", result);
+}
+
+int test_module_dynamic_cast() {
+	int result = 0;
+	PluginItem::PointerType item = MakePluginItem(7);
+	Clonable<PluginItem>* base = PluginAsClonable(*item);
+	ASSERT_TRUE("test_module_dynamic_cast", dynamic_cast<PluginItem*>(base) == item.get());
+	RETURN_TEST("test_module_dynamic_cast", result);
+}
+
+int test_module_clone_and_move() {
+	int result = 0;
+	PluginItem::PointerType item = MakePluginItem(12);
+	PluginItem::PointerType clone = item->Clone();
+	ASSERT_TRUE("test_module_clone_and_move", clone != nullptr);
+	ASSERT_TRUE("test_module_clone_and_move", clone.get() != item.get());
+	ASSERT_EQUAL("test_module_clone_and_move", 12, clone->value);
+	PluginItem::PointerType moved = clone->Move();
+	ASSERT_EQUAL("test_module_clone_and_move", 12, moved->value);
+	std::shared_ptr<PluginItem> as_std = moved;
+	item.reset();
+	clone.reset();
+	moved.reset();
+	ASSERT_EQUAL("test_module_clone_and_move", 12, as_std->value);
+	RETURN_TEST("test_module_clone_and_move", result);
+}
+
 int main() {
 	int result = 0;
 
@@ -271,6 +314,13 @@ int main() {
 	result += test_unique_pointer_storage();
 	result += test_unique_pointer_type();
 	result += test_unique_reset_releases();
+
+	// -------------------
+	// Module boundary
+	// -------------------
+	result += test_module_typeinfo_is_shared();
+	result += test_module_dynamic_cast();
+	result += test_module_clone_and_move();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

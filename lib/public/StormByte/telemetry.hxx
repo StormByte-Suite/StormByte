@@ -41,7 +41,7 @@
 
 #include <StormByte/cstring.hxx>
 #include <StormByte/platform.h>
-#include <StormByte/safe_pointers.hxx>
+#include <StormByte/safe/pointers.hxx>
 #include <StormByte/visibility.h>
 
 #include <chrono>
@@ -214,6 +214,6 @@ namespace StormByte {
 
 		private:
 			struct Store;
-			Unique<Store> m_store;	///< PIMPL store for clock drawer.
+			Safe::Unique<Store> m_store;	///< PIMPL store for clock drawer.
 	};
 }

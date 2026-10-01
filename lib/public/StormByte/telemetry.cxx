@@ -96,7 +96,7 @@ std::chrono::microseconds Clock::MeanDuration() const noexcept {
 // --- StormByte::Telemetry ---
 
 Telemetry::Telemetry() noexcept:
-	m_store{Heap::MakeUnique<Store>()} {}
+	m_store{Safe::Heap::MakeUnique<Store>()} {}
 
 Telemetry::Telemetry(Telemetry&& other) noexcept:
 	m_store{std::move(other.m_store)} {}
@@ -111,7 +111,7 @@ Telemetry::~Telemetry() noexcept = default;
 
 Clock& Telemetry::Clock(const std::string_view name) noexcept {
 	if (!m_store)
-		m_store = Heap::MakeUnique<Store>();
+		m_store = Safe::Heap::MakeUnique<Store>();
 	m_store->lock.Lock();
 	auto& clock = m_store->clocks[CString(name)];
 	m_store->lock.Unlock();

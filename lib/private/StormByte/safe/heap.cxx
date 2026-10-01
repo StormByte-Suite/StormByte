@@ -37,16 +37,16 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/heap.hxx>
+#include <StormByte/safe/heap.hxx>
 
 #include <new>
 
-namespace StormByte::Heap {
-	void* Allocate(std::size_t bytes) {
-		return ::operator new(bytes);
-	}
+using namespace StormByte::Safe;
 
-	void Free(void* pointer) noexcept {
-		::operator delete(pointer);
-	}
+void* Heap::Allocate(std::size_t bytes) {
+	return ::operator new(bytes);
+}
+
+void Heap::Free(void* pointer) noexcept {
+	::operator delete(pointer);
 }

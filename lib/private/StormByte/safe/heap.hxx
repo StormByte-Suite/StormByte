@@ -39,26 +39,50 @@
 
 #pragma once
 
-#include <StormByte/platform.h>
+#include <StormByte/visibility.h>
 
-#ifdef WINDOWS
-	#ifdef StormByte_EXPORTS
-		#define STORMBYTE_PUBLIC		__declspec(dllexport)
-		#define STORMBYTE_INSTANTIATE	__declspec(dllexport)
-	#elifdef STORMBYTE_SHARED
-		#define STORMBYTE_PUBLIC		__declspec(dllimport)
-		#define STORMBYTE_INSTANTIATE
-	#else
-		#define STORMBYTE_PUBLIC
-		#define STORMBYTE_INSTANTIATE
-	#endif
-	#define STORMBYTE_PRIVATE
-	// Header-only type emitted by each module; MSVC matches RTTI by name and exports base specializations of exported classes.
-	#define STORMBYTE_PUBLIC_TYPE
-#else
-	#define STORMBYTE_PUBLIC			__attribute__((visibility("default")))
-	#define STORMBYTE_PRIVATE			__attribute__((visibility("hidden")))
-	#define STORMBYTE_INSTANTIATE
-	// Keeps vtable/typeinfo of header-only types visible so every module shares one identity.
-	#define STORMBYTE_PUBLIC_TYPE		__attribute__((visibility("default")))
-#endif
+#include <cstddef>
+
+/**
+ * @file safe/heap.hxx
+ * @brief Private Base heap used by @ref StormByte::Safe::Shared, @ref StormByte::Safe::Unique and @ref StormByte::Safe::Clonable.
+ *
+ * Not installed. Not part of the public include tree. Implementation lives in
+ * `safe/heap.cxx` so allocation and release run on Base's CRT.
+ */
+
+/**
+ * @namespace StormByte
+ * @brief Root namespace of the StormByte suite.
+ */
+namespace StormByte {
+	/**
+	 * @namespace StormByte::Safe
+	 * @brief Types that are safe to pass across a DLL boundary: owners and polymorphic clones on Base's heap.
+	 */
+	namespace Safe {
+		/**
+		 * @namespace StormByte::Safe::Heap
+		 * @brief Allocate and free raw blocks on Base's heap.
+		 *
+		 * Public templates call @ref Allocate and @ref Free through matching
+		 * declarations in the public headers. This header exists only for the
+		 * translation unit that defines those functions.
+		 */
+		namespace Heap {
+			/**
+			 * @brief Allocate @p bytes on Base's heap.
+			 * @param bytes Block size in octets. Zero is forwarded to `operator new`.
+			 * @return Address of the block.
+			 * @throws std::bad_alloc When the allocator cannot satisfy the request.
+			 */
+			STORMBYTE_PUBLIC void* Allocate(std::size_t bytes);
+
+			/**
+			 * @brief Release a block obtained from @ref Allocate.
+			 * @param pointer Block address, or a null pointer.
+			 */
+			STORMBYTE_PUBLIC void Free(void* pointer) noexcept;
+		}
+	}
+}

@@ -41,14 +41,16 @@
 
 #include <utility>
 
-// Out-of-line implementation of StormByte::Clonable.
-// See clonable.hxx for documentation of each member.
+// Out-of-line implementation of StormByte::Safe::Clonable.
+// See safe/clonable.hxx for documentation of each member.
 
 namespace StormByte {
-	template<class T, typename SmartPointer>
-	requires ValidSmartPointer<SmartPointer, T>
-	template<class Target, typename... Args>
-	typename Clonable<T, SmartPointer>::PointerType Clonable<T, SmartPointer>::MakePointer(Args&&... args) {
-		return PointerType::template MakePointer<Target>(std::forward<Args>(args)...);
+	namespace Safe {
+		template<class T, typename SmartPointer>
+		requires ValidSmartPointer<SmartPointer, T>
+		template<class Target, typename... Args>
+		typename Clonable<T, SmartPointer>::PointerType Clonable<T, SmartPointer>::MakePointer(Args&&... args) {
+			return PointerType::template MakePointer<Target>(std::forward<Args>(args)...);
+		}
 	}
 }

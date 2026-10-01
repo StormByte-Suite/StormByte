@@ -9,7 +9,7 @@
 
 This repository is **StormByte Base**: the C++26 foundation of the StormByte suite.
 
-It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `CString` / `WCString`, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, clonable types, a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
+It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `CString` / `WCString`, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
 
 The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multimedia, Network, String and System are **other repositories**. They depend on this one; this one does not implement them.
 
@@ -17,7 +17,7 @@ The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multime
 
 - **Exceptions** — `StormByte::Exception`. `what()` is `StormByte: …`, or `StormByte.Crypto.Crypter: …` when a parent passes the segments under `StormByte`. The text is a `CString`. A final leaf adds no segment.
 - **Error** — `Domain`, `Category`, `Code` and `Fault` for `std::error_code`. `Fault` is not thrown; its text is a `CString`.
-- **Expected** — `Expected<T, E>` on top of `std::expected`. The error is a `Shared<E>` on Base's heap. It converts to `std::shared_ptr<E>`. `Unexpected<E>("… {}", arg)` stays as it is.
+- **Expected** — `Expected<T, E>` on top of `std::expected`. The error is a `Safe::Shared<E>` on Base's heap. It converts to `std::shared_ptr<E>`. `Unexpected<E>("… {}", arg)` stays as it is.
 - **Serialization** — `Serializable<T>` to `BinaryData`, always little-endian, no BOM and no version tag. Optional / pair / container / trivial / `Detail::Codec<T>`. On-wire lengths are `ByteSize`.
 - **CString / WCString** — owned NUL-terminated narrow and wide buffers, safe to use across a DLL boundary. Not `std::string` / `std::wstring`. `Length()` is `Size`. Construct from C string, `string_view` / `wstring_view` and `string` / `wstring` (copy onto Base's heap). Content equality, `<=>`, `swap` and `std::hash`.
 - **BinaryData** — owned contiguous `std::byte` sequence, safe to use across a DLL boundary. Same kind of API as `std::vector<std::byte>`. Lengths and indices use `ByteSize`. `HexDump` prints offset + hex + ASCII; column count is `std::size_t`.
@@ -25,8 +25,8 @@ The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multime
 - **ByteSize** — octet length (`uint64_t` storage). Implicit only to `std::size_t`. IEC / SI units (`1 * KiB`), human-readable `CString` (`1.00 KiB`). Area products are deleted.
 - **UUID** — RFC 4122 version 4 (`GenerateUUIDv4`).
 - **Bitmask** — CRTP flags over `Type::UnsignedEnum`.
-- **Safe pointers** — `Shared<T>`, `Unique<T>` and `Weak<T>` complement `std::shared_ptr`, `std::unique_ptr` and `std::weak_ptr`. They do not replace them: use the standard pointers unless the object must be freed on Base's heap. `Shared` converts implicitly to `std::shared_ptr<T>` (deleter stays Base). `Unique` converts on move only to `std::unique_ptr<T, Heap::ObjectDeleter>`. No `release`, and no constructor from a raw or standard pointer. `Heap` is not installed.
-- **Clonable** — polymorphic `Clone` / `Move`. Not an owner: the result is a `Shared` or a `Unique`.
+- **Safe pointers** — `Safe::Shared<T>`, `Safe::Unique<T>` and `Safe::Weak<T>` (`StormByte/safe/pointers.hxx`) complement `std::shared_ptr`, `std::unique_ptr` and `std::weak_ptr`. They do not replace them: use the standard pointers unless the object must be freed on Base's heap. `Shared` converts implicitly to `std::shared_ptr<T>` (deleter stays Base). `Unique` converts on move only to `std::unique_ptr<T, Safe::Heap::ObjectDeleter>`. No `release`, and no constructor from a raw or standard pointer. The `Heap` implementation is not installed.
+- **Clonable** — `Safe::Clonable` (`StormByte/safe/clonable.hxx`), polymorphic `Clone` / `Move`. Not an owner: the result is a `Shared` or a `Unique`. Safe to derive from in another DLL.
 - **ThreadLock** — owner-thread reentry; `Unlock` from a non-owner is a no-op.
 - **Type concepts** — `StormByte::Type::*` (`String`, `Container`, `Optional`, `Pair`, `Numeral`, `Array`, …). `Numeral` includes `Size` and `ByteSize`. No `enable_if` / `void_t` next to them.
 - **Platform / visibility** — `WINDOWS` / `LINUX` / `MACOS`, `BIT32` / `BIT64`, `CLANG` / `GCC` / `MSVC` (clang-cl is `CLANG`, not `MSVC`).
@@ -151,7 +151,7 @@ int main() {
 
 ### Expected
 
-The error is a `Shared<E>` on Base's heap. Read it with `result.error()->what()`. It converts to `std::shared_ptr<E>` when a signature already asks for one. The call does not change: `Unexpected<E>("Password '{}' not found", name)` formats in the caller and constructs `E` from that string. `Unexpected(result.error())` forwards the same `Shared` and does not allocate. A `std::shared_ptr` is not accepted.
+The error is a `Safe::Shared<E>` on Base's heap. Read it with `result.error()->what()`. It converts to `std::shared_ptr<E>` when a signature already asks for one. The call does not change: `Unexpected<E>("Password '{}' not found", name)` formats in the caller and constructs `E` from that string. `Unexpected(result.error())` forwards the same `Shared` and does not allocate. A `std::shared_ptr` is not accepted.
 
 ```cpp
 #include <StormByte/expected.hxx>
@@ -430,23 +430,25 @@ The owner may `Lock()` again. Another thread blocks. `Unlock()` from a non-owner
 
 ### Safe pointers
 
-`Shared<T>`, `Unique<T>` and `Weak<T>` (`safe_pointers.hxx`) complement the standard smart pointers. They do not replace them. Use `std::shared_ptr`, `std::unique_ptr` and `std::weak_ptr` when the object does not cross a DLL. Use these when the object must be freed on Base's heap. The heap implementation is private and is not installed.
+`Shared<T>`, `Unique<T>` and `Weak<T>` live in `StormByte::Safe` (`StormByte/safe/pointers.hxx`) and complement the standard smart pointers. They do not replace them. Use `std::shared_ptr`, `std::unique_ptr` and `std::weak_ptr` when the object does not cross a DLL. Use these when the object must be freed on Base's heap. The heap implementation is private and is not installed.
 
-`Heap::MakeShared<T>(args…)` / `Heap::MakeUnique<T>(args…)` construct `T`. `MakePointer<Derived>` constructs a derived object and owns it as the base. For `Unique`, `~Base` must be virtual in that case. There is no constructor from a raw pointer or from a standard smart pointer, and `Unique` has no `release`.
+`Safe::Heap::MakeShared<T>(args…)` / `Safe::Heap::MakeUnique<T>(args…)` construct `T`. `MakePointer<Derived>` constructs a derived object and owns it as the base. For `Unique`, `~Base` must be virtual in that case. There is no constructor from a raw pointer or from a standard smart pointer, and `Unique` has no `release`.
 
-The daily operations match the standard ones, so a port is a signature change. `Shared` also converts implicitly to `std::shared_ptr<T>` and keeps Base's deleter, so a parameter that is already `std::shared_ptr<T>` does not have to change. There is no conversion back. `Unique` converts on move only to `std::unique_ptr<T, Heap::ObjectDeleter>`. A `std::unique_ptr<T>` parameter has to change. `Weak` is built from a `Shared`, and `lock` returns a `Shared`.
+The daily operations match the standard ones, so a port is a signature change. `Shared` also converts implicitly to `std::shared_ptr<T>` and keeps Base's deleter, so a parameter that is already `std::shared_ptr<T>` does not have to change. There is no conversion back. `Unique` converts on move only to `std::unique_ptr<T, Safe::Heap::ObjectDeleter>`. A `std::unique_ptr<T>` parameter has to change. `Weak` is built from a `Shared`, and `lock` returns a `Shared`.
 
 ### Clonable
 
-`Clonable` is not an owner and it is not a smart pointer. `Shared` and `Unique` own the object. `Clonable` is the polymorphic interface: from a base you can `Clone` or `Move` and get the dynamic type back, without naming the derived class. `MakePointer` forwards to `Shared::MakePointer` or `Unique::MakePointer`, so the allocation is written once.
+`Safe::Clonable` (`StormByte/safe/clonable.hxx`) is not an owner and it is not a smart pointer. `Shared` and `Unique` own the object. `Clonable` is the polymorphic interface: from a base you can `Clone` or `Move` and get the dynamic type back, without naming the derived class. `MakePointer` forwards to `Shared::MakePointer` or `Unique::MakePointer`, so the allocation is written once.
 
 `Clonable<T>` stores a `Shared<T>`. `Clonable<T, Unique<T>>` stores a `Unique<T>`. `std::shared_ptr` and `std::unique_ptr` are not accepted as that parameter. `~T` is virtual because `Clone` and `Move` are.
 
+A class in another DLL may derive from `Clonable`. Storage always goes through Base's exported heap, and the `Safe` types carry `STORMBYTE_PUBLIC_TYPE` so their `typeinfo` and vtables have default visibility on Linux and macOS: every module agrees on `typeid` and `dynamic_cast`, even when the deriving module builds with `-fvisibility=hidden`. Export `T` from its own module (`class MYLIB_PUBLIC Shape : public Safe::Clonable<Shape>`). The module that defines the dynamic type must stay loaded while any of its objects exist.
+
 ```cpp
-#include <StormByte/clonable.hxx>
+#include <StormByte/safe/clonable.hxx>
 #include <memory>
 
-using namespace StormByte;
+using namespace StormByte::Safe;
 
 class Shape : public Clonable<Shape> {
 public:

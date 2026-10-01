@@ -91,7 +91,7 @@ int test_expected_holds_error() {
 
 int test_unexpected_from_shared() {
 	int result = 0;
-	Shared<TestError> ptr = Heap::MakeShared<TestError>("via pointer");
+	Safe::Shared<TestError> ptr = Safe::Heap::MakeShared<TestError>("via pointer");
 	Expected<int, TestError> failure = Unexpected(ptr);
 	ASSERT_FALSE("test_unexpected_from_shared", failure.has_value());
 	ASSERT_TRUE("test_unexpected_from_shared", failure.error() == ptr);

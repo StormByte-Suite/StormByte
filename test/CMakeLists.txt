@@ -18,8 +18,18 @@ if(ENABLE_TEST)
 	target_link_libraries(ByteSizeTests StormByte)
 	add_test(NAME ByteSizeTests COMMAND ByteSizeTests)
 
+	# Shared and hidden by default, like a consumer DLL deriving from Clonable.
+	add_library(ClonablePlugin SHARED clonable_plugin.cxx)
+	target_link_libraries(ClonablePlugin PUBLIC StormByte)
+	set_target_properties(ClonablePlugin PROPERTIES
+		CXX_VISIBILITY_PRESET hidden
+		VISIBILITY_INLINES_HIDDEN ON
+	)
+
 	add_executable(ClonableTests clonable_test.cxx)
-	target_link_libraries(ClonableTests StormByte)
+	target_link_libraries(ClonableTests ClonablePlugin StormByte)
+	# Export the executable's vague-linkage typeinfo so it merges with the plugin's, as between two DLLs.
+	set_target_properties(ClonableTests PROPERTIES ENABLE_EXPORTS ON)
 	add_test(NAME ClonableTests COMMAND ClonableTests)
 
 	add_executable(CStringTests cstring_test.cxx)

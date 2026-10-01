@@ -37,46 +37,32 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#pragma once
+#include "clonable_plugin.hxx"
 
-#include <new>
 #include <utility>
 
-// Out-of-line implementation of StormByte::Heap factories.
-// See safe_pointers.hxx for documentation of each member.
+using namespace StormByte::Safe;
 
-namespace StormByte {
-	namespace Heap {
-		template<class T, class... Args>
-		Shared<T> MakeShared(Args&&... args) {
-			void* const memory = Allocate(sizeof(T));
-			T* object = nullptr;
-			try {
-				object = ::new (memory) T(std::forward<Args>(args)...);
-			} catch (...) {
-				Free(memory);
-				throw;
-			}
-			try {
-				return Shared<T>(typename Shared<T>::Adopt{}, object);
-			} catch (...) {
-				object->~T();
-				Free(memory);
-				throw;
-			}
-		}
+PluginItem::PluginItem(int value): value(value) {}
 
-		template<class T, class... Args>
-		Unique<T> MakeUnique(Args&&... args) {
-			void* const memory = Allocate(sizeof(T));
-			T* object = nullptr;
-			try {
-				object = ::new (memory) T(std::forward<Args>(args)...);
-			} catch (...) {
-				Free(memory);
-				throw;
-			}
-			return Unique<T>(typename Unique<T>::Adopt{}, object);
-		}
-	}
+PluginItem::~PluginItem() noexcept = default;
+
+PluginItem::PointerType PluginItem::Clone() const {
+	return MakePointer<PluginItem>(*this);
+}
+
+PluginItem::PointerType PluginItem::Move() {
+	return MakePointer<PluginItem>(std::move(*this));
+}
+
+PluginItem::PointerType MakePluginItem(int value) {
+	return PluginItem::MakePointer<PluginItem>(value);
+}
+
+const std::type_info& PluginClonableType() noexcept {
+	return typeid(Clonable<PluginItem>);
+}
+
+Clonable<PluginItem>* PluginAsClonable(PluginItem& item) noexcept {
+	return &item;
 }

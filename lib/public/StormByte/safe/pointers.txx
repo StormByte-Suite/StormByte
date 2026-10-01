@@ -39,44 +39,46 @@
 
 #pragma once
 
-#include <StormByte/visibility.h>
+#include <new>
+#include <utility>
 
-#include <cstddef>
+// Out-of-line implementation of StormByte::Safe::Heap factories.
+// See safe/pointers.hxx for documentation of each member.
 
-/**
- * @file heap.hxx
- * @brief Private Base heap used by @ref StormByte::Shared, @ref StormByte::Unique and @ref StormByte::Clonable.
- *
- * Not installed. Not part of the public include tree. Implementation lives in
- * `heap.cxx` so allocation and release run on Base's CRT.
- */
-
-/**
- * @namespace StormByte
- * @brief Root namespace of the StormByte suite.
- */
 namespace StormByte {
-	/**
-	 * @namespace StormByte::Heap
-	 * @brief Allocate and free raw blocks on Base's heap.
-	 *
-	 * Public templates call @ref Allocate and @ref Free through matching
-	 * declarations in the public headers. This header exists only for the
-	 * translation unit that defines those functions.
-	 */
-	namespace Heap {
-		/**
-		 * @brief Allocate @p bytes on Base's heap.
-		 * @param bytes Block size in octets. Zero is forwarded to `operator new`.
-		 * @return Address of the block.
-		 * @throws std::bad_alloc When the allocator cannot satisfy the request.
-		 */
-		STORMBYTE_PUBLIC void* Allocate(std::size_t bytes);
+	namespace Safe {
+		namespace Heap {
+			template<class T, class... Args>
+			Shared<T> MakeShared(Args&&... args) {
+				void* const memory = Allocate(sizeof(T));
+				T* object = nullptr;
+				try {
+					object = ::new (memory) T(std::forward<Args>(args)...);
+				} catch (...) {
+					Free(memory);
+					throw;
+				}
+				try {
+					return Shared<T>(typename Shared<T>::Adopt{}, object);
+				} catch (...) {
+					object->~T();
+					Free(memory);
+					throw;
+				}
+			}
 
-		/**
-		 * @brief Release a block obtained from @ref Allocate.
-		 * @param pointer Block address, or a null pointer.
-		 */
-		STORMBYTE_PUBLIC void Free(void* pointer) noexcept;
+			template<class T, class... Args>
+			Unique<T> MakeUnique(Args&&... args) {
+				void* const memory = Allocate(sizeof(T));
+				T* object = nullptr;
+				try {
+					object = ::new (memory) T(std::forward<Args>(args)...);
+				} catch (...) {
+					Free(memory);
+					throw;
+				}
+				return Unique<T>(typename Unique<T>::Adopt{}, object);
+			}
+		}
 	}
 }
