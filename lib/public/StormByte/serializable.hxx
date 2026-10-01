@@ -41,13 +41,15 @@
 
 #include <StormByte/binary_data.hxx>
 #include <StormByte/byte_size.hxx>
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/exception.hxx>
 #include <StormByte/expected.hxx>
 #include <StormByte/helpers.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
-#include <StormByte/wcstring.hxx>
+#include <StormByte/safe/wcstring.hxx>
+#include <StormByte/safe/wstring.hxx>
 
 #include <array>
 #include <bit>
@@ -260,66 +262,92 @@ namespace StormByte {
 		};
 
 		/**
-		 * @brief @ref StormByte::Detail::Codec specialization for @ref StormByte::CString.
+		 * @brief @ref StormByte::Detail::Codec specialization for @ref StormByte::Safe::CString.
 		 *
 		 * Same wire as `std::string`: `uint64` byte count (LE) + raw bytes.
-		 * A null @ref StormByte::CString is written as an empty payload
+		 * A null @ref StormByte::Safe::CString is written as an empty payload
 		 * (`operator std::string`). Decode always yields a non-null buffer
 		 * (`""` when the payload is empty).
 		 */
 		template<>
-		struct Codec<CString> {
+		struct Codec<Safe::CString> {
 			/**
 			 * @brief Serialized size of @p data.
 			 * @param data Value to measure.
 			 * @return Size in bytes as @ref ByteSize.
 			 */
-			static STORMBYTE_PUBLIC ByteSize Size(const CString& data) noexcept;
+			static STORMBYTE_PUBLIC ByteSize Size(const Safe::CString& data) noexcept;
 
 			/**
 			 * @brief Encodes @p data.
 			 * @param data Value to encode.
 			 * @return Blob owned by Base.
 			 */
-			static STORMBYTE_PUBLIC BinaryData Write(const CString& data) noexcept;
+			static STORMBYTE_PUBLIC BinaryData Write(const Safe::CString& data) noexcept;
 
 			/**
-			 * @brief Decodes a @ref StormByte::CString from the start of @p data.
+			 * @brief Decodes a @ref StormByte::Safe::CString from the start of @p data.
 			 * @param data Input span.
 			 * @return Value, or @ref StormByte::DeserializeError.
 			 */
-			static STORMBYTE_PUBLIC Expected<CString, DeserializeError> Read(std::span<const std::byte> data) noexcept;
+			static STORMBYTE_PUBLIC Expected<Safe::CString, DeserializeError> Read(std::span<const std::byte> data) noexcept;
 		};
 
 		/**
-		 * @brief @ref StormByte::Detail::Codec specialization for @ref StormByte::WCString.
+		 * @brief @ref StormByte::Detail::Codec specialization for @ref StormByte::Safe::WCString.
 		 *
-		 * Same UTF-8 wire as `std::wstring`. A null @ref StormByte::WCString
+		 * Same UTF-8 wire as `std::wstring`. A null @ref StormByte::Safe::WCString
 		 * is written as an empty payload. Decode always yields a non-null
 		 * buffer (`L""` when the payload is empty).
 		 */
 		template<>
-		struct Codec<WCString> {
+		struct Codec<Safe::WCString> {
 			/**
 			 * @brief Serialized size of @p data.
 			 * @param data Value to measure.
 			 * @return Size in bytes as @ref ByteSize.
 			 */
-			static STORMBYTE_PUBLIC ByteSize Size(const WCString& data) noexcept;
+			static STORMBYTE_PUBLIC ByteSize Size(const Safe::WCString& data) noexcept;
 
 			/**
 			 * @brief Encodes @p data.
 			 * @param data Value to encode.
 			 * @return Blob owned by Base.
 			 */
-			static STORMBYTE_PUBLIC BinaryData Write(const WCString& data) noexcept;
+			static STORMBYTE_PUBLIC BinaryData Write(const Safe::WCString& data) noexcept;
 
 			/**
-			 * @brief Decodes a @ref StormByte::WCString from the start of @p data.
+			 * @brief Decodes a @ref StormByte::Safe::WCString from the start of @p data.
 			 * @param data Input span.
 			 * @return Value, or @ref StormByte::DeserializeError.
 			 */
-			static STORMBYTE_PUBLIC Expected<WCString, DeserializeError> Read(std::span<const std::byte> data) noexcept;
+			static STORMBYTE_PUBLIC Expected<Safe::WCString, DeserializeError> Read(std::span<const std::byte> data) noexcept;
+		};
+
+		/**
+		 * @brief UTF-8 text codec with the same wire layout as `std::string`.
+		 */
+		template<>
+		struct Codec<Safe::String> {
+			/** @brief Serialized size of @p data. @param data Text to measure. @return Size in bytes. */
+			static STORMBYTE_PUBLIC ByteSize Size(const Safe::String& data) noexcept;
+			/** @brief Encodes @p data. @param data Text to encode. @return Owned blob. */
+			static STORMBYTE_PUBLIC BinaryData Write(const Safe::String& data) noexcept;
+			/** @brief Decodes text. @param data Input bytes. @return Text or error. */
+			static STORMBYTE_PUBLIC Expected<Safe::String, DeserializeError> Read(std::span<const std::byte> data) noexcept;
+		};
+
+		/**
+		 * @brief Wide text codec with the same UTF-8 wire layout as `std::wstring`.
+		 */
+		template<>
+		struct Codec<Safe::WString> {
+			/** @brief Serialized size of @p data. @param data Text to measure. @return Size in bytes. */
+			static STORMBYTE_PUBLIC ByteSize Size(const Safe::WString& data) noexcept;
+			/** @brief Encodes @p data. @param data Text to encode. @return Owned blob. */
+			static STORMBYTE_PUBLIC BinaryData Write(const Safe::WString& data) noexcept;
+			/** @brief Decodes text. @param data Input bytes. @return Text or error. */
+			static STORMBYTE_PUBLIC Expected<Safe::WString, DeserializeError> Read(std::span<const std::byte> data) noexcept;
 		};
 	}
 
@@ -341,7 +369,7 @@ namespace StormByte {
 	 * @note `Type::String` (`string` / `wstring` / `u16string` / `u32string`)
 	 *       is excluded from @ref StormByte::Type::Container so those types hit Codec
 	 *       instead of being encoded as a sequence of code units.
-	 *       @ref StormByte::CString and @ref StormByte::WCString are not containers;
+	 *       @ref StormByte::Safe::CString and @ref StormByte::Safe::WCString are not containers;
 	 *       they hit @ref StormByte::Detail::Codec from the fallback in
 	 *       `serializable.txx`.
 	 */
@@ -566,8 +594,10 @@ namespace StormByte {
 	extern template class STORMBYTE_PUBLIC Serializable<std::wstring>;
 	extern template class STORMBYTE_PUBLIC Serializable<std::u16string>;
 	extern template class STORMBYTE_PUBLIC Serializable<std::u32string>;
-	extern template class STORMBYTE_PUBLIC Serializable<CString>;
-	extern template class STORMBYTE_PUBLIC Serializable<WCString>;
+	extern template class STORMBYTE_PUBLIC Serializable<Safe::CString>;
+	extern template class STORMBYTE_PUBLIC Serializable<Safe::WCString>;
+	extern template class STORMBYTE_PUBLIC Serializable<Safe::String>;
+	extern template class STORMBYTE_PUBLIC Serializable<Safe::WString>;
 	extern template class STORMBYTE_PUBLIC Serializable<BinaryData>;
 	/// @endcond
 }

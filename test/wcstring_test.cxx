@@ -37,10 +37,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/cstring.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
-#include <StormByte/wcstring.hxx>
+#include <StormByte/safe/wcstring.hxx>
 
 #include <compare>
 #include <cwchar>
@@ -54,7 +54,7 @@
 using namespace StormByte;
 
 namespace {
-	const wchar_t* View(const WCString& text) {
+	const wchar_t* View(const Safe::WCString& text) {
 		return static_cast<const wchar_t*>(text);
 	}
 }
@@ -65,7 +65,7 @@ namespace {
 
 int test_default_is_null() {
 	int result = 0;
-	WCString text;
+	Safe::WCString text;
 	ASSERT_TRUE("test_default_is_null", View(text) == nullptr);
 	ASSERT_EQUAL("test_default_is_null", Size{0}, text.Length());
 	ASSERT_FALSE("test_default_is_null", static_cast<bool>(text));
@@ -74,7 +74,7 @@ int test_default_is_null() {
 
 int test_construct_from_null() {
 	int result = 0;
-	WCString text(static_cast<const wchar_t*>(nullptr));
+	Safe::WCString text(static_cast<const wchar_t*>(nullptr));
 	ASSERT_TRUE("test_construct_from_null", View(text) == nullptr);
 	ASSERT_FALSE("test_construct_from_null", static_cast<bool>(text));
 	RETURN_TEST("test_construct_from_null", result);
@@ -82,7 +82,7 @@ int test_construct_from_null() {
 
 int test_construct_from_empty() {
 	int result = 0;
-	WCString text(L"");
+	Safe::WCString text(L"");
 	ASSERT_TRUE("test_construct_from_empty", View(text) != nullptr);
 	ASSERT_TRUE("test_construct_from_empty", static_cast<bool>(text));
 	ASSERT_EQUAL("test_construct_from_empty", 0, std::wcscmp(View(text), L""));
@@ -93,7 +93,7 @@ int test_construct_from_empty() {
 int test_construct_copies_text() {
 	int result = 0;
 	const wchar_t raw[] = L"hello";
-	WCString text(raw);
+	Safe::WCString text(raw);
 	ASSERT_TRUE("test_construct_copies_text", View(text) != raw);
 	ASSERT_EQUAL("test_construct_copies_text", 0, std::wcscmp(View(text), L"hello"));
 	ASSERT_EQUAL("test_construct_copies_text", Size{5}, text.Length());
@@ -104,7 +104,7 @@ int test_construct_copies_text() {
 int test_construct_stops_at_embedded_nul() {
 	int result = 0;
 	const wchar_t raw[] = { L'a', L'b', L'\0', L'c', L'\0' };
-	WCString text(raw);
+	Safe::WCString text(raw);
 	ASSERT_EQUAL("test_construct_stops_at_embedded_nul", Size{2}, text.Length());
 	ASSERT_EQUAL("test_construct_stops_at_embedded_nul", 0, std::wcscmp(View(text), L"ab"));
 	RETURN_TEST("test_construct_stops_at_embedded_nul", result);
@@ -112,7 +112,7 @@ int test_construct_stops_at_embedded_nul() {
 
 int test_construct_unicode() {
 	int result = 0;
-	WCString text(L"cañón 日本語");
+	Safe::WCString text(L"cañón 日本語");
 	ASSERT_TRUE("test_construct_unicode", View(text) != nullptr);
 	ASSERT_EQUAL("test_construct_unicode", 0, std::wcscmp(View(text), L"cañón 日本語"));
 	ASSERT_EQUAL("test_construct_unicode", Size{std::wcslen(L"cañón 日本語")}, text.Length());
@@ -122,7 +122,7 @@ int test_construct_unicode() {
 int test_construct_long() {
 	int result = 0;
 	const std::wstring raw(4096, L'X');
-	WCString text(raw.c_str());
+	Safe::WCString text(raw.c_str());
 	ASSERT_EQUAL("test_construct_long", Size{raw.size()}, text.Length());
 	ASSERT_EQUAL("test_construct_long", 0, std::wcscmp(View(text), raw.c_str()));
 	RETURN_TEST("test_construct_long", result);
@@ -134,8 +134,8 @@ int test_construct_long() {
 
 int test_copy_is_independent() {
 	int result = 0;
-	WCString original(L"alpha");
-	WCString copy(original);
+	Safe::WCString original(L"alpha");
+	Safe::WCString copy(original);
 	ASSERT_TRUE("test_copy_is_independent", View(copy) != View(original));
 	copy.Reset(L"beta");
 	ASSERT_EQUAL("test_copy_is_independent", 0, std::wcscmp(View(original), L"alpha"));
@@ -145,8 +145,8 @@ int test_copy_is_independent() {
 
 int test_copy_null() {
 	int result = 0;
-	WCString original;
-	WCString copy(original);
+	Safe::WCString original;
+	Safe::WCString copy(original);
 	ASSERT_FALSE("test_copy_null", static_cast<bool>(original));
 	ASSERT_FALSE("test_copy_null", static_cast<bool>(copy));
 	RETURN_TEST("test_copy_null", result);
@@ -154,8 +154,8 @@ int test_copy_null() {
 
 int test_copy_assign_overwrites() {
 	int result = 0;
-	WCString left(L"old");
-	WCString right(L"new");
+	Safe::WCString left(L"old");
+	Safe::WCString right(L"new");
 	left = right;
 	ASSERT_TRUE("test_copy_assign_overwrites", View(left) != View(right));
 	ASSERT_EQUAL("test_copy_assign_overwrites", 0, std::wcscmp(View(left), L"new"));
@@ -164,8 +164,8 @@ int test_copy_assign_overwrites() {
 
 int test_copy_assign_self() {
 	int result = 0;
-	WCString text(L"self");
-	WCString& alias = text;
+	Safe::WCString text(L"self");
+	Safe::WCString& alias = text;
 	text = alias;
 	ASSERT_EQUAL("test_copy_assign_self", 0, std::wcscmp(View(text), L"self"));
 	RETURN_TEST("test_copy_assign_self", result);
@@ -173,9 +173,9 @@ int test_copy_assign_self() {
 
 int test_move_leaves_source_null() {
 	int result = 0;
-	WCString original(L"payload");
+	Safe::WCString original(L"payload");
 	const wchar_t* raw = View(original);
-	WCString taken(std::move(original));
+	Safe::WCString taken(std::move(original));
 	ASSERT_FALSE("test_move_leaves_source_null", static_cast<bool>(original));
 	ASSERT_TRUE("test_move_leaves_source_null", View(taken) == raw);
 	RETURN_TEST("test_move_leaves_source_null", result);
@@ -183,8 +183,8 @@ int test_move_leaves_source_null() {
 
 int test_move_assign_leaves_source_null() {
 	int result = 0;
-	WCString left(L"old");
-	WCString right(L"fresh");
+	Safe::WCString left(L"old");
+	Safe::WCString right(L"fresh");
 	const wchar_t* raw = View(right);
 	left = std::move(right);
 	ASSERT_FALSE("test_move_assign_leaves_source_null", static_cast<bool>(right));
@@ -194,8 +194,8 @@ int test_move_assign_leaves_source_null() {
 
 int test_move_assign_self() {
 	int result = 0;
-	WCString text(L"self-move");
-	WCString& alias = text;
+	Safe::WCString text(L"self-move");
+	Safe::WCString& alias = text;
 	text = std::move(alias);
 	ASSERT_EQUAL("test_move_assign_self", 0, std::wcscmp(View(text), L"self-move"));
 	RETURN_TEST("test_move_assign_self", result);
@@ -203,8 +203,8 @@ int test_move_assign_self() {
 
 int test_move_from_null() {
 	int result = 0;
-	WCString original;
-	WCString taken(std::move(original));
+	Safe::WCString original;
+	Safe::WCString taken(std::move(original));
 	ASSERT_FALSE("test_move_from_null", static_cast<bool>(original));
 	ASSERT_FALSE("test_move_from_null", static_cast<bool>(taken));
 	RETURN_TEST("test_move_from_null", result);
@@ -216,7 +216,7 @@ int test_move_from_null() {
 
 int test_reset_replaces() {
 	int result = 0;
-	WCString text(L"first");
+	Safe::WCString text(L"first");
 	text.Reset(L"second");
 	ASSERT_EQUAL("test_reset_replaces", 0, std::wcscmp(View(text), L"second"));
 	text.Reset();
@@ -228,8 +228,8 @@ int test_reset_replaces() {
 
 int test_swap_exchanges() {
 	int result = 0;
-	WCString left(L"L");
-	WCString right(L"R");
+	Safe::WCString left(L"L");
+	Safe::WCString right(L"R");
 	left.swap(right);
 	ASSERT_TRUE("test_swap_exchanges", left == L"R");
 	ASSERT_TRUE("test_swap_exchanges", right == L"L");
@@ -245,7 +245,7 @@ int test_swap_exchanges() {
 
 int test_subscript_characters() {
 	int result = 0;
-	WCString text(L"ab");
+	Safe::WCString text(L"ab");
 	ASSERT_EQUAL("test_subscript_characters", L'a', text[Size{0}]);
 	ASSERT_EQUAL("test_subscript_characters", L'b', text[Size{1}]);
 	RETURN_TEST("test_subscript_characters", result);
@@ -253,14 +253,14 @@ int test_subscript_characters() {
 
 int test_subscript_nul_at_length() {
 	int result = 0;
-	WCString text(L"ab");
+	Safe::WCString text(L"ab");
 	ASSERT_EQUAL("test_subscript_nul_at_length", L'\0', text[text.Length()]);
 	RETURN_TEST("test_subscript_nul_at_length", result);
 }
 
 int test_subscript_empty() {
 	int result = 0;
-	WCString text(L"");
+	Safe::WCString text(L"");
 	ASSERT_EQUAL("test_subscript_empty", L'\0', text[Size{0}]);
 	ASSERT_EQUAL("test_subscript_empty", L'\0', text[text.Length()]);
 	RETURN_TEST("test_subscript_empty", result);
@@ -272,7 +272,7 @@ int test_subscript_empty() {
 
 int test_wstring_conversion_copies() {
 	int result = 0;
-	WCString text(L"bridge");
+	Safe::WCString text(L"bridge");
 	const std::wstring copy = text;
 	ASSERT_TRUE("test_wstring_conversion_copies", copy == L"bridge");
 	text.Reset(L"changed");
@@ -282,7 +282,7 @@ int test_wstring_conversion_copies() {
 
 int test_wstring_conversion_from_null() {
 	int result = 0;
-	WCString text;
+	Safe::WCString text;
 	const std::wstring copy = text;
 	ASSERT_TRUE("test_wstring_conversion_from_null", copy.empty());
 	RETURN_TEST("test_wstring_conversion_from_null", result);
@@ -290,7 +290,7 @@ int test_wstring_conversion_from_null() {
 
 int test_free_stream_operator() {
 	int result = 0;
-	WCString text(L"streamed");
+	Safe::WCString text(L"streamed");
 	std::wostringstream out;
 	out << text;
 	ASSERT_TRUE("test_free_stream_operator", out.str() == L"streamed");
@@ -299,7 +299,7 @@ int test_free_stream_operator() {
 
 int test_stream_null_writes_nothing() {
 	int result = 0;
-	WCString text;
+	Safe::WCString text;
 	std::wostringstream out;
 	out << L"pre" << text << L"post";
 	ASSERT_TRUE("test_stream_null_writes_nothing", out.str() == L"prepost");
@@ -312,8 +312,8 @@ int test_stream_null_writes_nothing() {
 
 int test_bool_empty_is_valid() {
 	int result = 0;
-	WCString empty(L"");
-	WCString missing;
+	Safe::WCString empty(L"");
+	Safe::WCString missing;
 	ASSERT_TRUE("test_bool_empty_is_valid", static_cast<bool>(empty));
 	ASSERT_FALSE("test_bool_empty_is_valid", static_cast<bool>(missing));
 	ASSERT_TRUE("test_bool_empty_is_valid", empty != missing);
@@ -322,8 +322,8 @@ int test_bool_empty_is_valid() {
 
 int test_equal_content_not_pointer() {
 	int result = 0;
-	WCString a(L"same");
-	WCString b(L"same");
+	Safe::WCString a(L"same");
+	Safe::WCString b(L"same");
 	ASSERT_TRUE("test_equal_content_not_pointer", View(a) != View(b));
 	ASSERT_TRUE("test_equal_content_not_pointer", a == b);
 	ASSERT_FALSE("test_equal_content_not_pointer", a != b);
@@ -336,9 +336,9 @@ int test_equal_content_not_pointer() {
 
 int test_null_equals_null_not_empty() {
 	int result = 0;
-	WCString a;
-	WCString b;
-	WCString empty(L"");
+	Safe::WCString a;
+	Safe::WCString b;
+	Safe::WCString empty(L"");
 	ASSERT_TRUE("test_null_equals_null_not_empty", a == b);
 	ASSERT_FALSE("test_null_equals_null_not_empty", a == empty);
 	ASSERT_TRUE("test_null_equals_null_not_empty", a != empty);
@@ -349,10 +349,10 @@ int test_null_equals_null_not_empty() {
 
 int test_spaceship_order() {
 	int result = 0;
-	WCString missing;
-	WCString empty(L"");
-	WCString alpha(L"alpha");
-	WCString beta(L"beta");
+	Safe::WCString missing;
+	Safe::WCString empty(L"");
+	Safe::WCString alpha(L"alpha");
+	Safe::WCString beta(L"beta");
 	ASSERT_TRUE("test_spaceship_order", (missing <=> missing) == std::strong_ordering::equal);
 	ASSERT_TRUE("test_spaceship_order", (missing <=> empty) == std::strong_ordering::less);
 	ASSERT_TRUE("test_spaceship_order", (empty <=> missing) == std::strong_ordering::greater);
@@ -366,30 +366,30 @@ int test_spaceship_order() {
 
 int test_roundtrip_with_cstring() {
 	int result = 0;
-	const WCString original(L"cañón 日本語");
-	const CString narrow(original);
-	const WCString back(narrow);
+	const Safe::WCString original(L"cañón 日本語");
+	const Safe::CString narrow(original);
+	const Safe::WCString back(narrow);
 	ASSERT_TRUE("test_roundtrip_with_cstring", back == original);
-	const CString ascii("1.00 KiB");
-	ASSERT_TRUE("test_roundtrip_with_cstring", WCString(ascii) == L"1.00 KiB");
-	ASSERT_TRUE("test_roundtrip_with_cstring", !WCString(CString()));
-	ASSERT_TRUE("test_roundtrip_with_cstring", !CString(WCString()));
+	const Safe::CString ascii("1.00 KiB");
+	ASSERT_TRUE("test_roundtrip_with_cstring", Safe::WCString(ascii) == L"1.00 KiB");
+	ASSERT_TRUE("test_roundtrip_with_cstring", !Safe::WCString(Safe::CString()));
+	ASSERT_TRUE("test_roundtrip_with_cstring", !Safe::CString(Safe::WCString()));
 	RETURN_TEST("test_roundtrip_with_cstring", result);
 }
 
 int test_hash_and_containers() {
 	int result = 0;
-	WCString a(L"key");
-	WCString b(L"key");
-	ASSERT_EQUAL("test_hash_and_containers", std::hash<WCString>{}(a), std::hash<WCString>{}(b));
-	ASSERT_EQUAL("test_hash_and_containers", 0u, std::hash<WCString>{}(WCString()));
-	std::set<WCString> ordered;
-	ordered.insert(WCString(L"b"));
-	ordered.insert(WCString(L"a"));
+	Safe::WCString a(L"key");
+	Safe::WCString b(L"key");
+	ASSERT_EQUAL("test_hash_and_containers", std::hash<Safe::WCString>{}(a), std::hash<Safe::WCString>{}(b));
+	ASSERT_EQUAL("test_hash_and_containers", 0u, std::hash<Safe::WCString>{}(Safe::WCString()));
+	std::set<Safe::WCString> ordered;
+	ordered.insert(Safe::WCString(L"b"));
+	ordered.insert(Safe::WCString(L"a"));
 	ASSERT_TRUE("test_hash_and_containers", *ordered.begin() == L"a");
-	std::unordered_set<WCString> hashed;
-	hashed.insert(WCString(L"k"));
-	ASSERT_TRUE("test_hash_and_containers", hashed.contains(WCString(L"k")));
+	std::unordered_set<Safe::WCString> hashed;
+	hashed.insert(Safe::WCString(L"k"));
+	ASSERT_TRUE("test_hash_and_containers", hashed.contains(Safe::WCString(L"k")));
 	RETURN_TEST("test_hash_and_containers", result);
 }
 

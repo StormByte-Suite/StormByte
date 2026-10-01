@@ -39,10 +39,8 @@
 
 #pragma once
 
-#include <StormByte/cstring.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
-#include <StormByte/wcstring.hxx>
 
 #include <cassert>
 #include <compare>
@@ -64,6 +62,13 @@
  * @brief Root namespace of the StormByte suite.
  */
 namespace StormByte {
+	/** @namespace StormByte::Safe
+	 * @brief Types safe to pass across a DLL boundary.
+	 */
+	namespace Safe {
+		class String;
+		class WString;
+	}
 	class ByteSize;
 
 	/**
@@ -95,7 +100,7 @@ namespace StormByte {
 	 * with the built-in candidates. Comparison with
 	 * @ref StormByte::ByteSize lives in `byte_size.hxx`.
 	 *
-	 * `operator CString` / `operator WCString` print decimal digits.
+	 * `operator Safe::String` / `operator Safe::WString` print decimal digits.
 	 */
 	class STORMBYTE_PUBLIC Size final {
 		public:
@@ -180,22 +185,20 @@ namespace StormByte {
 			 * @brief Decimal text owned by Base.
 			 * @return Digits, no unit suffix.
 			 */
-			explicit operator CString() const noexcept;
+			explicit operator Safe::String() const noexcept;
 
 			/**
 			 * @brief Decimal wide text owned by Base.
 			 * @return Digits, no unit suffix.
 			 */
-			explicit operator WCString() const noexcept;
+			explicit operator Safe::WString() const noexcept;
 
 			/**
 			 * @brief Decimal text on the caller heap.
 			 * @return Digits, no unit suffix.
 			 */
 			STORMBYTE_FORCE_INLINE operator std::string() const {
-				// By name. static_cast<CString> is CString(std::string) on GCC,
-				// and that calls this operator again.
-				return operator CString().operator std::string();
+				return std::to_string(m_value);
 			}
 
 			/**

@@ -63,13 +63,13 @@ int test_generate_not_null() {
 	int result = 0;
 	const auto uuid = GenerateUUIDv4();
 	ASSERT_TRUE("test_generate_not_null", static_cast<bool>(uuid));
-	ASSERT_EQUAL("test_generate_not_null", 36u, uuid.Length());
+	ASSERT_EQUAL("test_generate_not_null", 36u, uuid.size());
 	RETURN_TEST("test_generate_not_null", result);
 }
 
 int test_generate_implicit_string() {
 	int result = 0;
-	const std::string text = GenerateUUIDv4();
+	const std::string text = static_cast<std::string>(GenerateUUIDv4());
 	ASSERT_EQUAL("test_generate_implicit_string", 36u, text.size());
 	RETURN_TEST("test_generate_implicit_string", result);
 }
@@ -105,7 +105,7 @@ int test_format_variant_rfc4122() {
 int test_format_hex_lowercase() {
 	int result = 0;
 	const auto uuid = GenerateUUIDv4();
-	for (std::size_t i = 0; i < uuid.Length(); ++i) {
+	for (std::size_t i = 0; i < uuid.size(); ++i) {
 		if (i == 8 || i == 13 || i == 18 || i == 23)
 			continue;
 		ASSERT_TRUE("test_format_hex_lowercase", IsHex(uuid[i]));
@@ -117,7 +117,7 @@ int test_format_hex_lowercase() {
 int test_format_rejects_wrong_length_shape() {
 	int result = 0;
 	const auto uuid = GenerateUUIDv4();
-	ASSERT_FALSE("test_format_rejects_wrong_length_shape", uuid.Length() != 36);
+	ASSERT_FALSE("test_format_rejects_wrong_length_shape", uuid.size() != 36);
 	ASSERT_FALSE("test_format_rejects_wrong_length_shape", uuid[8] != '-');
 	ASSERT_FALSE("test_format_rejects_wrong_length_shape", uuid[14] != '4');
 	ASSERT_FALSE("test_format_rejects_wrong_length_shape", !IsVariant(uuid[19]));
@@ -133,8 +133,9 @@ int test_generate_distinct() {
 	std::set<std::string> seen;
 	for (int i = 0; i < 1000; ++i) {
 		const auto uuid = GenerateUUIDv4();
-		ASSERT_TRUE("test_generate_distinct", !seen.contains(uuid));
-		seen.insert(uuid);
+		const std::string text = static_cast<std::string>(uuid);
+		ASSERT_TRUE("test_generate_distinct", !seen.contains(text));
+		seen.insert(text);
 	}
 	ASSERT_EQUAL("test_generate_distinct", 1000u, seen.size());
 	RETURN_TEST("test_generate_distinct", result);

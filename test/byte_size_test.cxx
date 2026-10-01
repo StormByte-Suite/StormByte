@@ -38,11 +38,11 @@
  */
 
 #include <StormByte/byte_size.hxx>
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
 #include <StormByte/type_traits.hxx>
-#include <StormByte/wcstring.hxx>
+#include <StormByte/safe/wstring.hxx>
 
 #include <cstdint>
 #include <iostream>
@@ -293,14 +293,14 @@ int test_construct_zero() {
 
 int test_convert_cstring_wcstring_human() {
 	int result = 0;
-	ASSERT_EQUAL("test_convert_cstring_wcstring_human", std::string("0 B"), std::string(static_cast<CString>(ByteSize{})));
-	ASSERT_EQUAL("test_convert_cstring_wcstring_human", std::string("1023 B"), std::string(static_cast<CString>(ByteSize{1023})));
+	ASSERT_EQUAL("test_convert_cstring_wcstring_human", std::string("0 B"), std::string(static_cast<Safe::String>(ByteSize{})));
+	ASSERT_EQUAL("test_convert_cstring_wcstring_human", std::string("1023 B"), std::string(static_cast<Safe::String>(ByteSize{1023})));
 	const ByteSize kib = 1 * KiB;
-	const CString owned = static_cast<CString>(kib);
-	const WCString wide = static_cast<WCString>(kib);
+	const Safe::String owned = static_cast<Safe::String>(kib);
+	const Safe::WString wide = static_cast<Safe::WString>(kib);
 	ASSERT_EQUAL("test_convert_cstring_wcstring_human", std::string("1.00 KiB"), std::string(owned));
 	ASSERT_TRUE("test_convert_cstring_wcstring_human", wide == L"1.00 KiB");
-	const CString mib = static_cast<CString>((1 * MiB) + (512 * KiB));
+	const Safe::String mib = static_cast<Safe::String>((1 * MiB) + (512 * KiB));
 	ASSERT_EQUAL("test_convert_cstring_wcstring_human", std::string("1.50 MiB"), std::string(mib));
 	const std::string text = kib;
 	ASSERT_EQUAL("test_convert_cstring_wcstring_human", std::string("1.00 KiB"), text);

@@ -39,7 +39,7 @@
 
 #pragma once
 
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/visibility.h>
 
 #include <concepts>
@@ -156,7 +156,7 @@ namespace StormByte {
 
 		/**
 		 * @class Fault
-		 * @brief Held error: an `std::error_code` and a @ref StormByte::CString message.
+		 * @brief Held error: an `std::error_code` and a @ref StormByte::Safe::String message.
 		 *
 		 * Used as object state (`File`, tube `Fail`). Not thrown.
 		 * `operator bool` is true when the code is an error.
@@ -250,7 +250,7 @@ namespace StormByte {
 
 			private:
 				std::error_code m_code;	///< Held code
-				CString m_what;			///< Owned message
+				Safe::String m_what;			///< Owned message
 		};
 	}
 }

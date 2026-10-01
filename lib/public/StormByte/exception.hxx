@@ -39,7 +39,7 @@
 
 #pragma once
 
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/visibility.h>
 
 #include <format>
@@ -58,9 +58,9 @@ namespace StormByte {
 	 *
 	 * `what()` is `StormByte: message`, or `StormByte.path: message` when
 	 * a module parent passes the segments under `StormByte` (`Crypto.Crypter`).
-	 * Segments are joined with a dot. The message is a @ref StormByte::CString.
-	 * `std::format` runs in the caller's translation unit. This DLL only copies
-	 * a `const char*`. A parent passes @ref StormByte::Exception::Path, a
+	 * Segments are joined with a dot. The message is a @ref StormByte::Safe::String.
+		 * `std::format` runs in the caller's translation unit. The result is copied
+		 * into an owned string. A parent passes @ref StormByte::Exception::Path, a
 	 * `std::string_view` that lives for the constructor call and is not stored.
 	 * A bare string is not a path: that would be ambiguous with the format constructor.
 	 *
@@ -72,16 +72,16 @@ namespace StormByte {
 	class STORMBYTE_PUBLIC Exception {
 		public:
 			/**
-			 * @brief Constructs from a string. Text is `StormByte: message`.
+			 * @brief Copies text into `StormByte: message`.
 			 * @param message Exception text. Not a format string.
 			 */
-			explicit Exception(const std::string& message);
+			explicit Exception(std::string_view message);
 
 			/**
-			 * @brief Constructs from a moved string. Text is `StormByte: message`.
-			 * @param message Exception text. Not a format string. Not stolen.
+			 * @brief Copies owned text into `StormByte: message`.
+			 * @param message Exception text. Not a format string.
 			 */
-			explicit Exception(std::string&& message);
+			explicit Exception(const Safe::String& message);
 
 		protected:
 			/**
@@ -183,10 +183,10 @@ namespace StormByte {
 				full.append(path);
 				full.append(": ");
 				full.append(body);
-				m_what.Reset(full.c_str());
+				m_what = Safe::String(std::string_view(full));
 			}
 
-			CString m_what;	///< Owned message
+			Safe::String m_what;	///< Owned message
 	};
 
 	/**

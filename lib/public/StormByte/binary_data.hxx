@@ -40,7 +40,7 @@
 #pragma once
 
 #include <StormByte/byte_size.hxx>
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/exception.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/type_traits.hxx>
@@ -731,7 +731,7 @@ namespace StormByte {
 			 *
 			 * @return Dump text owned by Base. Empty when this sequence is empty.
 			 */
-			CString HexDump() const;
+			Safe::String HexDump() const;
 
 			/**
 			 * @brief Hexadecimal dump of the occupied bytes.
@@ -745,7 +745,7 @@ namespace StormByte {
 			 * @param columns Bytes per row; @c 0 means a single row.
 			 * @return Dump text owned by Base. Empty when this sequence is empty.
 			 */
-			CString HexDump(Size columns) const;
+			Safe::String HexDump(Size columns) const;
 
 		private:
 			/**

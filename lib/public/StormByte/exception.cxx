@@ -41,12 +41,12 @@
 
 using namespace StormByte;
 
-Exception::Exception(const std::string& message) {
+Exception::Exception(std::string_view message) {
 	Assign("StormByte", message);
 }
 
-Exception::Exception(std::string&& message) {
-	Assign("StormByte", message);
+Exception::Exception(const Safe::String& message) {
+	Assign("StormByte", static_cast<std::string_view>(message));
 }
 
 Exception::~Exception() noexcept = default;

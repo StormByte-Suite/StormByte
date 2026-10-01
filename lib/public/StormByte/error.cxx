@@ -56,7 +56,7 @@ Error::Fault::Fault() noexcept
 : Fault(make_error_code(Error::Code::Success)) {}
 
 Error::Fault::Fault(const std::error_code& code)
-: m_code(code), m_what(std::format("{}: {}", code.category().name(), code.message()).c_str()) {}
+: m_code(code), m_what(std::format("{}: {}", code.category().name(), code.message())) {}
 
 const std::error_code& Error::Fault::code() const noexcept {
 	return m_code;

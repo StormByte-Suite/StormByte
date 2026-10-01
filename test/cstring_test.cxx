@@ -37,7 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/cstring.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
 
@@ -53,7 +53,7 @@
 using namespace StormByte;
 
 namespace {
-	const char* View(const CString& text) {
+	const char* View(const Safe::CString& text) {
 		return static_cast<const char*>(text);
 	}
 }
@@ -64,7 +64,7 @@ namespace {
 
 int test_default_is_null() {
 	int result = 0;
-	CString text;
+	Safe::CString text;
 	ASSERT_TRUE("test_default_is_null", View(text) == nullptr);
 	ASSERT_EQUAL("test_default_is_null", Size{0}, text.Length());
 	ASSERT_FALSE("test_default_is_null", static_cast<bool>(text));
@@ -73,7 +73,7 @@ int test_default_is_null() {
 
 int test_construct_from_null() {
 	int result = 0;
-	CString text(static_cast<const char*>(nullptr));
+	Safe::CString text(static_cast<const char*>(nullptr));
 	ASSERT_TRUE("test_construct_from_null", View(text) == nullptr);
 	ASSERT_FALSE("test_construct_from_null", static_cast<bool>(text));
 	RETURN_TEST("test_construct_from_null", result);
@@ -81,7 +81,7 @@ int test_construct_from_null() {
 
 int test_construct_from_empty() {
 	int result = 0;
-	CString text("");
+	Safe::CString text("");
 	ASSERT_TRUE("test_construct_from_empty", View(text) != nullptr);
 	ASSERT_TRUE("test_construct_from_empty", static_cast<bool>(text));
 	ASSERT_EQUAL("test_construct_from_empty", 0, std::strcmp(View(text), ""));
@@ -92,7 +92,7 @@ int test_construct_from_empty() {
 int test_construct_copies_text() {
 	int result = 0;
 	const char raw[] = "hello";
-	CString text(raw);
+	Safe::CString text(raw);
 	ASSERT_TRUE("test_construct_copies_text", View(text) != raw);
 	ASSERT_EQUAL("test_construct_copies_text", 0, std::strcmp(View(text), "hello"));
 	ASSERT_EQUAL("test_construct_copies_text", Size{5}, text.Length());
@@ -103,7 +103,7 @@ int test_construct_copies_text() {
 int test_construct_stops_at_embedded_nul() {
 	int result = 0;
 	const char raw[] = { 'a', 'b', '\0', 'c', '\0' };
-	CString text(raw);
+	Safe::CString text(raw);
 	ASSERT_EQUAL("test_construct_stops_at_embedded_nul", Size{2}, text.Length());
 	ASSERT_EQUAL("test_construct_stops_at_embedded_nul", 0, std::strcmp(View(text), "ab"));
 	RETURN_TEST("test_construct_stops_at_embedded_nul", result);
@@ -112,7 +112,7 @@ int test_construct_stops_at_embedded_nul() {
 int test_construct_long() {
 	int result = 0;
 	const std::string raw(4096, 'X');
-	CString text(raw.c_str());
+	Safe::CString text(raw.c_str());
 	ASSERT_EQUAL("test_construct_long", Size{raw.size()}, text.Length());
 	ASSERT_EQUAL("test_construct_long", 0, std::strcmp(View(text), raw.c_str()));
 	RETURN_TEST("test_construct_long", result);
@@ -124,8 +124,8 @@ int test_construct_long() {
 
 int test_copy_is_independent() {
 	int result = 0;
-	CString original("alpha");
-	CString copy(original);
+	Safe::CString original("alpha");
+	Safe::CString copy(original);
 	ASSERT_TRUE("test_copy_is_independent", View(copy) != View(original));
 	copy.Reset("beta");
 	ASSERT_EQUAL("test_copy_is_independent", 0, std::strcmp(View(original), "alpha"));
@@ -135,8 +135,8 @@ int test_copy_is_independent() {
 
 int test_copy_null() {
 	int result = 0;
-	CString original;
-	CString copy(original);
+	Safe::CString original;
+	Safe::CString copy(original);
 	ASSERT_FALSE("test_copy_null", static_cast<bool>(original));
 	ASSERT_FALSE("test_copy_null", static_cast<bool>(copy));
 	RETURN_TEST("test_copy_null", result);
@@ -144,8 +144,8 @@ int test_copy_null() {
 
 int test_copy_assign_overwrites() {
 	int result = 0;
-	CString left("old");
-	CString right("new");
+	Safe::CString left("old");
+	Safe::CString right("new");
 	left = right;
 	ASSERT_TRUE("test_copy_assign_overwrites", View(left) != View(right));
 	ASSERT_EQUAL("test_copy_assign_overwrites", 0, std::strcmp(View(left), "new"));
@@ -154,8 +154,8 @@ int test_copy_assign_overwrites() {
 
 int test_copy_assign_self() {
 	int result = 0;
-	CString text("self");
-	CString& alias = text;
+	Safe::CString text("self");
+	Safe::CString& alias = text;
 	text = alias;
 	ASSERT_EQUAL("test_copy_assign_self", 0, std::strcmp(View(text), "self"));
 	RETURN_TEST("test_copy_assign_self", result);
@@ -163,9 +163,9 @@ int test_copy_assign_self() {
 
 int test_move_leaves_source_null() {
 	int result = 0;
-	CString original("payload");
+	Safe::CString original("payload");
 	const char* raw = View(original);
-	CString taken(std::move(original));
+	Safe::CString taken(std::move(original));
 	ASSERT_FALSE("test_move_leaves_source_null", static_cast<bool>(original));
 	ASSERT_TRUE("test_move_leaves_source_null", View(taken) == raw);
 	RETURN_TEST("test_move_leaves_source_null", result);
@@ -173,8 +173,8 @@ int test_move_leaves_source_null() {
 
 int test_move_assign_leaves_source_null() {
 	int result = 0;
-	CString left("old");
-	CString right("fresh");
+	Safe::CString left("old");
+	Safe::CString right("fresh");
 	const char* raw = View(right);
 	left = std::move(right);
 	ASSERT_FALSE("test_move_assign_leaves_source_null", static_cast<bool>(right));
@@ -184,8 +184,8 @@ int test_move_assign_leaves_source_null() {
 
 int test_move_assign_self() {
 	int result = 0;
-	CString text("self-move");
-	CString& alias = text;
+	Safe::CString text("self-move");
+	Safe::CString& alias = text;
 	text = std::move(alias);
 	ASSERT_EQUAL("test_move_assign_self", 0, std::strcmp(View(text), "self-move"));
 	RETURN_TEST("test_move_assign_self", result);
@@ -193,8 +193,8 @@ int test_move_assign_self() {
 
 int test_move_from_null() {
 	int result = 0;
-	CString original;
-	CString taken(std::move(original));
+	Safe::CString original;
+	Safe::CString taken(std::move(original));
 	ASSERT_FALSE("test_move_from_null", static_cast<bool>(original));
 	ASSERT_FALSE("test_move_from_null", static_cast<bool>(taken));
 	RETURN_TEST("test_move_from_null", result);
@@ -206,7 +206,7 @@ int test_move_from_null() {
 
 int test_reset_replaces() {
 	int result = 0;
-	CString text("first");
+	Safe::CString text("first");
 	text.Reset("second");
 	ASSERT_EQUAL("test_reset_replaces", 0, std::strcmp(View(text), "second"));
 	text.Reset();
@@ -218,8 +218,8 @@ int test_reset_replaces() {
 
 int test_swap_exchanges() {
 	int result = 0;
-	CString left("L");
-	CString right("R");
+	Safe::CString left("L");
+	Safe::CString right("R");
 	left.swap(right);
 	ASSERT_TRUE("test_swap_exchanges", left == "R");
 	ASSERT_TRUE("test_swap_exchanges", right == "L");
@@ -235,7 +235,7 @@ int test_swap_exchanges() {
 
 int test_subscript_characters() {
 	int result = 0;
-	CString text("ab");
+	Safe::CString text("ab");
 	ASSERT_EQUAL("test_subscript_characters", 'a', text[Size{0}]);
 	ASSERT_EQUAL("test_subscript_characters", 'b', text[Size{1}]);
 	RETURN_TEST("test_subscript_characters", result);
@@ -243,14 +243,14 @@ int test_subscript_characters() {
 
 int test_subscript_nul_at_length() {
 	int result = 0;
-	CString text("ab");
+	Safe::CString text("ab");
 	ASSERT_EQUAL("test_subscript_nul_at_length", '\0', text[text.Length()]);
 	RETURN_TEST("test_subscript_nul_at_length", result);
 }
 
 int test_subscript_empty() {
 	int result = 0;
-	CString text("");
+	Safe::CString text("");
 	ASSERT_EQUAL("test_subscript_empty", '\0', text[Size{0}]);
 	ASSERT_EQUAL("test_subscript_empty", '\0', text[text.Length()]);
 	RETURN_TEST("test_subscript_empty", result);
@@ -262,7 +262,7 @@ int test_subscript_empty() {
 
 int test_string_conversion_copies() {
 	int result = 0;
-	CString text("bridge");
+	Safe::CString text("bridge");
 	const std::string copy = text;
 	ASSERT_EQUAL("test_string_conversion_copies", std::string("bridge"), copy);
 	text.Reset("changed");
@@ -272,7 +272,7 @@ int test_string_conversion_copies() {
 
 int test_string_conversion_from_null() {
 	int result = 0;
-	CString text;
+	Safe::CString text;
 	const std::string copy = text;
 	ASSERT_TRUE("test_string_conversion_from_null", copy.empty());
 	RETURN_TEST("test_string_conversion_from_null", result);
@@ -280,7 +280,7 @@ int test_string_conversion_from_null() {
 
 int test_free_stream_operator() {
 	int result = 0;
-	CString text("streamed");
+	Safe::CString text("streamed");
 	std::ostringstream out;
 	out << text;
 	ASSERT_EQUAL("test_free_stream_operator", std::string("streamed"), out.str());
@@ -289,7 +289,7 @@ int test_free_stream_operator() {
 
 int test_stream_null_writes_nothing() {
 	int result = 0;
-	CString text;
+	Safe::CString text;
 	std::ostringstream out;
 	out << "pre" << text << "post";
 	ASSERT_EQUAL("test_stream_null_writes_nothing", std::string("prepost"), out.str());
@@ -302,8 +302,8 @@ int test_stream_null_writes_nothing() {
 
 int test_bool_empty_is_valid() {
 	int result = 0;
-	CString empty("");
-	CString missing;
+	Safe::CString empty("");
+	Safe::CString missing;
 	ASSERT_TRUE("test_bool_empty_is_valid", static_cast<bool>(empty));
 	ASSERT_FALSE("test_bool_empty_is_valid", static_cast<bool>(missing));
 	ASSERT_TRUE("test_bool_empty_is_valid", empty != missing);
@@ -312,8 +312,8 @@ int test_bool_empty_is_valid() {
 
 int test_equal_content_not_pointer() {
 	int result = 0;
-	CString a("same");
-	CString b("same");
+	Safe::CString a("same");
+	Safe::CString b("same");
 	ASSERT_TRUE("test_equal_content_not_pointer", View(a) != View(b));
 	ASSERT_TRUE("test_equal_content_not_pointer", a == b);
 	ASSERT_FALSE("test_equal_content_not_pointer", a != b);
@@ -326,9 +326,9 @@ int test_equal_content_not_pointer() {
 
 int test_null_equals_null_not_empty() {
 	int result = 0;
-	CString a;
-	CString b;
-	CString empty("");
+	Safe::CString a;
+	Safe::CString b;
+	Safe::CString empty("");
 	ASSERT_TRUE("test_null_equals_null_not_empty", a == b);
 	ASSERT_FALSE("test_null_equals_null_not_empty", a == empty);
 	ASSERT_TRUE("test_null_equals_null_not_empty", a != empty);
@@ -339,10 +339,10 @@ int test_null_equals_null_not_empty() {
 
 int test_spaceship_order() {
 	int result = 0;
-	CString missing;
-	CString empty("");
-	CString alpha("alpha");
-	CString beta("beta");
+	Safe::CString missing;
+	Safe::CString empty("");
+	Safe::CString alpha("alpha");
+	Safe::CString beta("beta");
 	ASSERT_TRUE("test_spaceship_order", (missing <=> missing) == std::strong_ordering::equal);
 	ASSERT_TRUE("test_spaceship_order", (missing <=> empty) == std::strong_ordering::less);
 	ASSERT_TRUE("test_spaceship_order", (empty <=> missing) == std::strong_ordering::greater);
@@ -356,17 +356,17 @@ int test_spaceship_order() {
 
 int test_hash_and_containers() {
 	int result = 0;
-	CString a("key");
-	CString b("key");
-	ASSERT_EQUAL("test_hash_and_containers", std::hash<CString>{}(a), std::hash<CString>{}(b));
-	ASSERT_EQUAL("test_hash_and_containers", 0u, std::hash<CString>{}(CString()));
-	std::set<CString> ordered;
-	ordered.insert(CString("b"));
-	ordered.insert(CString("a"));
+	Safe::CString a("key");
+	Safe::CString b("key");
+	ASSERT_EQUAL("test_hash_and_containers", std::hash<Safe::CString>{}(a), std::hash<Safe::CString>{}(b));
+	ASSERT_EQUAL("test_hash_and_containers", 0u, std::hash<Safe::CString>{}(Safe::CString()));
+	std::set<Safe::CString> ordered;
+	ordered.insert(Safe::CString("b"));
+	ordered.insert(Safe::CString("a"));
 	ASSERT_TRUE("test_hash_and_containers", *ordered.begin() == "a");
-	std::unordered_set<CString> hashed;
-	hashed.insert(CString("k"));
-	ASSERT_TRUE("test_hash_and_containers", hashed.contains(CString("k")));
+	std::unordered_set<Safe::CString> hashed;
+	hashed.insert(Safe::CString("k"));
+	ASSERT_TRUE("test_hash_and_containers", hashed.contains(Safe::CString("k")));
 	RETURN_TEST("test_hash_and_containers", result);
 }
 

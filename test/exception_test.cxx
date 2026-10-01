@@ -66,6 +66,18 @@ int test_construct_from_lvalue_string() {
 	RETURN_TEST("test_construct_from_lvalue_string", result);
 }
 
+int test_construct_from_view_and_safe_string() {
+	int result = 0;
+	const std::string source("partial suffix");
+	const std::string_view view(source.data(), 7);
+	const Exception from_view(view);
+	ASSERT_EQUAL("test_construct_from_view_and_safe_string", std::string("StormByte: partial"), std::string(from_view.what()));
+	const Safe::String message("owned");
+	const Exception from_owned(message);
+	ASSERT_EQUAL("test_construct_from_view_and_safe_string", std::string("StormByte: owned"), std::string(from_owned.what()));
+	RETURN_TEST("test_construct_from_view_and_safe_string", result);
+}
+
 int test_formatted_message_with_args() {
 	int result = 0;
 	Exception e("value is {}", 42);
@@ -178,6 +190,7 @@ int main() {
 	// -------------------
 	result += test_plain_message_no_args();
 	result += test_construct_from_lvalue_string();
+	result += test_construct_from_view_and_safe_string();
 	result += test_formatted_message_with_args();
 	result += test_zero_args_format_string_ctor_is_as_is();
 	result += test_parent_prepends_segment();

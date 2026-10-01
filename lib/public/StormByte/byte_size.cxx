@@ -74,14 +74,14 @@ namespace StormByte {
 		}
 	}
 
-	ByteSize::operator CString() const noexcept {
+	ByteSize::operator Safe::String() const noexcept {
 		char buffer[32];
 		FormatIec(m_value, buffer, sizeof(buffer));
-		return CString(buffer);
+		return Safe::String(buffer);
 	}
 
-	ByteSize::operator WCString() const noexcept {
-		return WCString(static_cast<CString>(*this));
+	ByteSize::operator Safe::WString() const noexcept {
+		return Safe::WString(static_cast<Safe::String>(*this));
 	}
 
 	template STORMBYTE_INSTANTIATE ByteSize& ByteSize::operator=(char) noexcept;

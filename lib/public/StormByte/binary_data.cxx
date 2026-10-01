@@ -47,7 +47,7 @@
 
 using StormByte::BinaryData;
 using StormByte::ByteSize;
-using StormByte::CString;
+using StormByte::Safe::String;
 using StormByte::OutOfBoundsError;
 using StormByte::Size;
 
@@ -428,13 +428,13 @@ void StormByte::swap(BinaryData& lhs, BinaryData& rhs) noexcept {
 	lhs.swap(rhs);
 }
 
-CString BinaryData::HexDump() const {
+String BinaryData::HexDump() const {
 	return HexDump(Size{16});
 }
 
-CString BinaryData::HexDump(Size columns) const {
+String BinaryData::HexDump(Size columns) const {
 	if (empty())
-		return CString();
+		return Safe::String();
 
 	const auto* raw = m_storage->bytes.data();
 	const std::size_t total = m_storage->bytes.size();
@@ -463,5 +463,5 @@ CString BinaryData::HexDump(Size columns) const {
 			out << ((ch >= 0x20 && ch < 0x7f) ? static_cast<char>(ch) : '.');
 		}
 	}
-	return CString(out.str());
+	return Safe::String(out.str());
 }

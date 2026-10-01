@@ -38,25 +38,27 @@
  */
 
 #include <StormByte/size.hxx>
+#include <StormByte/safe/string.hxx>
+#include <StormByte/safe/wstring.hxx>
 
 #include <cstdio>
 #include <cwchar>
 
 namespace StormByte {
-	Size::operator CString() const noexcept {
+	Size::operator Safe::String() const noexcept {
 		char buf[32];
 		const int n = std::snprintf(buf, sizeof(buf), "%zu", static_cast<std::size_t>(*this));
 		if (n <= 0)
-			return CString("0");
-		return CString(buf);
+			return Safe::String("0");
+		return Safe::String(buf);
 	}
 
-	Size::operator WCString() const noexcept {
+	Size::operator Safe::WString() const noexcept {
 		wchar_t buf[32];
 		const int n = std::swprintf(buf, sizeof(buf) / sizeof(buf[0]), L"%zu", static_cast<std::size_t>(*this));
 		if (n <= 0)
-			return WCString(L"0");
-		return WCString(buf);
+			return Safe::WString(L"0");
+		return Safe::WString(buf);
 	}
 
 	template STORMBYTE_INSTANTIATE Size& Size::operator=(char) noexcept;

@@ -69,7 +69,7 @@ namespace {
 	}
 }
 
-CString StormByte::GenerateUUIDv4() noexcept {
+Safe::String StormByte::GenerateUUIDv4() noexcept {
 	std::array<uint8_t, 16> b{};
 	if (!FillRandomBytes(b.data(), b.size())) {
 		static thread_local std::mt19937_64 rng((std::random_device())());
@@ -91,5 +91,5 @@ CString StormByte::GenerateUUIDv4() noexcept {
 		b[8], b[9],
 		b[10], b[11], b[12], b[13], b[14], b[15]
 	);
-	return CString(buf);
+	return Safe::String(buf);
 }

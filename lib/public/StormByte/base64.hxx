@@ -40,7 +40,7 @@
 #pragma once
 
 #include <StormByte/binary_data.hxx>
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/visibility.h>
 
 #include <cstddef>
@@ -69,14 +69,14 @@ namespace StormByte {
 	/**
 	 * @brief Encodes bytes as Base64 with `=` padding.
 	 * @param input Bytes to encode.
-	 * @return Base64 text as a `CString`.
+	 * @return Base64 text as a `Safe::String`.
 	 */
-	STORMBYTE_PUBLIC CString Base64Encode(const BinaryData& input);
+	STORMBYTE_PUBLIC Safe::String Base64Encode(const BinaryData& input);
 
 	/**
 	 * @brief Encodes a contiguous byte span as Base64 with `=` padding.
 	 * @param input Bytes to encode.
-	 * @return Base64 text as a `CString`.
+	 * @return Base64 text as a `Safe::String`.
 	 */
-	STORMBYTE_PUBLIC CString Base64Encode(std::span<const std::byte> input);
+	STORMBYTE_PUBLIC Safe::String Base64Encode(std::span<const std::byte> input);
 }

@@ -65,8 +65,10 @@ namespace StormByte {
 	template class STORMBYTE_INSTANTIATE Serializable<std::wstring>;
 	template class STORMBYTE_INSTANTIATE Serializable<std::u16string>;
 	template class STORMBYTE_INSTANTIATE Serializable<std::u32string>;
-	template class STORMBYTE_INSTANTIATE Serializable<CString>;
-	template class STORMBYTE_INSTANTIATE Serializable<WCString>;
+	template class STORMBYTE_INSTANTIATE Serializable<Safe::CString>;
+	template class STORMBYTE_INSTANTIATE Serializable<Safe::WCString>;
+	template class STORMBYTE_INSTANTIATE Serializable<Safe::String>;
+	template class STORMBYTE_INSTANTIATE Serializable<Safe::WString>;
 	template class STORMBYTE_INSTANTIATE Serializable<BinaryData>;
 
 	namespace {
@@ -315,33 +317,63 @@ namespace StormByte {
 		return utf8_to_u32(payload.value());
 	}
 
-	ByteSize Detail::Codec<CString>::Size(const CString& data) noexcept {
+	ByteSize Detail::Codec<Safe::CString>::Size(const Safe::CString& data) noexcept {
 		return Detail::Codec<std::string>::Size(static_cast<std::string>(data));
 	}
 
-	BinaryData Detail::Codec<CString>::Write(const CString& data) noexcept {
+	BinaryData Detail::Codec<Safe::CString>::Write(const Safe::CString& data) noexcept {
 		return Detail::Codec<std::string>::Write(static_cast<std::string>(data));
 	}
 
-	Expected<CString, DeserializeError> Detail::Codec<CString>::Read(std::span<const std::byte> data) noexcept {
+	Expected<Safe::CString, DeserializeError> Detail::Codec<Safe::CString>::Read(std::span<const std::byte> data) noexcept {
 		auto payload = Detail::Codec<std::string>::Read(data);
 		if (!payload)
 			return Unexpected(payload.error());
-		return CString(payload.value().c_str());
+		return Safe::CString(payload.value().c_str());
 	}
 
-	ByteSize Detail::Codec<WCString>::Size(const WCString& data) noexcept {
+	ByteSize Detail::Codec<Safe::WCString>::Size(const Safe::WCString& data) noexcept {
 		return Detail::Codec<std::wstring>::Size(static_cast<std::wstring>(data));
 	}
 
-	BinaryData Detail::Codec<WCString>::Write(const WCString& data) noexcept {
+	BinaryData Detail::Codec<Safe::WCString>::Write(const Safe::WCString& data) noexcept {
 		return Detail::Codec<std::wstring>::Write(static_cast<std::wstring>(data));
 	}
 
-	Expected<WCString, DeserializeError> Detail::Codec<WCString>::Read(std::span<const std::byte> data) noexcept {
+	Expected<Safe::WCString, DeserializeError> Detail::Codec<Safe::WCString>::Read(std::span<const std::byte> data) noexcept {
 		auto payload = Detail::Codec<std::wstring>::Read(data);
 		if (!payload)
 			return Unexpected(payload.error());
-		return WCString(payload.value().c_str());
+		return Safe::WCString(payload.value().c_str());
+	}
+
+	ByteSize Detail::Codec<Safe::String>::Size(const Safe::String& data) noexcept {
+		return Detail::Codec<std::string>::Size(static_cast<std::string>(data));
+	}
+
+	BinaryData Detail::Codec<Safe::String>::Write(const Safe::String& data) noexcept {
+		return Detail::Codec<std::string>::Write(static_cast<std::string>(data));
+	}
+
+	Expected<Safe::String, DeserializeError> Detail::Codec<Safe::String>::Read(std::span<const std::byte> data) noexcept {
+		auto payload = Detail::Codec<std::string>::Read(data);
+		if (!payload)
+			return Unexpected(payload.error());
+		return Safe::String(std::string_view(payload.value()));
+	}
+
+	ByteSize Detail::Codec<Safe::WString>::Size(const Safe::WString& data) noexcept {
+		return Detail::Codec<std::wstring>::Size(static_cast<std::wstring>(data));
+	}
+
+	BinaryData Detail::Codec<Safe::WString>::Write(const Safe::WString& data) noexcept {
+		return Detail::Codec<std::wstring>::Write(static_cast<std::wstring>(data));
+	}
+
+	Expected<Safe::WString, DeserializeError> Detail::Codec<Safe::WString>::Read(std::span<const std::byte> data) noexcept {
+		auto payload = Detail::Codec<std::wstring>::Read(data);
+		if (!payload)
+			return Unexpected(payload.error());
+		return Safe::WString(std::wstring_view(payload.value()));
 	}
 }

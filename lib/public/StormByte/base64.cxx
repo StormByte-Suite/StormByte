@@ -71,7 +71,7 @@ namespace {
 
 	constexpr auto DecodeTable = MakeDecodeTable();
 
-	CString EncodeImpl(std::span<const std::byte> input) {
+	Safe::String EncodeImpl(std::span<const std::byte> input) {
 		const std::size_t size = input.size();
 		std::string output;
 		output.resize(((size + 2) / 3) * 4);
@@ -103,7 +103,7 @@ namespace {
 			}
 		}
 
-		return CString(output.c_str());
+		return Safe::String(output.c_str());
 	}
 }
 
@@ -132,10 +132,10 @@ BinaryData StormByte::Base64Decode(std::string_view input) {
 	return output;
 }
 
-CString StormByte::Base64Encode(const BinaryData& input) {
+Safe::String StormByte::Base64Encode(const BinaryData& input) {
 	return EncodeImpl(input.span());
 }
 
-CString StormByte::Base64Encode(std::span<const std::byte> input) {
+Safe::String StormByte::Base64Encode(std::span<const std::byte> input) {
 	return EncodeImpl(input);
 }

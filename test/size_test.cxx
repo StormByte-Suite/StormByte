@@ -38,6 +38,8 @@
  */
 
 #include <StormByte/size.hxx>
+#include <StormByte/safe/string.hxx>
+#include <StormByte/safe/wstring.hxx>
 #include <StormByte/test_handlers.h>
 #include <StormByte/type_traits.hxx>
 
@@ -282,8 +284,8 @@ int test_construct_zero() {
 int test_convert_cstring_wcstring_decimal() {
 	int result = 0;
 	const Size size{1024};
-	const CString owned = static_cast<CString>(size);
-	const WCString wide = static_cast<WCString>(size);
+	const Safe::String owned = static_cast<Safe::String>(size);
+	const Safe::WString wide = static_cast<Safe::WString>(size);
 	const std::string text = size;
 	ASSERT_EQUAL("test_convert_cstring_wcstring_decimal", "1024", std::string(owned));
 	ASSERT_EQUAL("test_convert_cstring_wcstring_decimal", "1024", text);

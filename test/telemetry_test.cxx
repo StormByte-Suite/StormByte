@@ -74,8 +74,8 @@ namespace {
 				return Clock(name).MeanDuration();
 			}
 
-			operator StormByte::CString() const override {
-				return StormByte::CString("dummy");
+			operator StormByte::Safe::String() const override {
+				return StormByte::Safe::String("dummy");
 			}
 	};
 }
@@ -131,8 +131,8 @@ static int test_const_clock_missing_and_lazy_insert() {
 
 static int test_string_conversions() {
 	Dummy dummy;
-	const StormByte::CString cstr = static_cast<StormByte::CString>(dummy);
-	ASSERT_EQUAL("test_string_conversions", StormByte::CString("dummy"), cstr);
+	const StormByte::Safe::String cstr = static_cast<StormByte::Safe::String>(dummy);
+	ASSERT_EQUAL("test_string_conversions", StormByte::Safe::String("dummy"), cstr);
 
 	const std::string str = static_cast<std::string>(dummy);
 	ASSERT_EQUAL("test_string_conversions", std::string("dummy"), str);

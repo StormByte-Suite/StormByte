@@ -9,20 +9,21 @@
 
 This repository is **StormByte Base**: the C++26 foundation of the StormByte suite.
 
-It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `CString` / `WCString`, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
+It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `Safe::String` / `Safe::WString`, `Safe::CString` / `Safe::WCString`, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
 
-The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multimedia, Network, String and System are **other repositories**. They depend on this one; this one does not implement them.
+The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multimedia, Network and System are **other repositories**. They depend on this one; this one does not implement them.
 
 ## What this module does
 
-- **Exceptions** — `StormByte::Exception`. `what()` is `StormByte: …`, or `StormByte.Crypto.Crypter: …` when a parent passes the segments under `StormByte`. The text is a `CString`. A final leaf adds no segment.
-- **Error** — `Domain`, `Category`, `Code` and `Fault` for `std::error_code`. `Fault` is not thrown; its text is a `CString`.
+- **Exceptions** — `StormByte::Exception`. `what()` is `StormByte: …`, or `StormByte.Crypto.Crypter: …` when a parent passes the segments under `StormByte`. The text is a `Safe::String`. A final leaf adds no segment.
+- **Error** — `Domain`, `Category`, `Code` and `Fault` for `std::error_code`. `Fault` is not thrown; its text is a `Safe::String`.
 - **Expected** — `Expected<T, E>` on top of `std::expected`. The error is a `Safe::Shared<E>` on Base's heap. It converts to `std::shared_ptr<E>`. `Unexpected<E>("… {}", arg)` stays as it is.
 - **Serialization** — `Serializable<T>` to `BinaryData`, always little-endian, no BOM and no version tag. Optional / pair / container / trivial / `Detail::Codec<T>`. On-wire lengths are `ByteSize`.
-- **CString / WCString** — owned NUL-terminated narrow and wide buffers, safe to use across a DLL boundary. Not `std::string` / `std::wstring`. `Length()` is `Size`. Construct from C string, `string_view` / `wstring_view` and `string` / `wstring` (copy onto Base's heap). Content equality, `<=>`, `swap` and `std::hash`.
+- **Safe::String / Safe::WString** — owned UTF-8 and wide text on Base's heap, with range and text helpers. Construct from `string_view` / `wstring_view` (copied) or from `Safe::CString` / `Safe::WCString` (owned buffer). `Bytes()` returns a non-owning `const char*` / `const wchar_t*`.
+- **Safe::CString / Safe::WCString** — public owned NUL-terminated buffers for explicit use; `Length()` is `Size`. Located under `StormByte/safe/`.
 - **BinaryData** — owned contiguous `std::byte` sequence, safe to use across a DLL boundary. Same kind of API as `std::vector<std::byte>`. Lengths and indices use `ByteSize`. `HexDump` prints offset + hex + ASCII; column count is `std::size_t`.
 - **Size** — abstract unit count (`uint64_t` storage), same width on every host and safe across a DLL. Implicit only to `std::size_t`. Character counts, iteration counts, “how many items”.
-- **ByteSize** — octet length (`uint64_t` storage). Implicit only to `std::size_t`. IEC / SI units (`1 * KiB`), human-readable `CString` (`1.00 KiB`). Area products are deleted.
+- **ByteSize** — octet length (`uint64_t` storage). Implicit only to `std::size_t`. IEC / SI units (`1 * KiB`), human-readable `Safe::String` (`1.00 KiB`). Area products are deleted.
 - **UUID** — RFC 4122 version 4 (`GenerateUUIDv4`).
 - **Bitmask** — CRTP flags over `Type::UnsignedEnum`.
 - **Safe pointers** — `Safe::Shared<T>`, `Safe::Unique<T>` and `Safe::Weak<T>` (`StormByte/safe/pointers.hxx`) complement `std::shared_ptr`, `std::unique_ptr` and `std::weak_ptr`. They do not replace them: use the standard pointers unless the object must be freed on Base's heap. `Shared` converts implicitly to `std::shared_ptr<T>` (deleter stays Base). `Unique` converts on move only to `std::unique_ptr<T, Safe::Heap::ObjectDeleter>`. No `release`, and no constructor from a raw or standard pointer. The `Heap` implementation is not installed.
@@ -45,7 +46,6 @@ Public Base APIs do not take or return a raw `std::size_t` / `std::uint64_t` whe
 | [Logger](https://github.com/StormBytePP/StormByte-Logger) | Stream logger with levels, headers, human-readable sizes and redaction (`ThreadedLog`) | [/StormByte-Logger](https://dev.stormbyte.org/StormByte-Logger) |
 | [Multimedia](https://github.com/StormBytePP/StormByte-Multimedia) | Decode, encode and containers without raw FFmpeg types; codecs enabled only if present | [/StormByte-Multimedia](https://dev.stormbyte.org/StormByte-Multimedia) |
 | [Network](https://github.com/StormBytePP/StormByte-Network) | Framed packets, Client/Server, IPv4/IPv6 TCP and Buffer pipelines (compress/encrypt) | [/StormByte-Network](https://dev.stormbyte.org/StormByte-Network) |
-| [String](https://github.com/StormBytePP/StormByte-String) | Suite text type and helpers (case, split, UTF-8, human-readable numbers and byte sizes) | [/StormByte-String](https://dev.stormbyte.org/StormByte-String) |
 | [System](https://github.com/StormBytePP/StormByte-System) | Processes, pipes and environment variables across Linux, Windows and macOS | [/StormByte-System](https://dev.stormbyte.org/StormByte-System) |
 
 ## Table of Contents
@@ -57,7 +57,7 @@ Public Base APIs do not take or return a raw `std::size_t` / `std::uint64_t` whe
 - [Exceptions](#exceptions)
 - [Expected](#expected)
 - [Error](#error)
-- [CString / WCString](#cstring--wcstring)
+- [Safe text and buffers](#safe-text-and-buffers)
 - [BinaryData](#binarydata)
 - [Size](#size)
 - [ByteSize](#bytesize)
@@ -92,7 +92,7 @@ Headers are `#include <StormByte/….hxx>`. Namespace root is `StormByte`.
 
 ### Exceptions
 
-Base owns the exception system other modules inherit. A throw of `Exception` reads `StormByte: …`. A parent passes `Exception::Path` (a `string_view` of its segments) and forwards the format and the arguments. It does not format. A bare string is not a path: that would be ambiguous with the format constructor. `Exception` is the only place that calls `std::format`, in the caller's translation unit, and copies a `const char*` into a `CString`. The view lives for that constructor call and is not stored. A runtime `std::string` is not a format string.
+Base owns the exception system other modules inherit. A throw of `Exception` reads `StormByte: …`. A parent passes `Exception::Path` (a `string_view` of its segments) and forwards the format and the arguments. It does not format. A bare string is not a path: that would be ambiguous with the format constructor. Formatting happens in the caller's translation unit; the result is copied into a `Safe::String`. Plain text constructors accept `std::string_view` or `const Safe::String&`; neither view nor caller storage is retained.
 
 A final leaf inherits the parent constructors and adds no segment, so `EncryptException("bad key {}", id)` reads `StormByte.Crypto.Crypter: bad key …`. `DeserializeError`, `OutOfBoundsError` and `Base64Error` are leaves of the root: `StormByte: …`.
 
@@ -169,7 +169,7 @@ Expected<int, Exception> divide(int a, int b) {
 
 ### Error
 
-`Fault` wraps a `std::error_code`. Across a DLL use `Fault::what()` (`CString`), not `error_code::message()`.
+`Fault` wraps a `std::error_code`. Across a DLL use `Fault::what()` (backed by `Safe::String`), not `error_code::message()`.
 
 ```cpp
 #include <StormByte/error.hxx>
@@ -188,27 +188,32 @@ int main() {
 
 A module adds its own enum, specializes `Error::Domain`, and puts `make_error_code` next to the enum so ADL fills `std::error_code`. The category singleton lives in that module’s `.cxx`.
 
-### CString / WCString
+### Safe Text and Buffers
+
+`Safe::String` and `Safe::WString` are the owned text types used by Base APIs (`<StormByte/safe/string.hxx>` and `<StormByte/safe/wstring.hxx>`). They copy `std::string_view` / `std::wstring_view` inputs onto Base's heap and can take `Safe::CString` / `Safe::WCString` explicitly. `Bytes()` returns a non-owning `const char*` / `const wchar_t*`. Their `size()` / `length()` observers return `Size`; conversion to `std::string` / `std::wstring` is explicit and allocates in the caller.
+
+`Safe::CString` and `Safe::WCString` are lower-level NUL-terminated buffers for explicit C-string use. They remain public, but Base text APIs use `Safe::String` / `Safe::WString` instead.
 
 Owned buffers. `operator bool` is true when the pointer is not null: `""` / `L""` are valid empty text; a default-constructed object is null.
 
 Construct from `const char*` / `const wchar_t*` (null stays null), from `std::string_view` / `std::wstring_view`, and from `const std::string&` / `const std::wstring&`. Those last two **copy** onto Base's heap. They are not a heap steal. An empty `string` / view yields `""` / `L""`, not a null buffer.
 
-`Length()` returns `Size` (character count, not octets). `operator[]` takes `Size`.
+`CString::Length()` / `WCString::Length()` return `Size` (character count, not octets). `operator[]` takes `Size` on both the buffers and text wrappers.
 
 `==` / `!=` / `<=>` compare text, not addresses. Two nulls are equal; null is not equal to `""` / `L""` and orders before any text. `swap` exchanges buffers. `std::hash` hashes the text (`0` when null), so the types work in `std::set` and `std::unordered_set`.
 
-`explicit operator const char*` / `const wchar_t*` has the same lifetime as `std::string::c_str()` / `std::wstring::c_str()`. Implicit `std::string` / `std::wstring` and `operator<<` are inline (caller CRT).
+For the buffers, `explicit operator const char*` / `const wchar_t*` has the same lifetime as `std::string::c_str()` / `std::wstring::c_str()`. Their implicit `std::string` / `std::wstring` conversions and `operator<<` are inline (caller CRT).
 
 ```cpp
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/cstring.hxx>
 #include <StormByte/size.hxx>
-#include <StormByte/wcstring.hxx>
+#include <StormByte/safe/wcstring.hxx>
 #include <iostream>
 #include <set>
 #include <string>
 
 using namespace StormByte;
+using namespace StormByte::Safe;
 
 int main() {
 	CString text("hello");
@@ -250,7 +255,7 @@ For `<algorithm>` and `std::ranges` it supports everything `std::vector<std::byt
 
 Compare with another `BinaryData` or with `std::span<const std::byte>` (`==`, `!=`, `<=>`, both operand orders).
 
-**Hex dump.** `HexDump()` and `HexDump(std::size_t columns)` return a `CString`. Each line is an 8-digit offset, a row of hex bytes, and the same bytes as ASCII (non-printable as `.`). `columns` is a **row width**, not a byte length — it is `std::size_t`, not `ByteSize`. `0` prints every byte on one line. The default is 16 columns.
+**Hex dump.** `HexDump()` and `HexDump(Size columns)` return a `Safe::String`. Each line is an 8-digit offset, a row of hex bytes, and the same bytes as ASCII (non-printable as `.`). `columns` is a **row width**, not a byte length. `0` prints every byte on one line. The default is 16 columns.
 
 **`std::vector` and `std::span`.** You can build a `BinaryData` from a `span` or from a caller-owned `vector`. You can view the bytes as a `span` (implicit). You can copy them out to a `vector` (`explicit operator std::vector<std::byte>`). The rvalue overloads *look* like a move: the source is emptied after the copy. They are not a heap steal. Base cannot donate its pointer to a foreign `vector`, and it cannot adopt a caller `vector` pointer. Peak usage is two copies during the transfer.
 
@@ -327,10 +332,10 @@ Implicit conversion exists only to `std::size_t` (clamped to `size_t::max`). Eve
 
 All arithmetic with another `Size` or with any `Type::Integral` yields `Size`. Mixed `==` / `<=>` with integers and with `ByteSize` compare the numeric counts. `std::size_t n = size_a + 3 * size_b;` works because the sum is a `Size` and that converts implicitly.
 
-`operator CString` / `operator WCString` print the raw count.
+`operator Safe::String` / `operator Safe::WString` print the raw count.
 
 ```cpp
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/size.hxx>
 #include <iostream>
 
@@ -341,7 +346,7 @@ int main() {
 	const Size more = chars + 3;
 	const std::size_t host = more * 2;
 	if (chars == 5 && 5 == chars)
-		std::cout << static_cast<CString>(more) << " " << host << std::endl;
+		std::cout << static_cast<Safe::String>(more) << " " << host << std::endl;
 }
 ```
 
@@ -355,11 +360,11 @@ Area products (`ByteSize * ByteSize`) are deleted: two lengths do not make a len
 
 IEC factories live on the type (`ByteSize::KiB(1)`). Free constants live in `StormByte` so `1 * KiB` and `2 * MiB` work after `using namespace StormByte`. SI constants (`KB`…`EB`) are the same pattern.
 
-`operator CString` / `operator WCString` print IEC text: `0 B`, `1023 B`, `1.00 KiB`, `1.50 MiB`. Only the `B` unit stays without decimals.
+`operator Safe::String` / `operator Safe::WString` print IEC text: `0 B`, `1023 B`, `1.00 KiB`, `1.50 MiB`. Only the `B` unit stays without decimals.
 
 ```cpp
 #include <StormByte/byte_size.hxx>
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <iostream>
 
 using namespace StormByte;
@@ -372,7 +377,7 @@ int main() {
 	const std::size_t host = chunk;
 
 	std::cout << chunk << std::endl;
-	std::cout << static_cast<CString>(twice) << " " << pieces << " " << leftover << std::endl;
+	std::cout << static_cast<Safe::String>(twice) << " " << pieces << " " << leftover << std::endl;
 	std::cout << host << std::endl;
 
 	if ((1 * KiB) == ByteSize{1024} && chunk > 1 * MiB)
@@ -537,8 +542,8 @@ public:
 		Clock("job").Stop();
 	}
 
-	operator CString() const override {
-		return CString("job_count=") + CString(std::to_string(Clock("job").Count()));
+	operator Safe::String() const override {
+		return Safe::String(std::string_view(std::string("job_count=") + std::to_string(Clock("job").Count())));
 	}
 };
 ```

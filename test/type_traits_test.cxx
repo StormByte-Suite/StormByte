@@ -38,6 +38,8 @@
  */
 
 #include <StormByte/size.hxx>
+#include <StormByte/safe/string.hxx>
+#include <StormByte/safe/wstring.hxx>
 #include <StormByte/test_handlers.h>
 #include <StormByte/type_traits.hxx>
 
@@ -114,6 +116,8 @@ int test_string_concept() {
 	int result = 0;
 	ASSERT_TRUE("test_string_concept", is_string_v<std::string>);
 	ASSERT_TRUE("test_string_concept", is_string_v<std::wstring>);
+	ASSERT_TRUE("test_string_concept", is_string_v<Safe::String>);
+	ASSERT_TRUE("test_string_concept", is_string_v<Safe::WString>);
 	ASSERT_FALSE("test_string_concept", is_string_v<const char*>);
 	ASSERT_FALSE("test_string_concept", (is_string_v<std::vector<char>>));
 	ASSERT_FALSE("test_string_concept", is_string_v<int>);
@@ -129,6 +133,8 @@ int test_container_excludes_string() {
 	ASSERT_TRUE("test_container_excludes_string", (is_container_v<std::set<int>>));
 	ASSERT_FALSE("test_container_excludes_string", is_container_v<std::string>);
 	ASSERT_FALSE("test_container_excludes_string", is_container_v<std::wstring>);
+	ASSERT_FALSE("test_container_excludes_string", is_container_v<Safe::String>);
+	ASSERT_FALSE("test_container_excludes_string", is_container_v<Safe::WString>);
 	ASSERT_FALSE("test_container_excludes_string", is_container_v<int>);
 	ASSERT_FALSE("test_container_excludes_string", is_container_v<void*>);
 	RETURN_TEST("test_container_excludes_string", result);

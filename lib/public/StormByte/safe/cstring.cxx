@@ -37,67 +37,68 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/cstring.hxx>
 #include <StormByte/utf.hxx>
-#include <StormByte/wcstring.hxx>
+#include <StormByte/safe/wcstring.hxx>
 
 #include <cassert>
-#include <cwchar>
+#include <cstring>
 
 using namespace StormByte;
+using namespace StormByte::Safe;
 
-const wchar_t* WCString::Duplicate(const wchar_t* str) noexcept {
+const char* CString::Duplicate(const char* str) noexcept {
 	if (!str)
 		return nullptr;
-	const std::size_t len = std::wcslen(str) + 1;
-	wchar_t* out = new wchar_t[len];
-	std::wmemcpy(out, str, len);
+	const std::size_t len = std::strlen(str) + 1;
+	char* out = new char[len];
+	std::memcpy(out, str, len);
 	return out;
 }
 
-const wchar_t* WCString::Duplicate(std::wstring_view sv) noexcept {
+const char* CString::Duplicate(std::string_view sv) noexcept {
 	const std::size_t len = sv.size();
-	wchar_t* out = new wchar_t[len + 1];
+	char* out = new char[len + 1];
 	if (len != 0)
-		std::wmemcpy(out, sv.data(), len);
-	out[len] = L'\0';
+		std::memcpy(out, sv.data(), len);
+	out[len] = '\0';
 	return out;
 }
 
-WCString::WCString() noexcept
+CString::CString() noexcept
 : m_data(nullptr) {}
 
-WCString::WCString(const wchar_t* str) noexcept
+CString::CString(const char* str) noexcept
 : m_data(Duplicate(str)) {}
 
-WCString::WCString(std::wstring_view sv) noexcept
+CString::CString(std::string_view sv) noexcept
 : m_data(Duplicate(sv)) {}
 
-WCString::WCString(const std::wstring& str) noexcept
-: m_data(Duplicate(std::wstring_view(str))) {}
+CString::CString(const std::string& str) noexcept
+: m_data(Duplicate(std::string_view(str))) {}
 
-WCString::WCString(const CString& text) noexcept
+CString::CString(const WCString& text) noexcept
 : m_data(nullptr) {
-	const char* raw = static_cast<const char*>(text);
+	const wchar_t* raw = static_cast<const wchar_t*>(text);
 	if (!raw)
 		return;
-	m_data = Duplicate(Utf8ToWide(raw));
+	m_data = Duplicate(WideToUtf8(raw));
 }
 
-WCString::WCString(const WCString& other) noexcept
+CString::CString(const CString& other) noexcept
 : m_data(Duplicate(other.m_data)) {}
 
-WCString::WCString(WCString&& other) noexcept
+CString::CString(CString&& other) noexcept
 : m_data(other.m_data) {
 	other.m_data = nullptr;
 }
 
-WCString::~WCString() noexcept {
+CString::~CString() noexcept {
 	delete[] m_data;
 	m_data = nullptr;
 }
 
-WCString& WCString::operator=(const WCString& other) noexcept {
+CString& CString::operator=(const CString& other) noexcept {
 	if (this != &other) {
 		delete[] m_data;
 		m_data = Duplicate(other.m_data);
@@ -105,7 +106,7 @@ WCString& WCString::operator=(const WCString& other) noexcept {
 	return *this;
 }
 
-WCString& WCString::operator=(WCString&& other) noexcept {
+CString& CString::operator=(CString&& other) noexcept {
 	if (this != &other) {
 		delete[] m_data;
 		m_data = other.m_data;
@@ -114,56 +115,56 @@ WCString& WCString::operator=(WCString&& other) noexcept {
 	return *this;
 }
 
-void WCString::Reset(const wchar_t* str) noexcept {
+void CString::Reset(const char* str) noexcept {
 	delete[] m_data;
 	m_data = Duplicate(str);
 }
 
-Size WCString::Length() const noexcept {
-	return m_data ? Size{std::wcslen(m_data)} : Size{};
+Size CString::Length() const noexcept {
+	return m_data ? Size{std::strlen(m_data)} : Size{};
 }
 
-wchar_t WCString::operator[](const Size& index) const noexcept {
+char CString::operator[](const Size& index) const noexcept {
 	assert(m_data != nullptr);
-	const Size length{std::wcslen(m_data)};
+	const Size length{std::strlen(m_data)};
 	assert(index <= length);
 	return m_data[static_cast<std::size_t>(index)];
 }
 
-void WCString::swap(WCString& other) noexcept {
-	const wchar_t* tmp = m_data;
+void CString::swap(CString& other) noexcept {
+	const char* tmp = m_data;
 	m_data = other.m_data;
 	other.m_data = tmp;
 }
 
-WCString::operator const wchar_t*() const noexcept {
+CString::operator const char*() const noexcept {
 	return m_data;
 }
 
-bool WCString::operator==(const WCString& other) const noexcept {
+bool CString::operator==(const CString& other) const noexcept {
 	if (m_data == other.m_data)
 		return true;
 	if (!m_data || !other.m_data)
 		return false;
-	return std::wcscmp(m_data, other.m_data) == 0;
+	return std::strcmp(m_data, other.m_data) == 0;
 }
 
-bool WCString::operator==(const wchar_t* str) const noexcept {
+bool CString::operator==(const char* str) const noexcept {
 	if (m_data == str)
 		return true;
 	if (!m_data || !str)
 		return false;
-	return std::wcscmp(m_data, str) == 0;
+	return std::strcmp(m_data, str) == 0;
 }
 
-std::strong_ordering WCString::operator<=>(const WCString& other) const noexcept {
+std::strong_ordering CString::operator<=>(const CString& other) const noexcept {
 	if (!m_data && !other.m_data)
 		return std::strong_ordering::equal;
 	if (!m_data)
 		return std::strong_ordering::less;
 	if (!other.m_data)
 		return std::strong_ordering::greater;
-	const int cmp = std::wcscmp(m_data, other.m_data);
+	const int cmp = std::strcmp(m_data, other.m_data);
 	if (cmp < 0)
 		return std::strong_ordering::less;
 	if (cmp > 0)
@@ -171,14 +172,14 @@ std::strong_ordering WCString::operator<=>(const WCString& other) const noexcept
 	return std::strong_ordering::equal;
 }
 
-std::strong_ordering WCString::operator<=>(const wchar_t* str) const noexcept {
+std::strong_ordering CString::operator<=>(const char* str) const noexcept {
 	if (!m_data && !str)
 		return std::strong_ordering::equal;
 	if (!m_data)
 		return std::strong_ordering::less;
 	if (!str)
 		return std::strong_ordering::greater;
-	const int cmp = std::wcscmp(m_data, str);
+	const int cmp = std::strcmp(m_data, str);
 	if (cmp < 0)
 		return std::strong_ordering::less;
 	if (cmp > 0)

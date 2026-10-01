@@ -46,7 +46,7 @@
 namespace StormByte {
 	struct Telemetry::Store {
 		ThreadLock lock;
-		std::map<CString, StormByte::Clock> clocks;
+		std::map<Safe::String, StormByte::Clock> clocks;
 	};
 }
 
@@ -113,7 +113,7 @@ Clock& Telemetry::Clock(const std::string_view name) noexcept {
 	if (!m_store)
 		m_store = Safe::Heap::MakeUnique<Store>();
 	m_store->lock.Lock();
-	auto& clock = m_store->clocks[CString(name)];
+	auto& clock = m_store->clocks[Safe::String(name)];
 	m_store->lock.Unlock();
 	return clock;
 }
@@ -123,7 +123,7 @@ const Clock& Telemetry::Clock(const std::string_view name) const noexcept {
 	if (!m_store)
 		return empty_clock;
 	m_store->lock.Lock();
-	const auto it = m_store->clocks.find(CString(name));
+	const auto it = m_store->clocks.find(Safe::String(name));
 	const bool found = (it != m_store->clocks.end());
 	const StormByte::Clock* result = found ? &it->second : &empty_clock;
 	m_store->lock.Unlock();

@@ -39,11 +39,11 @@
 
 #pragma once
 
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
-#include <StormByte/wcstring.hxx>
+#include <StormByte/safe/wstring.hxx>
 
 #include <cassert>
 #include <compare>
@@ -96,7 +96,7 @@ namespace StormByte {
 	 * assertions are on; wrap modulo 2⁶⁴ when they are not.
 	 * Division by zero: `assert` when assertions are on; undefined otherwise.
 	 *
-	 * `operator CString` / `operator WCString` print an IEC human-readable
+	 * `operator Safe::String` / `operator Safe::WString` print an IEC human-readable
 	 * length (`1.50 KiB`). `B`/`KiB`/`MiB`/`GiB`/`TiB`/`PiB`/`EiB` are IEC.
 	 * `KB`/`MB`/`GB`/`TB`/`PB`/`EB` are SI (10³).
 	 */
@@ -219,22 +219,22 @@ namespace StormByte {
 			 * @brief IEC human-readable text owned by Base.
 			 * @return Formatted length.
 			 */
-			explicit operator CString() const noexcept;
+			explicit operator Safe::String() const noexcept;
 
 			/**
 			 * @brief IEC human-readable wide text owned by Base.
 			 * @return Formatted length.
 			 */
-			explicit operator WCString() const noexcept;
+			explicit operator Safe::WString() const noexcept;
 
 			/**
 			 * @brief IEC human-readable text on the caller heap.
 			 * @return Formatted length.
 			 */
 			STORMBYTE_FORCE_INLINE operator std::string() const {
-				// By name. static_cast<CString> is CString(std::string) on GCC,
+				// By name. static_cast<Safe::String> is Safe::String(std::string) on GCC,
 				// and that calls this operator again.
-				return operator CString().operator std::string();
+				return operator Safe::String().operator std::string();
 			}
 
 			/**

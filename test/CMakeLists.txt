@@ -64,6 +64,14 @@ if(ENABLE_TEST)
 	target_link_libraries(SizeTests StormByte)
 	add_test(NAME SizeTests COMMAND SizeTests)
 
+	add_executable(StringTests string_test.cxx)
+	target_link_libraries(StringTests StormByte)
+	add_test(NAME StringTests COMMAND StringTests)
+
+	add_executable(WStringTests wstring_test.cxx)
+	target_link_libraries(WStringTests StormByte)
+	add_test(NAME WStringTests COMMAND WStringTests)
+
 	add_executable(TestHandlersTests test_handlers_test.cxx)
 	target_link_libraries(TestHandlersTests StormByte)
 	add_test(NAME TestHandlersTests COMMAND TestHandlersTests)

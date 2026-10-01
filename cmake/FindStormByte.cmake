@@ -4,8 +4,8 @@
 #
 # Usage:
 #   find_package(StormByte REQUIRED)
-#   find_package(StormByte REQUIRED COMPONENTS String Logger)
-#   find_package(StormByte COMPONENTS Crypto)   # pulls Buffer, then Logger, String and System
+#   find_package(StormByte REQUIRED COMPONENTS Logger)
+#   find_package(StormByte COMPONENTS Crypto)   # pulls Buffer, then Logger and System
 #
 # Provides:
 #   - Imported targets: StormByte and StormByte::<Component>
@@ -31,20 +31,17 @@ set(_STORMBYTE_AVAILABLE_COMPONENTS
 	Logger
 	Multimedia
 	Network
-	String
 	System
 )
 
 # Transitive dependencies (component → components it PUBLIC-links).
-# Every component already links StormByte (the core). Config and String
-# need only that. Taken from each module's buildmaster_link.
-set(_STORMBYTE_COMPONENT_DEPS_Buffer     "Logger" "String" "System")
+# Every component already links StormByte (the core). Config needs only that.
+# Taken from each module's buildmaster_link.
+set(_STORMBYTE_COMPONENT_DEPS_Buffer     "Logger" "System")
 set(_STORMBYTE_COMPONENT_DEPS_Crypto     "Buffer")
-set(_STORMBYTE_COMPONENT_DEPS_Database   "Logger" "String")
-set(_STORMBYTE_COMPONENT_DEPS_Logger     "String")
+set(_STORMBYTE_COMPONENT_DEPS_Database   "Logger")
 set(_STORMBYTE_COMPONENT_DEPS_Multimedia "Buffer")
 set(_STORMBYTE_COMPONENT_DEPS_Network    "Buffer")
-set(_STORMBYTE_COMPONENT_DEPS_System     "String")
 
 # ----------------------------------------------------------------------
 # Internal helpers
@@ -125,7 +122,14 @@ endif()
 # Process requested components + transitive deps
 # ----------------------------------------------------------------------
 
-set(_requested_components ${StormByte_FIND_COMPONENTS})
+set(_requested_components)
+foreach(_component IN LISTS StormByte_FIND_COMPONENTS)
+	if(_component IN_LIST _STORMBYTE_AVAILABLE_COMPONENTS)
+		list(APPEND _requested_components ${_component})
+	else()
+		set(StormByte_${_component}_FOUND FALSE)
+	endif()
+endforeach()
 _stormbyte_expand_dependencies(_requested_components)
 
 # ----------------------------------------------------------------------

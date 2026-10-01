@@ -39,7 +39,7 @@
 
 #pragma once
 
-#include <StormByte/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/platform.h>
 #include <StormByte/safe/pointers.hxx>
 #include <StormByte/visibility.h>
@@ -155,17 +155,17 @@ namespace StormByte {
 			virtual ~Telemetry() noexcept;
 
 			/**
-			 * @brief Flatten counters into an owned StormByte CString.
+			 * @brief Flatten counters into an owned StormByte Safe::String.
 			 * @return Formatted telemetry string.
 			 */
-			virtual operator CString() const = 0;
+			virtual operator Safe::String() const = 0;
 
 			/**
 			 * @brief Flatten counters into a caller-owned standard string.
 			 * @return Formatted standard string allocated on caller heap.
 			 */
 			STORMBYTE_FORCE_INLINE operator std::string() const {
-				return static_cast<std::string>(static_cast<CString>(*this));
+				return static_cast<std::string>(static_cast<Safe::String>(*this));
 			}
 
 		protected:

@@ -71,7 +71,7 @@ int test_encode_empty() {
 	int result = 0;
 	const auto encoded = Base64Encode(BinaryData{});
 	ASSERT_TRUE("test_encode_empty", encoded == "");
-	ASSERT_EQUAL("test_encode_empty", Size{0}, encoded.Length());
+	ASSERT_EQUAL("test_encode_empty", Size{0}, encoded.size());
 	RETURN_TEST("test_encode_empty", result);
 }
 
@@ -119,7 +119,7 @@ int test_encode_all_bytes() {
 		original.push_back(static_cast<std::byte>(i));
 	const auto encoded = Base64Encode(original);
 	ASSERT_TRUE("test_encode_all_bytes", static_cast<bool>(encoded));
-	ASSERT_TRUE("test_encode_all_bytes", encoded.Length() > Size{0});
+	ASSERT_TRUE("test_encode_all_bytes", encoded.size() > Size{0});
 	RETURN_TEST("test_encode_all_bytes", result);
 }
 

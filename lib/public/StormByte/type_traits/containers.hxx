@@ -39,6 +39,8 @@
 
 #pragma once
 
+#include <StormByte/type_traits/relations.hxx>
+
 #include <array>
 #include <concepts>
 #include <string>
@@ -54,10 +56,10 @@ namespace StormByte {
 	class Size;	///< Unit count. Defined in size.hxx. Forwarded so Type::Sized can name it.
 
 	/**
-	 * @namespace String
-	 * @brief Suite text types. Defined by StormByte-String.
+	 * @namespace StormByte::Safe
+	 * @brief Suite text types owned by Base.
 	 */
-	namespace String {
+	namespace Safe {
 		class String;
 		class WString;
 	}
@@ -83,13 +85,12 @@ namespace StormByte {
 		 * @tparam T Type to test.
 		 *
 		 * Includes `std::string`, `std::wstring`, `std::u16string`,
-		 * `std::u32string`, `StormByte::String::String` and
-		 * `StormByte::String::WString`. They must stay out of
+		 * `std::u32string`, `StormByte::Safe::String` and
+		 * `StormByte::Safe::WString`. They must stay out of
 		 * @ref StormByte::Type::Container so @ref StormByte::Serializable routes them through
 		 * @ref StormByte::Detail::Codec.
 		 *
-		 * The suite types are forward-declared only. Completing them
-		 * is StormByte-String’s job.
+		 * The suite types are forward-declared; their definitions live in Base.
 		 *
 		 * @code
 		 * template<Type::String T>
@@ -98,12 +99,12 @@ namespace StormByte {
 		 */
 		template<typename T>
 		concept String =
-			std::same_as<T, std::string> ||
-			std::same_as<T, std::wstring> ||
-			std::same_as<T, std::u16string> ||
-			std::same_as<T, std::u32string> ||
-			std::same_as<T, StormByte::String::String> ||
-			std::same_as<T, StormByte::String::WString>;
+			SameAs<T, std::string> ||
+			SameAs<T, std::wstring> ||
+			SameAs<T, std::u16string> ||
+			SameAs<T, std::u32string> ||
+			SameAs<T, StormByte::Safe::String> ||
+			SameAs<T, StormByte::Safe::WString>;
 
 		/** @} */
 
@@ -227,10 +228,8 @@ namespace StormByte {
 					decltype(std::declval<std::remove_cvref_t<C> const&>().size()),
 					std::size_t
 				> ||
-				std::same_as<
-					std::remove_cvref_t<
-						decltype(std::declval<std::remove_cvref_t<C> const&>().size())
-					>,
+				SameAs<
+					decltype(std::declval<std::remove_cvref_t<C> const&>().size()),
 					Size
 				>
 			);
