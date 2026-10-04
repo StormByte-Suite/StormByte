@@ -44,6 +44,12 @@
 #include <mutex>
 
 namespace StormByte {
+	struct Clock::State {
+		mutable std::mutex lock;
+		std::chrono::microseconds time{};
+		std::uint64_t count{};
+	};
+
 	struct Telemetry::Store {
 		ThreadLock lock;
 		std::map<Safe::String, StormByte::Clock> clocks;
@@ -55,42 +61,107 @@ using namespace StormByte;
 // --- StormByte::Clock ---
 
 Clock::Clock() noexcept:
-	m_start{std::nullopt},
-	m_time{std::chrono::microseconds::zero()},
-	m_count{0} {}
+	m_state{} {}
 
-Clock::Clock(Clock&&) noexcept = default;
+Clock::Clock(Clock&& other) noexcept {
+	std::lock_guard lock(other.m_state_lock);
+	m_state = std::move(other.m_state);
+}
 
-Clock& Clock::operator=(Clock&&) noexcept = default;
+Clock& Clock::operator=(Clock&& other) noexcept {
+	if (this != &other) {
+		std::scoped_lock lock(m_state_lock, other.m_state_lock);
+		m_state = std::move(other.m_state);
+	}
+	return *this;
+}
 
 Clock::~Clock() noexcept = default;
 
-void Clock::Start() noexcept {
-	m_start = std::chrono::steady_clock::now();
+Clock::Sample::Sample(Safe::Shared<State> state) noexcept:
+	m_state{std::move(state)},
+	m_start{std::chrono::steady_clock::now()},
+	m_elapsed{},
+	m_active{static_cast<bool>(m_state)} {}
+
+Clock::Sample::Sample(Sample&& other) noexcept:
+	m_state{std::move(other.m_state)},
+	m_start{other.m_start},
+	m_elapsed{other.m_elapsed},
+	m_active{std::exchange(other.m_active, false)} {}
+
+Clock::Sample& Clock::Sample::operator=(Sample&& other) noexcept {
+	if (this != &other) {
+		(void)Stop();
+		m_state = std::move(other.m_state);
+		m_start = other.m_start;
+		m_elapsed = other.m_elapsed;
+		m_active = std::exchange(other.m_active, false);
+	}
+	return *this;
 }
 
-void Clock::Stop() noexcept {
-	if (!m_start)
-		return;
-	const auto now = std::chrono::steady_clock::now();
-	const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - *m_start);
-	m_time += (elapsed.count() < 0 ? std::chrono::microseconds::zero() : elapsed);
-	++m_count;
-	m_start.reset();
+Clock::Sample::~Sample() noexcept {
+	(void)Stop();
+}
+
+std::chrono::microseconds Clock::Sample::Stop() noexcept {
+	if (!m_active)
+		return m_elapsed;
+	const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+		std::chrono::steady_clock::now() - m_start);
+	m_elapsed = elapsed.count() < 0 ? std::chrono::microseconds::zero() : elapsed;
+	if (m_state) {
+		std::lock_guard lock(m_state->lock);
+		m_state->time += m_elapsed;
+		++m_state->count;
+	}
+	m_active = false;
+	m_state.reset();
+	return m_elapsed;
+}
+
+Clock::Sample Clock::Measure() {
+	Safe::Shared<State> state;
+	{
+		std::lock_guard lock(m_state_lock);
+		if (!m_state)
+			m_state = Safe::Heap::MakeShared<State>();
+		state = m_state;
+	}
+	return Sample{std::move(state)};
+}
+
+Clock::Values Clock::GetValues() const noexcept {
+	Safe::Shared<State> state;
+	{
+		std::lock_guard lock(m_state_lock);
+		state = m_state;
+	}
+	if (!state)
+		return {};
+	std::lock_guard lock(state->lock);
+	const auto mean = state->count == 0
+		? std::chrono::microseconds::rep{0}
+		: static_cast<std::chrono::microseconds::rep>(
+			static_cast<std::uint64_t>(state->time.count()) / state->count);
+	return Values{
+		state->count,
+		state->time,
+		std::chrono::microseconds{mean}
+	};
 }
 
 std::uint64_t Clock::Count() const noexcept {
-	return m_count;
+	return GetValues().Count;
 }
 
 std::chrono::microseconds Clock::Time() const noexcept {
-	return m_time;
+	return GetValues().Time;
 }
 
 std::chrono::microseconds Clock::MeanDuration() const noexcept {
-	if (m_count == 0)
-		return std::chrono::microseconds::zero();
-	return m_time / m_count;
+	return GetValues().MeanDuration;
 }
 
 // --- StormByte::Telemetry ---
@@ -128,4 +199,8 @@ const Clock& Telemetry::Clock(const std::string_view name) const noexcept {
 	const StormByte::Clock* result = found ? &it->second : &empty_clock;
 	m_store->lock.Unlock();
 	return *result;
+}
+
+Clock::Sample Telemetry::MeasureClock(const std::string_view name) {
+	return Clock(name).Measure();
 }

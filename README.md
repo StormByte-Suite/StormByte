@@ -595,7 +595,7 @@ public:
 
 ### Telemetry
 
-`Telemetry` is the derive-and-extend session object for operations across the StormByte suite. Clocks are protected named stopwatches (`Clock`) managed in a thread-safe drawer, while modules add their own domain counters and metrics.
+`Telemetry` is the derive-and-extend session object for operations across the StormByte suite. Named clocks aggregate independent samples; a thread-safe drawer finds the aggregate, and each sample owns its own start time. Concurrent and nested samples with the same name cannot replace or stop one another. Modules add their own domain counters and metrics.
 
 ```cpp
 #include <StormByte/telemetry.hxx>
@@ -605,9 +605,9 @@ using namespace StormByte;
 class MyTelemetry final : public Telemetry {
 public:
 	void TrackJob() {
-		Clock("job").Start();
+		auto sample = MeasureClock("job");
 		// ... perform work ...
-		Clock("job").Stop();
+		(void)sample.Stop();
 	}
 
 	operator Safe::String() const override {
@@ -615,6 +615,8 @@ public:
 	}
 };
 ```
+
+`Clock::Sample` is move-only and records exactly once, on explicit `Stop()` or destruction. Its token may move to the thread that completes it; do not concurrently access one token from multiple threads. Independent tokens from the same named clock may overlap freely. `Clock::GetValues()` returns Count, cumulative Time and MeanDuration from one coherent snapshot. There is no shared-clock `Start()` / `Stop()` pair: use `Clock::Measure()` or `Telemetry::MeasureClock(name)` so every stop belongs to its own start.
 
 ## Contributing
 

@@ -57,9 +57,17 @@ namespace {
 			Dummy& operator=(Dummy&&) noexcept = default;
 
 			void Beat(const std::string_view name = "x") noexcept {
-				Clock(name).Start();
+				auto sample = MeasureClock(name);
 				std::this_thread::sleep_for(std::chrono::microseconds(50));
-				Clock(name).Stop();
+				(void)sample.Stop();
+			}
+
+			StormByte::Clock::Sample Measure(const std::string_view name = "x") {
+				return MeasureClock(name);
+			}
+
+			StormByte::Clock::Values Values(const std::string_view name = "x") const noexcept {
+				return Clock(name).GetValues();
 			}
 
 			std::uint64_t Beats(const std::string_view name = "x") const noexcept {
@@ -91,27 +99,29 @@ static int test_clock_two_beats() {
 	return 0;
 }
 
-static int test_clock_stop_without_start() {
+static int test_empty_sample_stop_is_noop() {
 	StormByte::Clock clock;
-	clock.Stop();
+	StormByte::Clock::Sample sample;
 
-	ASSERT_EQUAL("test_clock_stop_without_start", 0ull, clock.Count());
-	ASSERT_EQUAL("test_clock_stop_without_start", 0ll, clock.Time().count());
-	ASSERT_EQUAL("test_clock_stop_without_start", 0ll, clock.MeanDuration().count());
+	ASSERT_EQUAL("test_empty_sample_stop_is_noop", 0ll, sample.Stop().count());
+	ASSERT_EQUAL("test_empty_sample_stop_is_noop", 0ull, clock.Count());
+	ASSERT_EQUAL("test_empty_sample_stop_is_noop", 0ll, clock.Time().count());
 	return 0;
 }
 
-static int test_clock_double_start_then_stop() {
+static int test_nested_samples_are_independent() {
 	StormByte::Clock clock;
-	clock.Start();
+	auto outer = clock.Measure();
 	std::this_thread::sleep_for(std::chrono::microseconds(20));
-	clock.Start();
+	auto inner = clock.Measure();
 	std::this_thread::sleep_for(std::chrono::microseconds(20));
-	clock.Stop();
+	const auto inner_elapsed = inner.Stop();
+	const auto outer_elapsed = outer.Stop();
 
-	ASSERT_EQUAL("test_clock_double_start_then_stop", 1ull, clock.Count());
-	ASSERT_TRUE("test_clock_double_start_then_stop", clock.Time().count() >= 0);
-	ASSERT_TRUE("test_clock_double_start_then_stop", clock.MeanDuration().count() >= 0);
+	ASSERT_EQUAL("test_nested_samples_are_independent", 2ull, clock.Count());
+	ASSERT_TRUE("test_nested_samples_are_independent", inner_elapsed.count() > 0);
+	ASSERT_TRUE("test_nested_samples_are_independent", outer_elapsed >= inner_elapsed);
+	ASSERT_EQUAL("test_nested_samples_are_independent", outer_elapsed, outer.Stop());
 	return 0;
 }
 
@@ -158,27 +168,28 @@ static int test_move_semantics() {
 	return 0;
 }
 
-static int test_multithread_distinct_keys_no_race() {
+static int test_multithread_same_key_independent_samples() {
 	Dummy dummy;
+	constexpr int thread_count = 8;
 	constexpr int iterations = 100;
 
-	std::thread t1([&dummy]() {
-		for (int i = 0; i < iterations; ++i) {
-			dummy.Beat("t1");
-		}
-	});
+	std::vector<std::thread> threads;
+	for (int thread_index = 0; thread_index < thread_count; ++thread_index) {
+		threads.emplace_back([&dummy]() {
+			for (int i = 0; i < iterations; ++i) {
+				auto sample = dummy.Measure("shared-key");
+				std::this_thread::sleep_for(std::chrono::microseconds(10));
+				(void)sample.Stop();
+			}
+		});
+	}
+	for (auto& thread : threads)
+		thread.join();
 
-	std::thread t2([&dummy]() {
-		for (int i = 0; i < iterations; ++i) {
-			dummy.Beat("t2");
-		}
-	});
-
-	t1.join();
-	t2.join();
-
-	ASSERT_EQUAL("test_multithread_distinct_keys_no_race", static_cast<std::uint64_t>(iterations), dummy.Beats("t1"));
-	ASSERT_EQUAL("test_multithread_distinct_keys_no_race", static_cast<std::uint64_t>(iterations), dummy.Beats("t2"));
+	const auto values = dummy.Values("shared-key");
+	ASSERT_EQUAL("test_multithread_same_key_independent_samples", static_cast<std::uint64_t>(thread_count * iterations), values.Count);
+	ASSERT_TRUE("test_multithread_same_key_independent_samples", values.Time.count() > 0);
+	ASSERT_TRUE("test_multithread_same_key_independent_samples", values.MeanDuration.count() > 0);
 	return 0;
 }
 
@@ -186,12 +197,12 @@ int main() {
 	int result = 0;
 
 	result += test_clock_two_beats();
-	result += test_clock_stop_without_start();
-	result += test_clock_double_start_then_stop();
+	result += test_empty_sample_stop_is_noop();
+	result += test_nested_samples_are_independent();
 	result += test_const_clock_missing_and_lazy_insert();
 	result += test_string_conversions();
 	result += test_move_semantics();
-	result += test_multithread_distinct_keys_no_race();
+	result += test_multithread_same_key_independent_samples();
 
 	if (result == 0)
 		std::cout << "All telemetry tests passed!" << std::endl;

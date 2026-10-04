@@ -46,7 +46,7 @@
 
 #include <chrono>
 #include <cstdint>
-#include <optional>
+#include <mutex>
 #include <string>
 #include <string_view>
 
@@ -57,18 +57,78 @@
 namespace StormByte {
 	/**
 	 * @class Clock
-	 * @brief Stopwatch for measuring execution time of operations.
+	 * @brief Thread-safe aggregate of independently timed operation samples.
 	 *
 	 * Not a telemetry type and not inherited by leaves.
-	 *
-	 * @note Not safe for concurrent Start/Stop on the same instance;
-	 * Telemetry::Clock(name) is safe to call concurrently (distinct or same key)
-	 * for map access only.
+	 * Concurrent samples may share this Clock; each sample owns its own start time
+	 * and completion is accumulated under the shared state lock. A Sample token
+	 * itself has one owner and must not be accessed concurrently.
 	 */
 	class STORMBYTE_PUBLIC Clock final {
+		private:
+			struct State;
+
 		public:
 			/**
-			 * @brief Construct zeroed clock counters.
+			 * @struct Values
+			 * @brief Coherent snapshot of completed measurements.
+		 */
+			struct Values {
+				std::uint64_t Count{}; ///< Number of completed samples.
+				std::chrono::microseconds Time{}; ///< Sum of completed sample durations.
+				std::chrono::microseconds MeanDuration{}; ///< Mean duration, or zero when empty.
+			};
+
+			/**
+			 * @class Sample
+			 * @brief One independently timed interval contributing to a shared Clock.
+			 *
+			 * Each sample owns its start time. Samples from the same Clock may overlap
+			 * or nest on any threads without replacing one another. Stop is idempotent;
+			 * an active sample is recorded on explicit Stop or destruction. A Sample
+			 * is a single-owner token and must not be accessed concurrently by multiple
+			 * threads. It may be moved to the thread that will stop it.
+			 */
+			class STORMBYTE_PUBLIC_TYPE Sample final {
+				public:
+					/** @brief Empty, inactive sample. */
+					Sample() noexcept = default;
+
+					/** @brief Samples are not copyable. */
+					Sample(const Sample&) = delete;
+
+					/** @brief Samples are not copy-assignable. */
+					Sample& operator=(const Sample&) = delete;
+
+					/** @brief Transfer responsibility for recording this sample. */
+					Sample(Sample&& other) noexcept;
+
+					/** @brief Stop this sample, then take another sample. */
+					Sample& operator=(Sample&& other) noexcept;
+
+					/** @brief Record the sample if it is still active. */
+					~Sample() noexcept;
+
+					/**
+					 * @brief Complete and record this sample once.
+					 * @return This sample's elapsed microseconds; repeated calls return the same value.
+					 */
+					std::chrono::microseconds Stop() noexcept;
+
+				private:
+					friend class Clock;
+
+					/** @brief Start a sample against shared clock state. */
+					explicit Sample(Safe::Shared<State> state) noexcept;
+
+					Safe::Shared<State> m_state; ///< Keeps the aggregate state alive until this sample ends.
+					std::chrono::steady_clock::time_point m_start{}; ///< This sample's independent start.
+					std::chrono::microseconds m_elapsed{}; ///< Cached duration after Stop.
+					bool m_active{false}; ///< Whether this token still contributes a sample.
+			};
+
+			/**
+			 * @brief Construct zeroed shared clock state.
 			 */
 			Clock() noexcept;
 
@@ -100,43 +160,38 @@ namespace StormByte {
 			~Clock() noexcept;
 
 			/**
-			 * @brief Start measuring an interval.
-			 *
-			 * Stores t0 = steady_clock::now(). A second Start() without
-			 * Stop() replaces t0 (no nesting).
+			 * @brief Start an independent interval sample.
+			 * @return Move-only token; Stop it explicitly or let its destructor record it.
 			 */
-			void Start() noexcept;
+			Sample Measure();
 
 			/**
-			 * @brief Stop measuring and accumulate elapsed time.
-			 *
-			 * When active, adds elapsed duration to Time, increments Count by 1,
-			 * and clears t0. If no interval was started, this is a no-op.
+			 * @brief Read Count, Time and MeanDuration under one lock.
+			 * @return Coherent completed-sample snapshot.
 			 */
-			void Stop() noexcept;
+			Values GetValues() const noexcept;
 
 			/**
-			 * @brief Number of completed Start/Stop intervals.
+			 * @brief Number of completed samples.
 			 * @return Completed operation count.
 			 */
 			std::uint64_t Count() const noexcept;
 
 			/**
-			 * @brief Cumulative duration of completed intervals.
+			 * @brief Cumulative duration of completed samples.
 			 * @return Elapsed microseconds.
 			 */
 			std::chrono::microseconds Time() const noexcept;
 
 			/**
-			 * @brief Mean duration across completed intervals.
+			 * @brief Mean duration across completed samples.
 			 * @return Average microseconds per operation, or 0 when Count() == 0.
 			 */
 			std::chrono::microseconds MeanDuration() const noexcept;
 
 		private:
-			std::optional<std::chrono::steady_clock::time_point> m_start;	///< Active start point, if running.
-			std::chrono::microseconds m_time;	///< Accumulated microseconds.
-			std::uint64_t m_count;	///< Total completed intervals.
+			mutable std::mutex m_state_lock; ///< Protects lazy state creation and clock moves.
+			Safe::Shared<State> m_state; ///< Shared aggregate state retained by active samples.
 	};
 
 	/**
@@ -145,7 +200,8 @@ namespace StormByte {
 	 *
 	 * Modules derive and extend this class by adding their own domain counters
 	 * or metrics. Time series and stopwatches are managed in a protected,
-	 * named clock drawer.
+	 * named clock drawer. Use @ref MeasureClock to obtain an independent
+	 * concurrent sample; the returned token owns its own start time.
 	 */
 	class STORMBYTE_PUBLIC Telemetry {
 		public:
@@ -201,9 +257,16 @@ namespace StormByte {
 			/**
 			 * @brief Access or create a named clock in the drawer.
 			 * @param name Unique clock name.
-			 * @return Reference to the requested clock.
+			 * @return Reference to the requested aggregate clock. Use MeasureClock to time an operation.
 			 */
 			class Clock& Clock(std::string_view name) noexcept;
+
+			/**
+			 * @brief Start an independent sample on a named aggregate clock.
+			 * @param name Stable metric name.
+			 * @return Sample token; concurrent and nested scopes remain independent.
+			 */
+			class Clock::Sample MeasureClock(std::string_view name);
 
 			/**
 			 * @brief Read-only access to a named clock in the drawer.
