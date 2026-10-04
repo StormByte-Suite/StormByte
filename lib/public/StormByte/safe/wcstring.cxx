@@ -53,9 +53,14 @@ using namespace StormByte::Safe;
 
 wchar_t* WCString::Allocate(const std::size_t capacity) {
 	constexpr std::size_t header_units = (sizeof(std::size_t) + sizeof(wchar_t) - 1) / sizeof(wchar_t);
-	if (capacity > std::numeric_limits<std::size_t>::max() - header_units - 1)
-		throw StormByte::Exception("Safe::WCString reserve capacity is too large");
-	wchar_t* allocation = new wchar_t[header_units + capacity + 1];
+	if (capacity > std::numeric_limits<std::size_t>::max() / sizeof(wchar_t) - header_units - 1)
+		throw OutOfBoundsError("Safe::WCString reserve capacity is too large");
+	wchar_t* allocation;
+	try {
+		allocation = new wchar_t[header_units + capacity + 1];
+	} catch (const std::bad_alloc&) {
+		throw AllocationError();
+	}
 	std::memcpy(allocation, &capacity, sizeof(capacity));
 	wchar_t* text = allocation + header_units;
 	text[0] = L'\0';

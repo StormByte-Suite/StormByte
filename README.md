@@ -97,6 +97,10 @@ Base owns the exception system other modules inherit. A throw of `Exception` rea
 
 A final leaf inherits the parent constructors and adds no segment, so `EncryptException("bad key {}", id)` reads `StormByte.Crypto.Crypter: bad key …`. `DeserializeError`, `OutOfBoundsError` and `Base64Error` are leaves of the root: `StormByte: …`.
 
+`AllocationError` reports allocation failure with a static message and a non-allocating default constructor. `ExpiredWeakPointerError` reports promotion of an empty or expired `Safe::Weak`. `OperationError` wraps other foreign failures. Each named exception has its destructor defined in Base. `Safe::Heap::Allocate`, Safe pointer factories, text buffer allocation and named clock creation translate the identified standard failures to StormByte exceptions. Factories preserve an existing StormByte exception's dynamic type. Inside an active exception handler, modules can call `Safe::Heap::RethrowException()` to preserve a StormByte exception, translate `std::bad_alloc` to `AllocationError`, or translate another foreign exception to `OperationError`.
+
+This translation is a boundary policy, not a guarantee about arbitrary STL operations or caller-owned conversions. Modules must translate foreign exceptions at their own throwing API boundaries and contain them in `noexcept` paths. Throwing from a `noexcept` API still terminates; changing the exception type does not change that contract.
+
 Each named type defines its destructor in that module's `.cxx`. That keeps one `typeinfo`, so `catch` matches across a DLL.
 
 ```cpp

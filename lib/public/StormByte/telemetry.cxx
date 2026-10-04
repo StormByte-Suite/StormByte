@@ -40,8 +40,10 @@
 #include <StormByte/telemetry.hxx>
 #include <StormByte/thread_lock.hxx>
 
+#include <functional>
 #include <map>
 #include <mutex>
+#include <string>
 
 namespace StormByte {
 	struct Clock::State {
@@ -52,7 +54,7 @@ namespace StormByte {
 
 	struct Telemetry::Store {
 		ThreadLock lock;
-		std::map<Safe::String, StormByte::Clock> clocks;
+		std::map<std::string, StormByte::Clock, std::less<>> clocks;
 	};
 }
 
@@ -103,6 +105,10 @@ Clock::Sample& Clock::Sample::operator=(Sample&& other) noexcept {
 
 Clock::Sample::~Sample() noexcept {
 	(void)Stop();
+}
+
+bool Clock::Sample::Active() const noexcept {
+	return m_active;
 }
 
 std::chrono::microseconds Clock::Sample::Stop() noexcept {
@@ -180,27 +186,37 @@ Telemetry& Telemetry::operator=(Telemetry&& other) noexcept {
 
 Telemetry::~Telemetry() noexcept = default;
 
-Clock& Telemetry::Clock(const std::string_view name) noexcept {
+Clock& Telemetry::Clock(const std::string_view name) {
 	if (!m_store)
 		m_store = Safe::Heap::MakeUnique<Store>();
 	m_store->lock.Lock();
-	auto& clock = m_store->clocks[Safe::String(name)];
-	m_store->lock.Unlock();
-	return clock;
+	try {
+		auto [it, inserted] = m_store->clocks.try_emplace(std::string(name));
+		(void)inserted;
+		m_store->lock.Unlock();
+		return it->second;
+	} catch (...) {
+		m_store->lock.Unlock();
+		Safe::Heap::RethrowException();
+	}
 }
 
-const Clock& Telemetry::Clock(const std::string_view name) const noexcept {
+const Clock& Telemetry::Clock(const std::string_view name) const {
 	static const StormByte::Clock empty_clock;
 	if (!m_store)
 		return empty_clock;
 	m_store->lock.Lock();
-	const auto it = m_store->clocks.find(Safe::String(name));
+	const auto it = m_store->clocks.find(name);
 	const bool found = (it != m_store->clocks.end());
 	const StormByte::Clock* result = found ? &it->second : &empty_clock;
 	m_store->lock.Unlock();
 	return *result;
 }
 
-Clock::Sample Telemetry::MeasureClock(const std::string_view name) {
-	return Clock(name).Measure();
+Clock::Sample Telemetry::MeasureClock(const std::string_view name) noexcept {
+	try {
+		return Clock(name).Measure();
+	} catch (...) {
+		return {};
+	}
 }

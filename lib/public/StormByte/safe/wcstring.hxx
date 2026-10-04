@@ -200,8 +200,8 @@ namespace StormByte {
 				 * @brief Ensure storage for at least @p new_capacity code units, excluding the NUL.
 				 * @param new_capacity Requested code-unit capacity.
 				 * @note Requests at or below the current capacity do nothing and never shrink.
-				 * @throws StormByte::Exception If the requested allocation size overflows.
-				 * @throws std::bad_alloc If storage cannot be allocated.
+				 * @throws StormByte::OutOfBoundsError If the requested allocation size overflows.
+				 * @throws StormByte::AllocationError If storage cannot be allocated.
 				 */
 				void reserve(size_type new_capacity);
 

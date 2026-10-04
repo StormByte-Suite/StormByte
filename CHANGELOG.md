@@ -27,6 +27,8 @@ If you landed here from a release link and have not read the tree:
 
 ### Added
 
+- `AllocationError`, `ExpiredWeakPointerError` and `OperationError`, anchored in Base for cross-DLL catching. The allocation exception uses a static message and does not allocate during construction. `Safe::Heap::RethrowException` preserves StormByte exception types and translates foreign failures.
+
 - **`Safe::Optional` value API** — direct/converting construction and assignment from Safe values, enums and `std::optional`, `nullopt`, `value_or`, heterogeneous comparisons, in-place construction, `swap` and qualified monadic operations. Mutable `operator*` uses a callback-backed proxy with copy reads; `operator->` calls const members through a caller-owned snapshot that is valid for the full expression only. No pointer or reference to creator-owned storage crosses the ABI.
 - **Safe serialization** — `Serializable` now round-trips `Safe::Optional`, sequence/map collections and `Safe::Queue`; Optional shares the `std::optional` wire format, and Queue preserves FIFO order. Container iterators are serialized as `value_type` snapshots and decoded through Safe insertion operations. Queue decoding rejects counts above 1,048,576 to bound resource use.
 - **Safe STL-shaped APIs** — `Safe::Vector` adds insertion, emplacement, removal, resize and capacity requests; `Safe::Map` adds comparator-aware ordered bounds, insertion, range erase, stable key-identity iterators and arrow proxies; `Safe::Queue` adds `back`, `emplace` and `swap`. `Safe::String` / `Safe::WString` add common size-changing value modifiers while retaining Base-owned storage. Reusing a moved-from map with a stateful comparator is rejected rather than silently changing key order.
@@ -77,10 +79,12 @@ If you landed here from a release link and have not read the tree:
 
 - **Old root String helpers** (`StormByte::String` in the former Base API) — replaced by the owned `StormByte::Safe::String` / `WString` types in Base.
 - **System** (`StormByte::System` in Base: `TempFileName`, `CurrentPath`, `ExecutablePath`, `Sleep`) — leaves Base. Absorbed by the existing StormByte-System module.
-- **UTF8Error** / **SystemError** — leave Base with String and System. Derived exceptions that remain are `DeserializeError`, `OutOfBoundsError` and `Base64Error`.
+- **UTF8Error** / **SystemError** — leave Base with String and System. Base retains `DeserializeError`, `OutOfBoundsError` and `Base64Error`, and adds `AllocationError`, `ExpiredWeakPointerError` and `OperationError`.
 - **CoreApiTests** — coverage lives in `ClonableTests` and `ErrorTests`.
 
 ### Fixed
+- Safe heap and text buffer allocation, pointer factories and named clock creation translate the identified foreign failures into StormByte exceptions. Expired weak-owner promotion throws `ExpiredWeakPointerError`; overflowing text capacities throw `OutOfBoundsError`. Wide buffer size validation includes the code-unit width. Shared control-block allocation failure no longer destroys the object twice.
+- `Safe::Owner` rejects non-null state without a destruction callback and reports attempts to copy non-clonable state. `Telemetry::MeasureClock` is best-effort and `noexcept`, with `Sample::Active` exposing inactive tokens; named clock insertion releases its lock on failure and read-only lookup does not allocate a temporary key.
 - **Safe collection values.** Admit arithmetic scalar types such as integers and floating-point values, alongside enums, for use in Safe collections.
 - **Safe collection reuse across modules.** Preserve each sequence, map and queue's creator-module storage callbacks after moving from it, so reusing a moved-from collection recreates its storage with the originating module's STL ABI.
 

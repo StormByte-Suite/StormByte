@@ -49,6 +49,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 /**
  * @namespace StormByte
@@ -66,13 +67,17 @@ namespace StormByte {
 	 */
 	class STORMBYTE_PUBLIC Clock final {
 		private:
+			/**
+			 * @struct State
+			 * @brief Shared aggregate counters for completed samples.
+			 */
 			struct State;
 
 		public:
 			/**
 			 * @struct Values
 			 * @brief Coherent snapshot of completed measurements.
-		 */
+			 */
 			struct Values {
 				std::uint64_t Count{}; ///< Number of completed samples.
 				std::chrono::microseconds Time{}; ///< Sum of completed sample durations.
@@ -89,25 +94,49 @@ namespace StormByte {
 			 * is a single-owner token and must not be accessed concurrently by multiple
 			 * threads. It may be moved to the thread that will stop it.
 			 */
-			class STORMBYTE_PUBLIC_TYPE Sample final {
+			class STORMBYTE_PUBLIC Sample final {
 				public:
-					/** @brief Empty, inactive sample. */
+					/**
+					 * @brief Construct an empty, inactive sample token.
+				 */
 					Sample() noexcept = default;
 
-					/** @brief Samples are not copyable. */
-					Sample(const Sample&) = delete;
+					/**
+					 * @brief Copy construction is disabled for single-owner sample tokens.
+					 * @param other Source sample; it remains owned by its current token.
+					 */
+					Sample(const Sample& other) = delete;
 
-					/** @brief Samples are not copy-assignable. */
-					Sample& operator=(const Sample&) = delete;
+					/**
+					 * @brief Copy assignment is disabled for single-owner sample tokens.
+					 * @param other Source sample.
+					 * @return No value; this operation is deleted.
+					 */
+					Sample& operator=(const Sample& other) = delete;
 
-					/** @brief Transfer responsibility for recording this sample. */
+					/**
+					 * @brief Transfer responsibility for recording the active sample.
+					 * @param other Source sample; it becomes inactive.
+					 */
 					Sample(Sample&& other) noexcept;
 
-					/** @brief Stop this sample, then take another sample. */
+					/**
+					 * @brief Record this sample and take responsibility for another.
+					 * @param other Source sample; it becomes inactive.
+					 * @return This sample token.
+					 */
 					Sample& operator=(Sample&& other) noexcept;
 
-					/** @brief Record the sample if it is still active. */
+					/**
+					 * @brief Record this sample if it is still active.
+					 */
 					~Sample() noexcept;
+
+					/**
+					 * @brief Whether this token owns a measurement that will be recorded.
+					 * @return False for an empty token, after Stop, or when best-effort creation failed.
+					 */
+					bool Active() const noexcept;
 
 					/**
 					 * @brief Complete and record this sample once.
@@ -118,7 +147,10 @@ namespace StormByte {
 				private:
 					friend class Clock;
 
-					/** @brief Start a sample against shared clock state. */
+					/**
+					 * @brief Start an interval sample against shared aggregate state.
+					 * @param state Shared state updated when the sample completes.
+					 */
 					explicit Sample(Safe::Shared<State> state) noexcept;
 
 					Safe::Shared<State> m_state; ///< Keeps the aggregate state alive until this sample ends.
@@ -258,25 +290,50 @@ namespace StormByte {
 			 * @brief Access or create a named clock in the drawer.
 			 * @param name Unique clock name.
 			 * @return Reference to the requested aggregate clock. Use MeasureClock to time an operation.
+			 * @throws StormByte::AllocationError If a new name or clock cannot be allocated.
+			 * @throws StormByte::OperationError If clock creation fails for another reason.
 			 */
-			class Clock& Clock(std::string_view name) noexcept;
+			class Clock& Clock(std::string_view name);
 
 			/**
 			 * @brief Start an independent sample on a named aggregate clock.
 			 * @param name Stable metric name.
-			 * @return Sample token; concurrent and nested scopes remain independent.
+			 * @return Active sample token; inactive if telemetry storage allocation fails.
+			 * @note Best-effort and non-throwing so it can be used in no-throw instrumentation paths.
 			 */
-			class Clock::Sample MeasureClock(std::string_view name);
+			class Clock::Sample MeasureClock(std::string_view name) noexcept;
 
 			/**
 			 * @brief Read-only access to a named clock in the drawer.
 			 * @param name Clock name.
 			 * @return Reference to the clock if found, or a static empty clock if missing.
 			 */
-			const class Clock& Clock(std::string_view name) const noexcept;
+			const class Clock& Clock(std::string_view name) const;
 
 		private:
 			struct Store;
 			Safe::Unique<Store> m_store;	///< PIMPL store for clock drawer.
 	};
+}
+
+/**
+ * @namespace StormByte
+ * @brief Root namespace of the StormByte suite.
+ */
+namespace StormByte {
+	/**
+	 * @namespace StormByte::Type
+	 * @brief Named concepts and small type utilities used across the suite.
+	 */
+	namespace Type {
+		/**
+		 * @brief Coherent clock snapshots contain only fixed-width numeric duration values.
+		 */
+		template<> struct IsSafe<Clock::Values>: std::true_type {};
+
+		/**
+		 * @brief Clock samples carry provider-managed shared state and require compatible STL ABI.
+		 */
+		template<> struct IsMaybeSafe<Clock::Sample>: std::true_type {};
+	}
 }

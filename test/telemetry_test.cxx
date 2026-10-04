@@ -47,6 +47,10 @@
 #include <thread>
 #include <utility>
 
+static_assert(StormByte::Type::IsSafe<StormByte::Clock::Values>::value);
+static_assert(StormByte::Type::MaybeSafe<StormByte::Clock::Sample>);
+static_assert(!StormByte::Type::SafeValue<StormByte::Clock::Sample>);
+
 namespace {
 	class Dummy final : public StormByte::Telemetry {
 		public:
@@ -103,6 +107,7 @@ static int test_empty_sample_stop_is_noop() {
 	StormByte::Clock clock;
 	StormByte::Clock::Sample sample;
 
+	ASSERT_FALSE("test_empty_sample_stop_is_noop", sample.Active());
 	ASSERT_EQUAL("test_empty_sample_stop_is_noop", 0ll, sample.Stop().count());
 	ASSERT_EQUAL("test_empty_sample_stop_is_noop", 0ull, clock.Count());
 	ASSERT_EQUAL("test_empty_sample_stop_is_noop", 0ll, clock.Time().count());
@@ -112,13 +117,17 @@ static int test_empty_sample_stop_is_noop() {
 static int test_nested_samples_are_independent() {
 	StormByte::Clock clock;
 	auto outer = clock.Measure();
+	ASSERT_TRUE("test_nested_samples_are_independent", outer.Active());
 	std::this_thread::sleep_for(std::chrono::microseconds(20));
 	auto inner = clock.Measure();
+	ASSERT_TRUE("test_nested_samples_are_independent", inner.Active());
 	std::this_thread::sleep_for(std::chrono::microseconds(20));
 	const auto inner_elapsed = inner.Stop();
 	const auto outer_elapsed = outer.Stop();
 
 	ASSERT_EQUAL("test_nested_samples_are_independent", 2ull, clock.Count());
+	ASSERT_FALSE("test_nested_samples_are_independent", inner.Active());
+	ASSERT_FALSE("test_nested_samples_are_independent", outer.Active());
 	ASSERT_TRUE("test_nested_samples_are_independent", inner_elapsed.count() > 0);
 	ASSERT_TRUE("test_nested_samples_are_independent", outer_elapsed >= inner_elapsed);
 	ASSERT_EQUAL("test_nested_samples_are_independent", outer_elapsed, outer.Stop());
@@ -178,6 +187,8 @@ static int test_multithread_same_key_independent_samples() {
 		threads.emplace_back([&dummy]() {
 			for (int i = 0; i < iterations; ++i) {
 				auto sample = dummy.Measure("shared-key");
+					if (!sample.Active())
+						return;
 				std::this_thread::sleep_for(std::chrono::microseconds(10));
 				(void)sample.Stop();
 			}

@@ -74,7 +74,7 @@ namespace StormByte {
 			 * @brief Allocate @p bytes on Base's heap.
 			 * @param bytes Block size in octets. Zero is forwarded to `operator new`.
 			 * @return Address of the block.
-			 * @throws std::bad_alloc When the allocator cannot satisfy the request.
+			 * @throws StormByte::AllocationError When the allocator cannot satisfy the request.
 			 */
 			STORMBYTE_PUBLIC void* Allocate(std::size_t bytes);
 
@@ -83,6 +83,15 @@ namespace StormByte {
 			 * @param pointer Block address, or a null pointer.
 			 */
 			STORMBYTE_PUBLIC void Free(void* pointer) noexcept;
+
+			/** @brief Throw Base's expired-observer exception. */
+			[[noreturn]] STORMBYTE_PUBLIC void ThrowExpiredWeakPointer();
+
+			/**
+			 * @brief Preserve an active StormByte exception or translate a foreign exception.
+			 * @pre Called from an active exception handler.
+			 */
+			[[noreturn]] STORMBYTE_PUBLIC void RethrowException();
 		}
 	}
 }

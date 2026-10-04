@@ -51,6 +51,18 @@ Exception::Exception(const Safe::String& message) {
 
 Exception::~Exception() noexcept = default;
 
+AllocationError::AllocationError() noexcept = default;
+
+AllocationError::~AllocationError() noexcept = default;
+
+const char* AllocationError::what() const noexcept {
+	return "StormByte: Memory allocation failed";
+}
+
+ExpiredWeakPointerError::~ExpiredWeakPointerError() noexcept = default;
+
+OperationError::~OperationError() noexcept = default;
+
 DeserializeError::~DeserializeError() noexcept = default;
 
 OutOfBoundsError::~OutOfBoundsError() noexcept = default;

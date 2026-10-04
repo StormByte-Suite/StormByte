@@ -98,15 +98,17 @@ namespace StormByte {
 					/**
 					 * @brief Adopt state and callbacks.
 					 * @param state Owned state.
-					 * @param clone Copy callback.
-					 * @param destroy Release callback.
+					 * @param clone Provider-module deep-copy callback, or null for move-only ownership.
+					 * @param destroy Provider-module release callback; required when @p state is non-null.
+					 * @throws StormByte::Exception If @p state is non-null and @p destroy is null;
+					 *         ownership is not transferred.
 					 */
-					Owner(void* state, Clone clone, Destroy destroy) noexcept;
+					Owner(void* state, Clone clone, Destroy destroy);
 
 					/**
 					 * @brief Deep copy in the original module.
 					 * @param other Source.
-					 * @throws StormByte::Exception Copy failure.
+					 * @throws StormByte::Exception If the source is non-clonable or provider cloning fails.
 					 */
 					Owner(const Owner& other);
 

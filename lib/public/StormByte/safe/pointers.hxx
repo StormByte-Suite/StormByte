@@ -89,7 +89,7 @@ namespace StormByte {
 			 * @brief Allocate @p bytes on Base's heap.
 			 * @param bytes Block size in octets. Zero is forwarded to `operator new`.
 			 * @return Address of the block.
-			 * @throws std::bad_alloc When the allocator cannot satisfy the request.
+			 * @throws StormByte::AllocationError When the allocator cannot satisfy the request.
 			 */
 			STORMBYTE_PUBLIC void* Allocate(std::size_t bytes);
 
@@ -98,6 +98,17 @@ namespace StormByte {
 			 * @param pointer Block address, or a null pointer.
 			 */
 			STORMBYTE_PUBLIC void Free(void* pointer) noexcept;
+
+			/** @brief Throw Base's expired-observer exception. */
+			[[noreturn]] STORMBYTE_PUBLIC void ThrowExpiredWeakPointer();
+
+			/**
+			 * @brief Preserve an active StormByte exception or translate a foreign exception.
+			 * @pre Called from an active exception handler.
+			 * @throws StormByte::AllocationError On allocation failure.
+			 * @throws StormByte::OperationError For other foreign exceptions.
+			 */
+			[[noreturn]] STORMBYTE_PUBLIC void RethrowException();
 
 			/**
 			 * @struct ObjectDeleter
@@ -249,7 +260,7 @@ namespace StormByte {
 				/**
 				 * @brief Take ownership from @p weak.
 				 * @param weak Observer of a @ref Shared control block.
-				 * @throws std::bad_weak_ptr When @p weak is empty or expired.
+				 * @throws StormByte::ExpiredWeakPointerError When @p weak is empty or expired.
 				 */
 				explicit Shared(const Weak<T>& weak);
 
@@ -906,7 +917,10 @@ namespace StormByte {
 		}
 
 		template<class T>
-		Shared<T>::Shared(const Weak<T>& weak): m_ptr(weak.m_weak) {}
+		Shared<T>::Shared(const Weak<T>& weak): m_ptr(weak.m_weak.lock()) {
+			if (!m_ptr)
+				Heap::ThrowExpiredWeakPointer();
+		}
 
 		template<class T>
 		template<class U>

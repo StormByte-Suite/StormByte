@@ -56,14 +56,12 @@ namespace StormByte {
 					object = ::new (memory) T(std::forward<Args>(args)...);
 				} catch (...) {
 					Free(memory);
-					throw;
+					RethrowException();
 				}
 				try {
 					return Shared<T>(typename Shared<T>::Adopt{}, object);
 				} catch (...) {
-					object->~T();
-					Free(memory);
-					throw;
+					RethrowException();
 				}
 			}
 
@@ -75,7 +73,7 @@ namespace StormByte {
 					object = ::new (memory) T(std::forward<Args>(args)...);
 				} catch (...) {
 					Free(memory);
-					throw;
+					RethrowException();
 				}
 				return Unique<T>(typename Unique<T>::Adopt{}, object);
 			}

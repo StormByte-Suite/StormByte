@@ -206,6 +206,24 @@ int TestOwnerCopyFailure() {
 	RETURN_TEST("TestOwnerCopyFailure", 0);
 }
 
+int TestOwnerRejectsInvalidCallbacks() {
+	int destroyed = 0;
+	auto rejectedState = std::make_unique<OwnerFixtureState>(&destroyed);
+	ASSERT_THROWS("TestOwnerRejectsInvalidCallbacks", Safe::Owner(rejectedState.get(), nullptr, nullptr), Exception);
+	ASSERT_TRUE("TestOwnerRejectsInvalidCallbacks", rejectedState != nullptr);
+	{
+		auto ownedState = std::make_unique<OwnerFixtureState>(&destroyed);
+		void* statePointer = ownedState.get();
+		Safe::Owner moveOnly(statePointer, nullptr, &DestroyOwnerFixtureState);
+		ownedState.release();
+		ASSERT_THROWS("TestOwnerRejectsInvalidCallbacks", Safe::Owner(moveOnly), Exception);
+		ASSERT_TRUE("TestOwnerRejectsInvalidCallbacks", moveOnly.Get() == statePointer);
+		ASSERT_EQUAL("TestOwnerRejectsInvalidCallbacks", 0, destroyed);
+	}
+	ASSERT_EQUAL("TestOwnerRejectsInvalidCallbacks", 1, destroyed);
+	RETURN_TEST("TestOwnerRejectsInvalidCallbacks", 0);
+}
+
 // -------------------
 // Callback validation
 // -------------------
@@ -515,6 +533,7 @@ int main() {
 	// -------------------
 
 	result += TestOwnerCopyFailure();
+	result += TestOwnerRejectsInvalidCallbacks();
 	result += TestSafeVectorAlgorithms();
 	result += TestSafeMapAlgorithms();
 	result += TestSafeOptionalAlgorithms();

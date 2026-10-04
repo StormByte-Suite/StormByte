@@ -38,9 +38,13 @@
  */
 
 #include <StormByte/safe/pointers.hxx>
+#include <StormByte/safe/wcstring.hxx>
+#include <StormByte/exception.hxx>
 #include <StormByte/test_handlers.h>
 
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -71,6 +75,19 @@ namespace {
 	};
 
 	class PlainChild: public Plain {};
+
+	class FailingConstructor {
+		public:
+			explicit FailingConstructor(int failure) {
+				if (failure == 0)
+					throw std::bad_alloc();
+				if (failure == 1)
+					throw std::runtime_error("Foreign constructor failure");
+				if (failure == 2)
+					throw OutOfBoundsError("StormByte constructor failure");
+				throw 42;
+			}
+	};
 
 	int Derived::destroyed = 0;
 }
@@ -202,6 +219,38 @@ int test_weak_rejects_std_weak_ptr() {
 	RETURN_TEST("test_weak_rejects_std_weak_ptr", result);
 }
 
+int test_stormbyte_pointer_failures() {
+	int result = 0;
+	Weak<Base> empty;
+	ASSERT_THROWS("test_stormbyte_pointer_failures", Shared<Base>(empty), ExpiredWeakPointerError);
+	auto owner = Heap::MakeShared<Base>(7);
+	Weak<Base> observer(owner);
+	ASSERT_EQUAL("test_stormbyte_pointer_failures", Shared<Base>(observer)->value, 7);
+	owner.reset();
+	ASSERT_THROWS("test_stormbyte_pointer_failures", Shared<Base>(observer), ExpiredWeakPointerError);
+	ASSERT_THROWS("test_stormbyte_pointer_failures", Heap::Allocate(std::numeric_limits<std::size_t>::max()), AllocationError);
+	RETURN_TEST("test_stormbyte_pointer_failures", result);
+}
+
+int test_factory_exception_translation() {
+	int result = 0;
+	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeShared<FailingConstructor>(0), AllocationError);
+	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeUnique<FailingConstructor>(0), AllocationError);
+	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeShared<FailingConstructor>(1), OperationError);
+	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeUnique<FailingConstructor>(1), OperationError);
+	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeShared<FailingConstructor>(2), OutOfBoundsError);
+	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeUnique<FailingConstructor>(2), OutOfBoundsError);
+	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeShared<FailingConstructor>(3), OperationError);
+	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeUnique<FailingConstructor>(3), OperationError);
+	Safe::CString text("unchanged");
+	ASSERT_THROWS("test_factory_exception_translation", text.reserve(std::numeric_limits<std::size_t>::max()), OutOfBoundsError);
+	ASSERT_EQUAL("test_factory_exception_translation", std::string(text), std::string("unchanged"));
+	Safe::WCString wide(L"unchanged");
+	ASSERT_THROWS("test_factory_exception_translation", wide.reserve(std::numeric_limits<std::size_t>::max() / sizeof(wchar_t)), OutOfBoundsError);
+	ASSERT_TRUE("test_factory_exception_translation", std::wstring(wide) == L"unchanged");
+	RETURN_TEST("test_factory_exception_translation", result);
+}
+
 // -------------------
 // Cast
 // -------------------
@@ -257,6 +306,8 @@ int main() {
 	// -------------------
 	result += test_weak_locks_and_expires();
 	result += test_weak_rejects_std_weak_ptr();
+	result += test_stormbyte_pointer_failures();
+	result += test_factory_exception_translation();
 
 	// -------------------
 	// Cast

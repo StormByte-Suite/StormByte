@@ -53,8 +53,13 @@ using namespace StormByte::Safe;
 char* CString::Allocate(const std::size_t capacity) {
 	constexpr std::size_t header_size = sizeof(capacity);
 	if (capacity > std::numeric_limits<std::size_t>::max() - header_size - 1)
-		throw StormByte::Exception("Safe::CString reserve capacity is too large");
-	char* allocation = new char[header_size + capacity + 1];
+		throw OutOfBoundsError("Safe::CString reserve capacity is too large");
+	char* allocation;
+	try {
+		allocation = new char[header_size + capacity + 1];
+	} catch (const std::bad_alloc&) {
+		throw AllocationError();
+	}
 	std::memcpy(allocation, &capacity, header_size);
 	char* text = allocation + header_size;
 	text[0] = '\0';

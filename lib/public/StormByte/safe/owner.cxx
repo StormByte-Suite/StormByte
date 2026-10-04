@@ -48,17 +48,25 @@ void StormByte::Safe::Detail::ThrowSafeConversionFailure(const char* message) {
 	throw StormByte::Exception(message);
 }
 
-Owner::Owner(void* state, Clone clone, Destroy destroy) noexcept:
-	m_state(state), m_clone(clone), m_destroy(destroy) {}
+Owner::Owner(void* state, Clone clone, Destroy destroy):
+	m_state(nullptr), m_clone(clone), m_destroy(destroy) {
+	if (state && !destroy)
+		throw StormByte::Exception("Safe owner requires a destroy callback for non-null state");
+	m_state = state;
+}
 
 Owner::Owner() noexcept:
 	m_state(nullptr), m_clone(nullptr), m_destroy(nullptr) {}
 
 Owner::Owner(const Owner& other):
-	m_state(other.m_state ? other.m_clone(other.m_state) : nullptr),
-	m_clone(other.m_clone), m_destroy(other.m_destroy) {
-	if (other.m_state && !m_state)
-		throw StormByte::Exception("Safe collection copy failed");
+	m_state(nullptr), m_clone(other.m_clone), m_destroy(other.m_destroy) {
+	if (!other.m_state)
+		return;
+	if (!m_clone)
+		throw StormByte::Exception("Safe owner state is not clonable");
+	m_state = m_clone(other.m_state);
+	if (!m_state)
+		throw StormByte::Exception("Safe owner copy failed");
 }
 
 Owner::Owner(Owner&& other) noexcept:

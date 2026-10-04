@@ -151,6 +151,11 @@ namespace StormByte {
 
 		protected:
 			/**
+			 * @brief Construct without allocating message storage.
+			 */
+			Exception() noexcept = default;
+
+			/**
 			 * @brief Stores `StormByte.path: message`, or `StormByte: message` when @p path is empty.
 			 * @tparam Args Format argument types.
 			 * @param path Segments under `StormByte`.
@@ -187,6 +192,42 @@ namespace StormByte {
 			}
 
 			Safe::String m_what;	///< Owned message
+	};
+
+	/**
+	 * @class AllocationError
+	 * @brief Memory allocation failed; constructing this exception does not allocate.
+	 */
+	class STORMBYTE_PUBLIC AllocationError: public Exception {
+		public:
+			/** @brief Construct with a fixed allocation-failure message. */
+			AllocationError() noexcept;
+			/** @brief Destructor anchored in the Base DLL. */
+			~AllocationError() noexcept override;
+			/** @brief Return the static message. @return Allocation-failure text. */
+			const char* what() const noexcept override;
+	};
+
+	/**
+	 * @class ExpiredWeakPointerError
+	 * @brief A shared owner cannot be obtained from an empty or expired observer.
+	 */
+	class STORMBYTE_PUBLIC ExpiredWeakPointerError: public Exception {
+		public:
+			using Exception::Exception;
+			/** @brief Destructor anchored in the Base DLL. */
+			~ExpiredWeakPointerError() noexcept override;
+	};
+
+	/**
+	 * @class OperationError
+	 * @brief An operation failed with an exception outside the StormByte hierarchy.
+	 */
+	class STORMBYTE_PUBLIC OperationError: public Exception {
+		public:
+			using Exception::Exception;
+			/** @brief Destructor anchored in the Base DLL. */
+			~OperationError() noexcept override;
 	};
 
 	/**
