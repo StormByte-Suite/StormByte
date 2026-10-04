@@ -547,7 +547,8 @@ namespace StormByte {
 				/**
 				 * @brief Construct an empty sequence in the calling module.
 				 */
-				Iterable(): m_owner(Store::Create(), &Store::Clone, &Store::Destroy),
+				Iterable(): m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
+					m_owner(Store::Create(), &Store::Clone, &Store::Destroy),
 					m_dispatch(&Store::Apply), m_count(&Store::Count) {}
 
 				/**
@@ -555,6 +556,7 @@ namespace StormByte {
 				 * @param values Source container.
 				 */
 				explicit Iterable(const Container& values):
+					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::Create(values), &Store::Clone, &Store::Destroy),
 					m_dispatch(&Store::Apply), m_count(&Store::Count) {}
 
@@ -563,6 +565,7 @@ namespace StormByte {
 				 * @param values Source container; it is left valid and empty.
 				 */
 				explicit Iterable(Container&& values):
+					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::CreateMove(values), &Store::Clone, &Store::Destroy),
 					m_dispatch(&Store::Apply), m_count(&Store::Count) {}
 
@@ -924,9 +927,15 @@ namespace StormByte {
 				 */
 				void EnsureOwner() {
 					if (!m_owner.Get())
-						m_owner = Detail::Owner(Store::Create(), &Store::Clone, &Store::Destroy);
+						m_owner = Detail::Owner(m_create(), m_clone, m_destroy);
 				}
 
+				using Create = void* (*)(); ///< Creator-module empty-store callback type.
+				using Clone = Detail::Owner::Clone; ///< Creator-module clone callback type.
+				using Destroy = Detail::Owner::Destroy; ///< Creator-module destroy callback type.
+				Create m_create; ///< Creator-module empty-store callback.
+				Clone m_clone; ///< Creator-module deep-clone callback.
+				Destroy m_destroy; ///< Creator-module release callback.
 				Detail::Owner m_owner; ///< Opaque owner callbacks.
 				Dispatch m_dispatch; ///< Creator-module operation callback.
 				Count m_count; ///< Creator-module count callback.

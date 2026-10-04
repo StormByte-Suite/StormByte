@@ -151,28 +151,25 @@ namespace StormByte {
 
 		template<Type::SafeValue T>
 		STORMBYTE_FORCE_INLINE Queue<T>::Queue():
+			m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 			m_owner(Store::Create(), &Store::Clone, &Store::Destroy),
 			m_dispatch(&Store::Apply), m_count(&Store::Count) {}
 
 		template<Type::SafeValue T>
 		Queue<T>::Queue(const std::queue<T>& values):
+			m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 			m_owner(Store::Create(values), &Store::Clone, &Store::Destroy),
 			m_dispatch(&Store::Apply), m_count(&Store::Count) {}
 
 		template<Type::SafeValue T>
 		Queue<T>::Queue(std::queue<T>&& values):
+			m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 			m_owner(Store::CreateMove(values), &Store::Clone, &Store::Destroy),
 			m_dispatch(&Store::Apply), m_count(&Store::Count) {}
 
 		template<Type::SafeValue T>
 		std::size_t Queue<T>::size() const noexcept {
 			return static_cast<std::size_t>(m_count(m_owner.Get()));
-		}
-
-		template<Type::SafeValue T>
-		void Queue<T>::EnsureOwner() {
-			if (!m_owner.Get())
-				m_owner = Detail::Owner(Store::Create(), &Store::Clone, &Store::Destroy);
 		}
 
 		template<Type::SafeValue T>

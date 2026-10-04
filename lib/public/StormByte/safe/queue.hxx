@@ -195,12 +195,21 @@ namespace StormByte {
 				 * @brief Creator-local count callback.
 				 */
 				using Count = StormByte::Size (*)(const void*) noexcept;
+				using Create = void* (*)(); ///< Empty-store callback type in the creator module.
+				using Clone = Detail::Owner::Clone; ///< Deep-clone callback type in the creator module.
+				using Destroy = Detail::Owner::Destroy; ///< Release callback type in the creator module.
 
 				/**
 				 * @brief Recreate empty owner storage after move.
 				 */
-				void EnsureOwner();
+				void EnsureOwner() {
+					if (!m_owner.Get())
+						m_owner = Detail::Owner(m_create(), m_clone, m_destroy);
+				}
 
+				Create m_create; ///< Empty-store callback in the creator module.
+				Clone m_clone; ///< Deep-clone callback in the creator module.
+				Destroy m_destroy; ///< Release callback in the creator module.
 				Detail::Owner m_owner; ///< State with creator-module lifetime callbacks.
 				Dispatch m_dispatch; ///< Operations in the creator module.
 				Count m_count; ///< Count in the creator module.

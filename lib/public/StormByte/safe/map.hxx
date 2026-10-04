@@ -266,6 +266,7 @@ namespace StormByte {
 				 * @brief Construct an empty map.
 				 */
 				Iterable():
+					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::Create(), &Store::Clone, &Store::Destroy),
 					m_dispatch(&Store::Apply), m_count(&Store::Count), m_visit(&Store::Visit) {}
 
@@ -274,6 +275,7 @@ namespace StormByte {
 				 * @param values Source map.
 				 */
 				explicit Iterable(const Container& values):
+					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::Create(values), &Store::Clone, &Store::Destroy),
 					m_dispatch(&Store::Apply), m_count(&Store::Count), m_visit(&Store::Visit) {}
 
@@ -282,6 +284,7 @@ namespace StormByte {
 				 * @param values Source map; it is left valid and empty.
 				 */
 				explicit Iterable(Container&& values):
+					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::CreateMove(values), &Store::Clone, &Store::Destroy),
 					m_dispatch(&Store::Apply), m_count(&Store::Count), m_visit(&Store::Visit) {}
 
@@ -508,6 +511,9 @@ namespace StormByte {
 				using Count = StormByte::Size (*)(const void*) noexcept;
 				using InsertEntry = Status (*)(void*, const K&, const V&) noexcept;
 				using VisitEntries = Status (*)(const void*, void*, InsertEntry) noexcept;
+				using CreateState = void* (*)(); ///< Creator-module empty-store callback type.
+				using CloneState = Detail::Owner::Clone; ///< Creator-module clone callback type.
+				using DestroyState = Detail::Owner::Destroy; ///< Creator-module destroy callback type.
 
 				struct Store {
 					Container values;
@@ -630,9 +636,12 @@ namespace StormByte {
 
 				void EnsureOwner() {
 					if (!m_owner.Get())
-						m_owner = Detail::Owner(Store::Create(), &Store::Clone, &Store::Destroy);
+						m_owner = Detail::Owner(m_create(), m_clone, m_destroy);
 				}
 
+				CreateState m_create; ///< Creator-module empty-store callback.
+				CloneState m_clone; ///< Creator-module deep-clone callback.
+				DestroyState m_destroy; ///< Creator-module release callback.
 				Detail::Owner m_owner; ///< Opaque owner callbacks.
 				Dispatch m_dispatch; ///< Creator-module dispatch callback.
 				Count m_count; ///< Creator-module count callback.

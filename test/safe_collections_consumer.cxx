@@ -197,6 +197,9 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	auto producerQueueMoved = std::move(producerQueueCopy);
 	if (!producerQueueCopy.empty() || producerQueueMoved.size() != 3)
 		return false;
+	producerQueueCopy.push(Text("reused after move"));
+	if (producerQueueCopy.front() != "reused after move")
+		return false;
 	producerQueue.pop();
 	if (producerQueue.front() != "queue")
 		return false;
@@ -240,6 +243,9 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 		Dictionary mapAssigned = map;
 		auto mapMoved = std::move(mapCopy);
 		if (!mapCopy.empty() || static_cast<Text>(mapMoved.at(Text("alpha"))) != "first")
+			return false;
+		mapCopy.insert_or_assign(Text("reused"), Text("after move"));
+		if (static_cast<Text>(mapCopy.at(Text("reused"))) != "after move")
 			return false;
 		mapMoved.at(Text("alpha")) = Text("changed");
 		mapMoved.insert_or_assign(Text("gamma"), Text("third"));
