@@ -47,6 +47,8 @@ namespace StormByte {
 	BinaryData Serializable<T>::Serialize() const noexcept {
 		if constexpr (Type::Optional<T>) {
 			return SerializeOptional();
+		} else if constexpr (Type::Queue<T>) {
+			return SerializeQueue();
 		} else if constexpr (Type::Pair<T>) {
 			return SerializePair();
 		} else if constexpr (Type::Container<T>) {
@@ -62,6 +64,8 @@ namespace StormByte {
 	Expected<T, DeserializeError> Serializable<T>::Deserialize(std::span<const std::byte> data) noexcept {
 		if constexpr (Type::Optional<T>) {
 			return DeserializeOptional(data);
+		} else if constexpr (Type::Queue<T>) {
+			return DeserializeQueue(data);
 		} else if constexpr (Type::Pair<T>) {
 			return DeserializePair(data);
 		} else if constexpr (Type::Container<T>) {
@@ -82,6 +86,8 @@ namespace StormByte {
 	ByteSize Serializable<T>::Size(const DecayedT& data) noexcept {
 		if constexpr (Type::Optional<T>) {
 			return SizeOptional(data);
+		} else if constexpr (Type::Queue<T>) {
+			return SizeQueue(data);
 		} else if constexpr (Type::Pair<T>) {
 			return SizePair(data);
 		} else if constexpr (Type::Container<T>) {
@@ -115,8 +121,10 @@ namespace StormByte {
 		const std::uint64_t size = static_cast<std::uint64_t>(m_data.size());
 		BinaryData buffer = Serializable<std::uint64_t>(size).Serialize();
 		buffer.reserve(ByteSize{static_cast<std::size_t>(buffer.size())} + SizeContainer(m_data));
+		using ElementT = typename DecayedT::value_type;
 		for (const auto& element : m_data) {
-			Serializable<std::remove_cvref_t<decltype(element)>> element_serial(element);
+			ElementT snapshot = element;
+			Serializable<ElementT> element_serial(snapshot);
 			append_bytes(buffer, element_serial.Serialize());
 		}
 		return buffer;
@@ -144,8 +152,28 @@ namespace StormByte {
 		buffer.reserve(SizeOptional(m_data));
 		append_bytes(buffer, Serializable<bool>(has_value).Serialize());
 		if (m_data.has_value()) {
-			Serializable<std::remove_cvref_t<decltype(m_data.value())>> value_serial(m_data.value());
+			using ValueT = typename DecayedT::value_type;
+			ValueT value = m_data.value();
+			Serializable<ValueT> value_serial(value);
 			append_bytes(buffer, value_serial.Serialize());
+		}
+		return buffer;
+	}
+
+	template<typename T>
+	template<typename U>
+	BinaryData Serializable<T>::SerializeQueue() const noexcept
+	requires Type::Queue<U> {
+		const std::uint64_t count = static_cast<std::uint64_t>(m_data.size());
+		BinaryData buffer = Serializable<std::uint64_t>(count).Serialize();
+		buffer.reserve(ByteSize{static_cast<std::size_t>(buffer.size())} + SizeQueue(m_data));
+		DecayedT queue = m_data;
+		using ElementT = typename DecayedT::value_type;
+		while (!queue.empty()) {
+			ElementT element = queue.front();
+			queue.pop();
+			Serializable<ElementT> element_serial(element);
+			append_bytes(buffer, element_serial.Serialize());
 		}
 		return buffer;
 	}
@@ -156,7 +184,8 @@ namespace StormByte {
 	requires Type::Container<U> {
 		ByteSize size{sizeof(std::uint64_t)};
 		for (const auto& element : data) {
-			size += Serializable<std::remove_cvref_t<decltype(element)>>::Size(element);
+			typename DecayedT::value_type snapshot = element;
+			size += Serializable<typename DecayedT::value_type>::Size(snapshot);
 		}
 		return size;
 	}
@@ -177,6 +206,21 @@ namespace StormByte {
 		ByteSize size{sizeof(bool)};
 		if (data.has_value()) {
 			size += Serializable<std::remove_cvref_t<decltype(data.value())>>::Size(data.value());
+		}
+		return size;
+	}
+
+	template<typename T>
+	template<typename U>
+	ByteSize Serializable<T>::SizeQueue(const DecayedT& data) noexcept
+	requires Type::Queue<U> {
+		ByteSize size{sizeof(std::uint64_t)};
+		DecayedT queue = data;
+		using ElementT = typename DecayedT::value_type;
+		while (!queue.empty()) {
+			ElementT element = queue.front();
+			queue.pop();
+			size += Serializable<ElementT>::Size(element);
 		}
 		return size;
 	}
@@ -247,6 +291,12 @@ namespace StormByte {
 			const ByteSize element_size = Serializable<ElementT>::Size(expected_element.value());
 			if constexpr (Type::Array<T>) {
 				container[static_cast<std::size_t>(i)] = std::move(expected_element.value());
+			} else if constexpr (requires(T& target, ElementT value) { target.push_back(std::move(value)); }) {
+				container.push_back(std::move(expected_element.value()));
+			} else if constexpr (requires(T& target, ElementT value) {
+				target.insert_or_assign(value.first, value.second);
+			}) {
+				container.insert_or_assign(expected_element.value().first, expected_element.value().second);
 			} else {
 				container.insert(container.end(), std::move(expected_element.value()));
 			}
@@ -298,5 +348,60 @@ namespace StormByte {
 			return Unexpected(expected_value.error());
 
 		return T{ std::move(expected_value.value()) };
+	}
+
+	template<typename T>
+	template<typename U>
+	Expected<T, DeserializeError> Serializable<T>::DeserializeQueue(std::span<const std::byte> data) noexcept
+	requires Type::Queue<U> {
+		if (data.size() < sizeof(std::uint64_t))
+			return Unexpected<DeserializeError>("Insufficient data for queue size");
+		auto expected_count = Serializable<std::uint64_t>::Deserialize(data.first(sizeof(std::uint64_t)));
+		if (!expected_count)
+			return Unexpected(expected_count.error());
+
+		std::size_t offset = sizeof(std::uint64_t);
+		const std::uint64_t count = expected_count.value();
+		using ElementT = typename DecayedT::value_type;
+		constexpr std::uint64_t MaximumQueueElements = 1'048'576;
+		if (count > MaximumQueueElements)
+			return Unexpected<DeserializeError>("Queue element count exceeds the decoding resource limit");
+
+		try {
+			const auto readElement = [&]() -> Expected<ElementT, DeserializeError> {
+				if (offset > data.size())
+					return Unexpected<DeserializeError>("Queue element offset exceeds input");
+				auto expected_element = Serializable<ElementT>::Deserialize(data.subspan(offset));
+				if (!expected_element)
+					return Unexpected(expected_element.error());
+				const ByteSize element_size = Serializable<ElementT>::Size(expected_element.value());
+				if (static_cast<std::size_t>(element_size) > data.size() - offset)
+					return Unexpected<DeserializeError>("Queue element exceeds remaining buffer");
+				offset += static_cast<std::size_t>(element_size);
+				return std::move(expected_element.value());
+			};
+
+			if constexpr (Type::IsSafeQueue<DecayedT>::value) {
+				std::queue<ElementT> staged;
+				for (std::uint64_t i = 0; i < count; ++i) {
+					auto element = readElement();
+					if (!element)
+						return Unexpected(element.error());
+					staged.push(std::move(element.value()));
+				}
+				return T(std::move(staged));
+			} else {
+				T queue;
+				for (std::uint64_t i = 0; i < count; ++i) {
+					auto element = readElement();
+					if (!element)
+						return Unexpected(element.error());
+					queue.push(std::move(element.value()));
+				}
+				return queue;
+			}
+		} catch (...) {
+			return Unexpected<DeserializeError>("Queue allocation or insertion failed");
+		}
 	}
 }

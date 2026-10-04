@@ -39,9 +39,12 @@
 
 #pragma once
 
+#include <StormByte/type_traits/safe.hxx>
+
 #include <concepts>
 #include <cstddef>
 #include <optional>
+#include <queue>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -77,6 +80,21 @@ namespace StormByte {
 			 */
 			template<typename... Ts>
 			constexpr bool is_variant_v<std::variant<Ts...>> = true;
+
+			/**
+			 * @brief Primary classification for standard FIFO wrappers.
+			 * @tparam T Candidate type.
+			 */
+			template<typename T>
+			struct is_std_queue: std::false_type {};
+
+			/**
+			 * @brief Specialization for std::queue with any underlying container.
+			 * @tparam Value Queued value type.
+			 * @tparam Container Underlying container type.
+			 */
+			template<typename Value, typename Container>
+			struct is_std_queue<std::queue<Value, Container>>: std::true_type {};
 
 			/**
 			 * @brief Fold: is stripped @p U one of @p VariantT's alternatives?
@@ -119,10 +137,11 @@ namespace StormByte {
 		 */
 
 		/**
-		 * @brief Exactly `std::optional<U>` for some `U`.
+		 * @brief `std::optional<U>` or a Safe optional wrapper.
 		 * @tparam T Type to test (no decay).
 		 *
-		 * A type that merely has `value_type` does not match.
+		 * A type that merely has `value_type` does not match. Safe optional types
+		 * are registered explicitly and use the same optional wire framing.
 		 *
 		 * @code
 		 * template<Type::Optional T>
@@ -131,8 +150,19 @@ namespace StormByte {
 		 */
 		template<typename T>
 		concept Optional =
-			requires { typename T::value_type; } &&
-			std::same_as<T, std::optional<typename T::value_type>>;
+			(requires { typename T::value_type; } &&
+				std::same_as<T, std::optional<typename T::value_type>>) || IsSafeOptional<T>::value;
+
+		/**
+		 * @brief FIFO wrappers supported by generic queue operations.
+		 * @tparam T Type to test.
+		 *
+		 * Includes `std::queue` and registered Safe queue wrappers. This concept
+		 * does not require iteration; consumers use `front` / `pop` / `push`.
+		 */
+		template<typename T>
+		concept Queue =
+			Detail::is_std_queue<T>::value || IsSafeQueue<T>::value;
 
 		/**
 		 * @brief Instantiation of `std::variant`, after stripping cv and references.

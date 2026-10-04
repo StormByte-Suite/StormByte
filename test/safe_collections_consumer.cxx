@@ -151,6 +151,15 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	const auto producerSTLOptional = static_cast<std::optional<Text>>(producerOptional);
 	if (!producerSTLOptional || producerSTLOptional->size() != Size(8192))
 		return false;
+	auto producerLevel = MakeOptionalLevel();
+	MaybeLevel copiedLevel;
+	copiedLevel = producerLevel;
+	MaybeLevel movedLevel(std::move(producerLevel));
+	if (producerLevel.has_value() || copiedLevel != OptionalTestLevel::Warning || movedLevel.value_or(OptionalTestLevel::Info) != OptionalTestLevel::Warning)
+		return false;
+	producerLevel.emplace(OptionalTestLevel::Info);
+	if (producerLevel != OptionalTestLevel::Info || movedLevel != OptionalTestLevel::Warning)
+		return false;
 
 	TokenQueue exploded;
 	if (Text("left||right|").Explode('|', exploded) != Status::Success || exploded.size() != 4)

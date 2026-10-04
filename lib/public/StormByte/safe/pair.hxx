@@ -142,6 +142,62 @@ namespace StormByte {
 					std::is_nothrow_move_assignable_v<Second>) = default;
 
 				/**
+				 * @brief Copy-assign from a compatible caller-owned std::pair.
+				 * @tparam OtherFirst Source first component type.
+				 * @tparam OtherSecond Source second component type.
+				 * @param other Source pair.
+				 * @return This pair.
+				 */
+				template<class OtherFirst, class OtherSecond>
+				requires std::assignable_from<First&, const OtherFirst&> &&
+					std::assignable_from<Second&, const OtherSecond&>
+				Pair& operator=(const std::pair<OtherFirst, OtherSecond>& other) {
+					First firstValue(other.first);
+					Second secondValue(other.second);
+					first = std::move(firstValue);
+					second = std::move(secondValue);
+					return *this;
+				}
+
+				/**
+				 * @brief Move-assign from a compatible caller-owned std::pair.
+				 * @tparam OtherFirst Source first component type.
+				 * @tparam OtherSecond Source second component type.
+				 * @param other Source pair, components moved after conversion.
+				 * @return This pair.
+				 */
+				template<class OtherFirst, class OtherSecond>
+				requires std::assignable_from<First&, OtherFirst&&> &&
+					std::assignable_from<Second&, OtherSecond&&>
+				Pair& operator=(std::pair<OtherFirst, OtherSecond>&& other) {
+					First firstValue(std::move(other.first));
+					Second secondValue(std::move(other.second));
+					first = std::move(firstValue);
+					second = std::move(secondValue);
+					return *this;
+				}
+
+				/**
+				 * @brief Exchange both components with another Safe pair.
+				 * @param other Pair to exchange with.
+				 */
+				void swap(Pair& other) noexcept(
+					std::is_nothrow_swappable_v<First> && std::is_nothrow_swappable_v<Second>) {
+					using std::swap;
+					swap(first, other.first);
+					swap(second, other.second);
+				}
+
+				/**
+				 * @brief Exchange two Safe pairs.
+				 * @param left First pair.
+				 * @param right Second pair.
+				 */
+				friend void swap(Pair& left, Pair& right) noexcept(noexcept(left.swap(right))) {
+					left.swap(right);
+				}
+
+				/**
 				 * @brief Copy the components into caller-owned std::pair storage.
 				 * @return std::pair value copy.
 				 */

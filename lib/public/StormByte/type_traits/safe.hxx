@@ -39,6 +39,8 @@
 
 #pragma once
 
+#include <StormByte/type_traits/enums.hxx>
+
 #include <type_traits>
 
 /**
@@ -164,6 +166,22 @@ namespace StormByte {
 		concept SafeComponent = IsSafe<std::remove_cvref_t<T>>::value;
 
 		/**
+		 * @struct IsSafeOptional
+		 * @brief Identifies Safe optional wrappers.
+		 * @tparam T Candidate type.
+		 */
+		template<typename T>
+		struct IsSafeOptional: std::false_type {};
+
+		/**
+		 * @struct IsSafeQueue
+		 * @brief Identifies Safe FIFO wrappers.
+		 * @tparam T Candidate type.
+		 */
+		template<typename T>
+		struct IsSafeQueue: std::false_type {};
+
+		/**
 		 * @struct IsSafeValue
 		 * @brief Closed admission list for collection values with Base-controlled lifetime.
 		 * @tparam T Exact, unqualified value type.
@@ -200,6 +218,12 @@ namespace StormByte {
 		 * @brief Admits Base's fixed-width byte count.
 		 */
 		template<> struct IsSafeValue<ByteSize>: std::true_type {};
+		/**
+		 * @brief Admits enumeration values, which cross module boundaries by value.
+		 * @tparam T Enumeration type.
+		 */
+		template<Type::Enum T>
+		struct IsSafeValue<T>: std::true_type {};
 
 		/**
 		 * @brief Unqualified value permitted in the opaque Safe collections.

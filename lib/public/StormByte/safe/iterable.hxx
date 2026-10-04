@@ -49,6 +49,7 @@
 #include <concepts>
 #include <cstddef>
 #include <iterator>
+#include <initializer_list>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -549,7 +550,38 @@ namespace StormByte {
 				 */
 				Iterable(): m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::Create(), &Store::Clone, &Store::Destroy),
-					m_dispatch(&Store::Apply), m_count(&Store::Count) {}
+					m_dispatch(&Store::Apply), m_count(&Store::Count), m_capacity(&Store::Capacity) {}
+
+				/**
+				 * @brief Construct count default-inserted elements.
+				 * @param count Number of elements.
+				 */
+				explicit Iterable(size_type count)
+					requires std::default_initializable<value_type> && requires { Container(count); }:
+					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
+					m_owner(Store::Create(Container(count)), &Store::Clone, &Store::Destroy),
+					m_dispatch(&Store::Apply), m_count(&Store::Count), m_capacity(&Store::Capacity) {}
+
+				/**
+				 * @brief Construct count copies of value.
+				 * @param count Number of elements.
+				 * @param value Value to copy.
+				 */
+				Iterable(size_type count, const value_type& value)
+					requires requires { Container(count, value); }:
+					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
+					m_owner(Store::Create(Container(count, value)), &Store::Clone, &Store::Destroy),
+					m_dispatch(&Store::Apply), m_count(&Store::Count), m_capacity(&Store::Capacity) {}
+
+				/**
+				 * @brief Construct from caller-owned initializer-list values.
+				 * @param values Source values.
+				 */
+				Iterable(std::initializer_list<value_type> values)
+					requires requires { Container(values); }:
+					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
+					m_owner(Store::Create(Container(values)), &Store::Clone, &Store::Destroy),
+					m_dispatch(&Store::Apply), m_count(&Store::Count), m_capacity(&Store::Capacity) {}
 
 				/**
 				 * @brief Copy a container into creator-owned storage.
@@ -558,7 +590,7 @@ namespace StormByte {
 				explicit Iterable(const Container& values):
 					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::Create(values), &Store::Clone, &Store::Destroy),
-					m_dispatch(&Store::Apply), m_count(&Store::Count) {}
+					m_dispatch(&Store::Apply), m_count(&Store::Count), m_capacity(&Store::Capacity) {}
 
 				/**
 				 * @brief Move elements from an STL rvalue without adopting its allocation.
@@ -567,7 +599,7 @@ namespace StormByte {
 				explicit Iterable(Container&& values):
 					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::CreateMove(values), &Store::Clone, &Store::Destroy),
-					m_dispatch(&Store::Apply), m_count(&Store::Count) {}
+					m_dispatch(&Store::Apply), m_count(&Store::Count), m_capacity(&Store::Capacity) {}
 
 				/**
 				 * @brief Deep-copy another iterable in its creator module.
@@ -601,6 +633,38 @@ namespace StormByte {
 				Iterable& operator=(Iterable&& other) noexcept = default;
 
 				/**
+				 * @brief Copy-assign from caller-owned sequence storage.
+				 * @param values Source container; it remains unchanged.
+				 * @return This iterable.
+				 */
+				Iterable& operator=(const Container& values) {
+					Iterable replacement(values);
+					*this = std::move(replacement);
+					return *this;
+				}
+
+				/**
+				 * @brief Move elements from caller-owned sequence storage.
+				 * @param values Source container, empty after a successful transfer.
+				 * @return This iterable.
+				 */
+				Iterable& operator=(Container&& values) {
+					Iterable replacement(std::move(values));
+					*this = std::move(replacement);
+					return *this;
+				}
+
+				/**
+				 * @brief Assign from an initializer list.
+				 * @param values Replacement elements.
+				 * @return This iterable.
+				 */
+				Iterable& operator=(std::initializer_list<value_type> values)
+					requires requires { Container(values); } {
+					return *this = Container(values);
+				}
+
+				/**
 				 * @brief Return the number of elements.
 				 * @return Element count.
 				 */
@@ -611,6 +675,15 @@ namespace StormByte {
 				 * @return Whether no elements are stored.
 				 */
 				bool empty() const noexcept { return size() == 0; }
+
+				/**
+				 * @brief Return the underlying capacity when supported by Container.
+				 * @return Allocated element slots.
+				 */
+				size_type capacity() const noexcept
+					requires requires(const Container& container) { container.capacity(); } {
+					return static_cast<size_type>(m_capacity(m_owner.Get()));
+				}
 
 				/**
 				 * @brief Return the first mutable iterator.
@@ -718,6 +791,162 @@ namespace StormByte {
 				}
 
 				/**
+				 * @brief Append an rvalue element through creator-owned storage.
+				 * @param value Value to move from; its state becomes moved-from.
+				 */
+				void push_back(value_type&& value) {
+					value_type snapshot(std::move(value));
+					push_back(static_cast<const value_type&>(snapshot));
+				}
+
+				/**
+				 * @brief Construct and append an element.
+				 * @tparam Args Constructor argument types.
+				 * @param args Arguments forwarded to value_type.
+				 * @return Mutable callback-backed proxy to the inserted element.
+				 */
+				template<class... Args>
+				reference emplace_back(Args&&... args) {
+					value_type value(std::forward<Args>(args)...);
+					push_back(std::move(value));
+					return back();
+				}
+
+				/**
+				 * @brief Insert a value before position.
+				 * @param position Insertion position.
+				 * @param value Value to insert.
+				 * @return Iterator to the inserted value.
+				 */
+				iterator insert(const_iterator position, const value_type& value)
+					requires requires(Container& container, const value_type& item) { container.insert(container.begin(), item); } {
+					const difference_type index = position - cbegin();
+					if (m_dispatch(m_owner.Get(), Action::Insert, StormByte::Size(index), &value, nullptr) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe iterable insert failed");
+					return begin() + index;
+				}
+
+				/**
+				 * @brief Construct a value before position.
+				 * @tparam Args Constructor argument types.
+				 * @param position Insertion position.
+				 * @param args Arguments forwarded to value_type.
+				 * @return Iterator to the inserted value.
+				 */
+				template<class... Args>
+				iterator emplace(const_iterator position, Args&&... args)
+					requires requires(Container& container, const value_type& item) { container.insert(container.begin(), item); } {
+					value_type value(std::forward<Args>(args)...);
+					return insert(position, value);
+				}
+
+				/**
+				 * @brief Insert count copies before position.
+				 * @param position Insertion position.
+				 * @param count Number of copies.
+				 * @param value Value to copy.
+				 * @return Iterator to the first inserted value.
+				 */
+				iterator insert(const_iterator position, size_type count, const value_type& value)
+					requires requires(Container& container, const value_type& item) { container.insert(container.begin(), item); } {
+					const difference_type index = position - cbegin();
+					Container replacement = static_cast<Container>(*this);
+					for (size_type inserted = 0; inserted < count; ++inserted)
+						replacement.insert(replacement.begin() + index + static_cast<difference_type>(inserted), value);
+					*this = std::move(replacement);
+					return begin() + index;
+				}
+
+				/**
+				 * @brief Insert initializer-list values before position.
+				 * @param position Insertion position.
+				 * @param values Values to insert.
+				 * @return Iterator to the first inserted value.
+				 */
+				iterator insert(const_iterator position, std::initializer_list<value_type> values)
+					requires requires(Container& container, const value_type& item) { container.insert(container.begin(), item); } {
+					const difference_type index = position - cbegin();
+					const difference_type first = index;
+					Container replacement = static_cast<Container>(*this);
+					difference_type inserted = 0;
+					for (const auto& value: values) {
+						replacement.insert(replacement.begin() + index + inserted, value);
+						++inserted;
+					}
+					*this = std::move(replacement);
+					return begin() + first;
+				}
+
+				/**
+				 * @brief Remove the final element.
+				 * @throws StormByte::Exception The sequence is empty or removal failed.
+				 */
+				void pop_back()
+					requires requires(Container& container) { container.pop_back(); } {
+					if (empty() || m_dispatch(m_owner.Get(), Action::PopBack, StormByte::Size(0), nullptr, nullptr) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe iterable pop_back failed");
+				}
+
+				/**
+				 * @brief Resize, default-inserting or removing elements.
+				 * @param count New element count.
+			 */
+				void resize(size_type count)
+					requires requires(Container& container) { container.resize(std::size_t{}); } {
+					if (m_dispatch(m_owner.Get(), Action::Resize, StormByte::Size(count), nullptr, nullptr) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe iterable resize failed");
+				}
+
+				/**
+				 * @brief Resize, filling newly added elements with value.
+				 * @param count New element count.
+				 * @param value Fill value.
+				 */
+				void resize(size_type count, const value_type& value)
+					requires requires(Container& container, const value_type& item) { container.resize(std::size_t{}, item); } {
+					if (m_dispatch(m_owner.Get(), Action::Resize, StormByte::Size(count), &value, nullptr) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe iterable resize failed");
+				}
+
+				/**
+				 * @brief Replace all elements with count copies of value.
+				 * @param count Number of copies.
+				 * @param value Fill value.
+				 */
+				void assign(size_type count, const value_type& value)
+					requires requires { Container(count, value); } {
+					*this = Container(count, value);
+				}
+
+				/**
+				 * @brief Replace all elements from an initializer list.
+				 * @param values Replacement values.
+				 */
+				void assign(std::initializer_list<value_type> values)
+					requires requires { Container(values); } {
+					*this = Container(values);
+				}
+
+				/**
+				 * @brief Request capacity for at least count elements.
+				 * @param count Requested capacity.
+				 */
+				void reserve(size_type count)
+					requires requires(Container& container) { container.reserve(std::size_t{}); } {
+					if (m_dispatch(m_owner.Get(), Action::Reserve, StormByte::Size(count), nullptr, nullptr) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe iterable reserve failed");
+				}
+
+				/**
+				 * @brief Request release of unused capacity.
+				 */
+				void shrink_to_fit()
+					requires requires(Container& container) { container.shrink_to_fit(); } {
+					if (m_dispatch(m_owner.Get(), Action::ShrinkToFit, StormByte::Size(0), nullptr, nullptr) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe iterable shrink_to_fit failed");
+				}
+
+				/**
 				 * @brief Remove all elements.
 				 */
 				void clear() {
@@ -762,10 +991,37 @@ namespace StormByte {
 					return output;
 				}
 
+				/**
+				 * @brief Compare Safe sequences by value.
+				 * @param left First sequence.
+				 * @param right Second sequence.
+				 * @return Whether both contain equal elements in order.
+				 */
+				friend bool operator==(const Iterable& left, const Iterable& right)
+					requires Type::EqualityComparable<Container> {
+					return static_cast<Container>(left) == static_cast<Container>(right);
+				}
+
+				/**
+				 * @brief Order Safe sequences lexicographically.
+				 * @param left First sequence.
+				 * @param right Second sequence.
+				 * @return Comparison category of the underlying sequence.
+				 */
+				friend auto operator<=>(const Iterable& left, const Iterable& right)
+					requires Type::ThreeWayComparable<Container> {
+					return static_cast<Container>(left) <=> static_cast<Container>(right);
+				}
+
 			private:
 				enum class Action {
 					Get,
 					PushBack,
+					Insert,
+					PopBack,
+					Resize,
+					Reserve,
+					ShrinkToFit,
 					Set,
 					Erase,
 					Clear
@@ -842,6 +1098,21 @@ namespace StormByte {
 					}
 
 					/**
+					 * @brief Return capacity when Container publishes it, otherwise its size.
+					 * @param state Opaque store, or null after move.
+					 * @return Creator-side element capacity.
+					 */
+					static StormByte::Size Capacity(const void* state) noexcept {
+						if (!state)
+							return StormByte::Size(0);
+						const auto& values = static_cast<const Store*>(state)->values;
+						if constexpr (requires { values.capacity(); })
+							return StormByte::Size(values.capacity());
+						else
+							return StormByte::Size(values.size());
+					}
+
+					/**
 					 * @brief Read or transactionally modify the stored container.
 					 * @param state Opaque store.
 					 * @param action Requested operation.
@@ -854,7 +1125,9 @@ namespace StormByte {
 						if (!state)
 							return action == Action::Get ? Status::Missing : Status::Failure;
 						auto& values = static_cast<Store*>(state)->values;
-						if ((action == Action::Get || action == Action::Set || action == Action::Erase) && index >= StormByte::Size(values.size()))
+						if ((action == Action::Get || action == Action::Set || action == Action::Erase || action == Action::PopBack) && index >= StormByte::Size(values.size()))
+							return Status::Missing;
+						if (action == Action::Insert && index > StormByte::Size(values.size()))
 							return Status::Missing;
 						try {
 							const auto offset = static_cast<difference_type>(index);
@@ -866,6 +1139,43 @@ namespace StormByte {
 								Container copy(values);
 								if (action == Action::PushBack)
 									copy.push_back(*input);
+								else if (action == Action::Insert) {
+									if constexpr (requires { copy.insert(copy.begin() + offset, *input); })
+										copy.insert(copy.begin() + offset, *input);
+									else
+										return Status::Failure;
+								}
+								else if (action == Action::PopBack) {
+									if constexpr (requires { copy.pop_back(); })
+										copy.pop_back();
+									else
+										return Status::Failure;
+								}
+								else if (action == Action::Resize) {
+									if (input) {
+										if constexpr (requires { copy.resize(static_cast<size_type>(index), *input); })
+											copy.resize(static_cast<size_type>(index), *input);
+										else
+											return Status::Failure;
+									} else {
+										if constexpr (requires { copy.resize(static_cast<size_type>(index)); })
+											copy.resize(static_cast<size_type>(index));
+										else
+											return Status::Failure;
+									}
+								}
+								else if (action == Action::Reserve) {
+									if constexpr (requires { copy.reserve(static_cast<size_type>(index)); })
+										copy.reserve(static_cast<size_type>(index));
+									else
+										return Status::Failure;
+								}
+								else if (action == Action::ShrinkToFit) {
+									if constexpr (requires { copy.shrink_to_fit(); })
+										copy.shrink_to_fit();
+									else
+										return Status::Failure;
+								}
 								else if (action == Action::Set)
 									copy[static_cast<size_type>(offset)] = *input;
 								else if (action == Action::Erase)
@@ -939,6 +1249,7 @@ namespace StormByte {
 				Detail::Owner m_owner; ///< Opaque owner callbacks.
 				Dispatch m_dispatch; ///< Creator-module operation callback.
 				Count m_count; ///< Creator-module count callback.
+				Count m_capacity; ///< Creator-module capacity callback.
 		};
 	}
 

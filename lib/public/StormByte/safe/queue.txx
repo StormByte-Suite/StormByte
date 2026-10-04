@@ -126,13 +126,17 @@ namespace StormByte {
 			 */
 			static Status Apply(void* state, Action action, const T* input, T* output) noexcept {
 				if (!state)
-					return action == Action::Front || action == Action::Pop ? Status::Missing : Status::Failure;
+					return action == Action::Front || action == Action::Back || action == Action::Pop ? Status::Missing : Status::Failure;
 				auto& values = static_cast<Store*>(state)->values;
-				if ((action == Action::Front || action == Action::Pop) && values.empty())
+				if ((action == Action::Front || action == Action::Back || action == Action::Pop) && values.empty())
 					return Status::Missing;
 				try {
 					if (action == Action::Front) {
 						T copy(values.front());
+						*output = std::move(copy);
+					}
+					else if (action == Action::Back) {
+						T copy(values.back());
 						*output = std::move(copy);
 					}
 					else if (action == Action::Push) {

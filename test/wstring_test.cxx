@@ -156,6 +156,31 @@ int test_mutable_text_algorithms() {
 	RETURN_TEST("test_mutable_text_algorithms", result);
 }
 
+int test_wstring_size_modifiers() {
+	WString text(L"ab");
+	std::wstring imported(L"assigned from STL");
+	text = imported;
+	ASSERT_TRUE("test_wstring_size_modifiers", text == L"assigned from STL");
+	text.assign(L"ab");
+	text.append(L"cd").append(Size{2}, L'!');
+	text += L"ef";
+	text.insert(Size{1}, L"XY");
+	ASSERT_TRUE("test_wstring_size_modifiers", text == L"aXYbcd!!ef");
+	text.erase(Size{1}, Size{2});
+	text.replace(Size{1}, Size{1}, L"-");
+	ASSERT_TRUE("test_wstring_size_modifiers", text == L"a-cd!!ef");
+	text.resize(Size{3}, L'?');
+	ASSERT_TRUE("test_wstring_size_modifiers", text == L"a-c");
+	text.push_back(L'!');
+	text.pop_back();
+	ASSERT_TRUE("test_wstring_size_modifiers", text == L"a-c");
+	text.clear();
+	ASSERT_TRUE("test_wstring_size_modifiers", text.empty() && static_cast<bool>(text));
+	text.assign(Size{3}, L'x');
+	ASSERT_TRUE("test_wstring_size_modifiers", text == L"xxx");
+	RETURN_TEST("test_wstring_size_modifiers", 0);
+}
+
 int test_view_feeds_algorithms() {
 	int result = 0;
 	const WString text(L"contract");
@@ -467,6 +492,7 @@ int main() {
 	result += test_ranges_algorithms();
 	result += test_sort_vector();
 	result += test_mutable_text_algorithms();
+	result += test_wstring_size_modifiers();
 	result += test_view_feeds_algorithms();
 
 	// -------------------

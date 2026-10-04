@@ -94,8 +94,9 @@ namespace StormByte {
 		 * of a valid character.
 		 *
 		 * Observers (`starts_with`, `ends_with`, `contains`, `find`,
-		 * `substr`, …) follow `std::string_view`. They do not throw and
-		 * they do not mutate. In-place edit is still a new @ref String.
+		 * `substr`, …) follow `std::string_view`. Size-changing modifiers
+		 * follow `std::string` value semantics but rebuild the Base-owned buffer;
+		 * no caller-CRT string allocation is adopted.
 		 */
 		class STORMBYTE_PUBLIC String {
 			public:
@@ -175,6 +176,15 @@ namespace StormByte {
 				 * @return *this.
 				 */
 				String& operator=(String&& other) noexcept;
+
+				/**
+				 * @brief Copy text from a caller-owned view into Base storage.
+				 * @param text Source bytes.
+				 * @return This string.
+				 */
+				String& operator=(std::string_view text) {
+					return *this = String(text);
+				}
 
 				/** @} */
 
@@ -319,6 +329,100 @@ namespace StormByte {
 				 */
 				inline bool empty() const noexcept {
 					return size() == 0;
+				}
+
+				/**
+				 * @brief Append UTF-8 bytes.
+				 * @param text Text to append.
+				 * @return This string.
+				 */
+				String& append(std::string_view text) {
+					return Mutate([text](std::string& value) { value.append(text); });
+				}
+
+				/**
+				 * @brief Append count copies of a byte.
+				 * @param count Number of copies.
+				 * @param character Byte to append.
+				 * @return This string.
+				 */
+				String& append(size_type count, char character) {
+					return Mutate([count, character](std::string& value) { value.append(static_cast<std::size_t>(count), character); });
+				}
+
+				/**
+				 * @brief Replace the contents with a text view.
+				 * @param text Source bytes.
+				 * @return This string.
+				 */
+				String& assign(std::string_view text) { return *this = text; }
+
+				/**
+				 * @brief Replace the contents with count copies of a byte.
+				 * @param count Number of copies.
+				 * @param character Byte to assign.
+				 * @return This string.
+				 */
+				String& assign(size_type count, char character) {
+					return Mutate([count, character](std::string& value) { value.assign(static_cast<std::size_t>(count), character); });
+				}
+
+				/** @brief Append a view. @param text Text to append. @return This string. */
+				String& operator+=(std::string_view text) { return append(text); }
+				/** @brief Append one byte. @param character Byte to append. @return This string. */
+				String& operator+=(char character) { return append(1, character); }
+
+				/** @brief Append one byte. @param character Byte to append. */
+				void push_back(char character) { (void)append(1, character); }
+
+				/** @brief Remove the final byte; empty-string use follows std::string preconditions. */
+				void pop_back() { Mutate([](std::string& value) { value.pop_back(); }); }
+
+				/** @brief Replace the contents with a valid empty string. */
+				void clear() { *this = String(std::string_view{}); }
+
+				/**
+				 * @brief Resize the byte sequence, filling new bytes with character.
+				 * @param count New byte count.
+				 * @param character Fill byte, default initialized to NUL.
+				 */
+				void resize(size_type count, char character = char{}) {
+					Mutate([count, character](std::string& value) { value.resize(static_cast<std::size_t>(count), character); });
+				}
+
+				/**
+				 * @brief Insert bytes at a byte position.
+				 * @param position Insertion position.
+				 * @param text Bytes to insert.
+				 * @return This string.
+				 */
+				String& insert(size_type position, std::string_view text) {
+					return Mutate([position, text](std::string& value) { value.insert(static_cast<std::size_t>(position), text); });
+				}
+
+				/**
+				 * @brief Erase bytes starting at position.
+				 * @param position First byte to erase.
+				 * @param count Maximum bytes to erase.
+				 * @return This string.
+				 */
+				String& erase(size_type position = {}, size_type count = npos) {
+					return Mutate([position, count](std::string& value) {
+						value.erase(static_cast<std::size_t>(position), static_cast<std::size_t>(count));
+					});
+				}
+
+				/**
+				 * @brief Replace a byte range with text.
+				 * @param position First byte to replace.
+				 * @param count Maximum bytes to erase.
+				 * @param text Replacement bytes.
+				 * @return This string.
+				 */
+				String& replace(size_type position, size_type count, std::string_view text) {
+					return Mutate([position, count, text](std::string& value) {
+						value.replace(static_cast<std::size_t>(position), static_cast<std::size_t>(count), text);
+					});
 				}
 
 				/**
@@ -960,6 +1064,20 @@ namespace StormByte {
 				void swap(String& other) noexcept;
 
 			private:
+				/**
+				 * @brief Mutate a caller-owned standard string snapshot and copy it back to Base.
+				 * @tparam Function Modifier accepting std::string&.
+				 * @param function Modifier to invoke.
+				 * @return This string.
+				 */
+				template<class Function>
+				String& Mutate(Function&& function) {
+					std::string value(static_cast<std::string_view>(*this));
+					std::forward<Function>(function)(value);
+					*this = String(std::string_view(value));
+					return *this;
+				}
+
 				static Size FromIndex(std::size_t index) noexcept {
 					return index == std::string_view::npos ? npos : Size{index};
 				}

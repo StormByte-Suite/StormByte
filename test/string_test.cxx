@@ -156,6 +156,31 @@ int test_mutable_text_algorithms() {
 	RETURN_TEST("test_mutable_text_algorithms", result);
 }
 
+int test_string_size_modifiers() {
+	String text("ab");
+	std::string imported("assigned from STL");
+	text = imported;
+	ASSERT_TRUE("test_string_size_modifiers", text == "assigned from STL");
+	text.assign("ab");
+	text.append("cd").append(2, '!');
+	text += "ef";
+	text.insert(Size{1}, "XY");
+	ASSERT_TRUE("test_string_size_modifiers", text == "aXYbcd!!ef");
+	text.erase(Size{1}, Size{2});
+	text.replace(Size{1}, Size{1}, "-");
+	ASSERT_TRUE("test_string_size_modifiers", text == "a-cd!!ef");
+	text.resize(Size{3}, '?');
+	ASSERT_TRUE("test_string_size_modifiers", text == "a-c");
+	text.push_back('!');
+	text.pop_back();
+	ASSERT_TRUE("test_string_size_modifiers", text == "a-c");
+	text.clear();
+	ASSERT_TRUE("test_string_size_modifiers", text.empty() && static_cast<bool>(text));
+	text.assign(3, 'x');
+	ASSERT_TRUE("test_string_size_modifiers", text == "xxx");
+	RETURN_TEST("test_string_size_modifiers", 0);
+}
+
 int test_view_feeds_algorithms() {
 	int result = 0;
 	const String text("contract");
@@ -497,6 +522,7 @@ int main() {
 	result += test_ranges_algorithms();
 	result += test_sort_vector();
 	result += test_mutable_text_algorithms();
+	result += test_string_size_modifiers();
 	result += test_view_feeds_algorithms();
 
 	// -------------------

@@ -46,6 +46,7 @@
 #include <StormByte/exception.hxx>
 #include <StormByte/expected.hxx>
 #include <StormByte/helpers.hxx>
+#include <StormByte/safe/queue.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
 #include <StormByte/safe/wcstring.hxx>
@@ -486,6 +487,15 @@ namespace StormByte {
 			requires Type::Optional<U>;
 
 			/**
+			 * @brief Encodes a FIFO: `uint64` count (LE), then elements in pop order.
+			 * @tparam U Defaulted to @p T; see @ref StormByte::Serializable::SerializeTrivial.
+			 * @return Blob owned by Base.
+			 */
+		template<typename U = T>
+		BinaryData SerializeQueue() const noexcept
+			requires Type::Queue<U>;
+
+			/**
 			 * @brief Serialized size of a container.
 			 * @tparam U Defaulted to @p T; see @ref StormByte::Serializable::SerializeTrivial.
 			 * @param[in] data Container to measure.
@@ -514,6 +524,16 @@ namespace StormByte {
 			template<typename U = T>
 			static ByteSize SizeOptional(const DecayedT& data) noexcept
 			requires Type::Optional<U>;
+
+			/**
+			 * @brief Serialized size of a FIFO.
+			 * @tparam U Defaulted to @p T; see @ref StormByte::Serializable::SerializeTrivial.
+			 * @param[in] data Queue to measure.
+			 * @return `8` plus the sum of element sizes, as @ref ByteSize.
+			 */
+		template<typename U = T>
+		static ByteSize SizeQueue(const DecayedT& data) noexcept
+			requires Type::Queue<U>;
 
 			/**
 			 * @brief Decodes a trivially copyable value.
@@ -558,6 +578,16 @@ namespace StormByte {
 			template<typename U = T>
 			static Expected<T, DeserializeError> DeserializeOptional(std::span<const std::byte> data) noexcept
 			requires Type::Optional<U>;
+
+			/**
+			 * @brief Decodes a FIFO from a count and ordered element sequence.
+			 * @tparam U Defaulted to @p T; see @ref StormByte::Serializable::SerializeTrivial.
+			 * @param[in] data Input span.
+			 * @return Queue, or @ref StormByte::DeserializeError.
+			 */
+		template<typename U = T>
+		static Expected<T, DeserializeError> DeserializeQueue(std::span<const std::byte> data) noexcept
+			requires Type::Queue<U>;
 	};
 
 	// Explicit-instantiation declarations: suppress implicit instantiation

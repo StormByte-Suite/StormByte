@@ -42,7 +42,10 @@
 #include <StormByte/helpers.hxx>
 #include <StormByte/serializable.hxx>
 #include <StormByte/safe/pair.hxx>
+#include <StormByte/safe/map.hxx>
+#include <StormByte/safe/optional.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
 
@@ -58,7 +61,27 @@
 
 using namespace StormByte;
 
+struct EmptyWireValue {
+	~EmptyWireValue() {}
+};
+
+namespace StormByte::Detail {
+	template<>
+	struct Codec<EmptyWireValue> {
+		static ByteSize Size(const EmptyWireValue&) noexcept { return ByteSize{0}; }
+		static BinaryData Write(const EmptyWireValue&) noexcept { return {}; }
+		static Expected<EmptyWireValue, DeserializeError> Read(std::span<const std::byte>) noexcept {
+			return EmptyWireValue{};
+		}
+	};
+}
+
 namespace {
+	enum class SerializedOptionalLevel : std::uint8_t {
+		Info,
+		Warning
+	};
+
 	std::size_t ByteCount(const BinaryData& buf) {
 		return static_cast<std::size_t>(buf.size());
 	}
@@ -510,6 +533,101 @@ int test_safe_pair_roundtrip() {
 	}
 	ASSERT_TRUE("test_safe_pair_roundtrip", decoded.value() == original);
 	RETURN_TEST("test_safe_pair_roundtrip", 0);
+}
+
+int test_safe_optional_roundtrip() {
+	using Optional = Safe::Optional<Safe::String>;
+	static_assert(Type::Optional<Optional>);
+	Optional present(Safe::String("safe optional"));
+	const auto presentBuffer = Serializable<Optional>(present).Serialize();
+	const auto standardBuffer = Serializable<std::optional<Safe::String>>(
+		std::optional<Safe::String>(Safe::String("safe optional"))).Serialize();
+	ASSERT_TRUE("test_safe_optional_present_size", Serializable<Optional>::Size(present) == ByteSize{static_cast<std::size_t>(presentBuffer.size())});
+	ASSERT_TRUE("test_safe_optional_present_wire", presentBuffer == standardBuffer);
+	const auto decoded = Serializable<Optional>::Deserialize(presentBuffer);
+	ASSERT_TRUE("test_safe_optional_present_decode", decoded.has_value() && decoded.value() == present);
+
+	const Optional empty;
+	const auto emptyBuffer = Serializable<Optional>(empty).Serialize();
+	const auto emptyDecoded = Serializable<Optional>::Deserialize(emptyBuffer);
+	ASSERT_TRUE("test_safe_optional_empty_wire", emptyBuffer == Serializable<std::optional<Safe::String>>(std::nullopt).Serialize());
+	ASSERT_TRUE("test_safe_optional_empty_decode", emptyDecoded.has_value() && !emptyDecoded.value().has_value());
+
+	using EnumOptional = Safe::Optional<SerializedOptionalLevel>;
+	EnumOptional enumValue(SerializedOptionalLevel::Warning);
+	const auto enumBuffer = Serializable<EnumOptional>(enumValue).Serialize();
+	ASSERT_TRUE("test_safe_optional_enum_wire",
+		enumBuffer == Serializable<std::optional<SerializedOptionalLevel>>(
+			std::optional<SerializedOptionalLevel>(SerializedOptionalLevel::Warning)).Serialize());
+	const auto enumDecoded = Serializable<EnumOptional>::Deserialize(enumBuffer);
+	ASSERT_TRUE("test_safe_optional_enum_roundtrip",
+		enumDecoded.has_value() && enumDecoded.value() == SerializedOptionalLevel::Warning);
+	RETURN_TEST("test_safe_optional_roundtrip", 0);
+}
+
+int test_safe_sequence_roundtrip() {
+	using Sequence = Safe::Vector<Safe::String>;
+	Sequence original(std::vector<Safe::String>{Safe::String("one"), Safe::String("two")});
+	const auto buffer = Serializable<Sequence>(original).Serialize();
+	const auto decoded = Serializable<Sequence>::Deserialize(buffer);
+	if (!decoded) {
+		std::cerr << decoded.error()->what() << std::endl;
+		RETURN_TEST("test_safe_sequence_roundtrip", 1);
+	}
+	ASSERT_TRUE("test_safe_sequence_roundtrip", decoded.value().size() == 2 && decoded.value()[0] == "one" && decoded.value()[1] == "two");
+	RETURN_TEST("test_safe_sequence_roundtrip", 0);
+}
+
+int test_safe_map_roundtrip() {
+	using Dictionary = Safe::Map<Safe::String, Safe::String>;
+	Dictionary original;
+	original.insert_or_assign(Safe::String("key"), Safe::String("value"));
+	const auto buffer = Serializable<Dictionary>(original).Serialize();
+	const auto decoded = Serializable<Dictionary>::Deserialize(buffer);
+	if (!decoded) {
+		std::cerr << decoded.error()->what() << std::endl;
+		RETURN_TEST("test_safe_map_roundtrip", 1);
+	}
+	ASSERT_TRUE("test_safe_map_roundtrip", decoded.value().size() == 1 && decoded.value().at(Safe::String("key")) == "value");
+	RETURN_TEST("test_safe_map_roundtrip", 0);
+}
+
+int test_safe_queue_roundtrip() {
+	using Queue = Safe::Queue<Safe::String>;
+	Queue original;
+	original.push(Safe::String("first"));
+	original.push(Safe::String("second"));
+	std::queue<Safe::String> standard;
+	standard.push(Safe::String("first"));
+	standard.push(Safe::String("second"));
+	const auto buffer = Serializable<Queue>(original).Serialize();
+	ASSERT_TRUE("test_safe_queue_roundtrip", buffer == Serializable<std::queue<Safe::String>>(standard).Serialize());
+	const auto decoded = Serializable<Queue>::Deserialize(buffer);
+	if (!decoded) {
+		std::cerr << decoded.error()->what() << std::endl;
+		RETURN_TEST("test_safe_queue_roundtrip", 1);
+	}
+	ASSERT_TRUE("test_safe_queue_roundtrip", decoded.value().size() == 2 &&
+		decoded.value().front() == "first");
+	auto remaining = decoded.value();
+	remaining.pop();
+	ASSERT_TRUE("test_safe_queue_roundtrip", remaining.front() == "second" && original.front() == "first");
+	RETURN_TEST("test_safe_queue_roundtrip", 0);
+}
+
+int test_zero_byte_queue_elements() {
+	std::queue<EmptyWireValue> original;
+	original.push(EmptyWireValue{});
+	original.push(EmptyWireValue{});
+	original.push(EmptyWireValue{});
+	const auto buffer = Serializable<std::queue<EmptyWireValue>>(original).Serialize();
+	ASSERT_TRUE("test_zero_byte_queue_elements", buffer.size() == ByteSize{sizeof(std::uint64_t)});
+	const auto decoded = Serializable<std::queue<EmptyWireValue>>::Deserialize(buffer);
+	ASSERT_TRUE("test_zero_byte_queue_elements", decoded.has_value() && decoded.value().size() == 3);
+	const auto oversizedCount = Serializable<std::uint64_t>(1'048'577).Serialize();
+	const auto rejected = Serializable<std::queue<EmptyWireValue>>::Deserialize(oversizedCount);
+	ASSERT_TRUE("test_zero_byte_queue_elements", !rejected.has_value());
+	RETURN_TEST("test_zero_byte_queue_elements", 0);
 }
 
 int test_base_idempotent_roundtrip_vector() {
@@ -1270,6 +1388,10 @@ int main() {
 	// -------------------
 	result += test_base_idempotent_roundtrip_pair();
 	result += test_safe_pair_roundtrip();
+	result += test_safe_sequence_roundtrip();
+	result += test_safe_map_roundtrip();
+	result += test_safe_queue_roundtrip();
+	result += test_zero_byte_queue_elements();
 	result += test_base_idempotent_roundtrip_vector();
 	result += test_base_nested_vector_of_pairs();
 	result += test_serialize_deep_nested_vector();
@@ -1277,6 +1399,7 @@ int main() {
 	// -------------------
 	// Optional
 	// -------------------
+	result += test_safe_optional_roundtrip();
 	result += test_serialize_nested_optional();
 	result += test_serialize_optional_empty();
 	result += test_serialize_optional_notempty();

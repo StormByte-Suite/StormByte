@@ -49,6 +49,33 @@ namespace StormByte {
 		STORMBYTE_FORCE_INLINE Optional<T>::Optional(): m_value() {}
 
 		template<Type::SafeValue T>
+		STORMBYTE_FORCE_INLINE Optional<T>::Optional(std::nullopt_t): Optional() {}
+
+		template<Type::SafeValue T>
+		Optional<T>::Optional(const T& value): Optional() {
+			emplace(value);
+		}
+
+		template<Type::SafeValue T>
+		Optional<T>::Optional(T&& value): Optional() {
+			emplace(std::move(value));
+		}
+
+		template<Type::SafeValue T>
+		Optional<T>& Optional<T>::operator=(const T& value) {
+			Optional replacement(value);
+			*this = std::move(replacement);
+			return *this;
+		}
+
+		template<Type::SafeValue T>
+		Optional<T>& Optional<T>::operator=(T&& value) {
+			Optional replacement(std::move(value));
+			*this = std::move(replacement);
+			return *this;
+		}
+
+		template<Type::SafeValue T>
 		Optional<T>::Optional(const std::optional<T>& value): m_value() {
 			if (value)
 				emplace(*value);

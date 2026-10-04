@@ -105,6 +105,10 @@ MaybeText SafeCollectionsFixture::MakeOptional() {
 	return value;
 }
 
+MaybeLevel SafeCollectionsFixture::MakeOptionalLevel() {
+	return OptionalTestLevel::Warning;
+}
+
 Nested SafeCollectionsFixture::MakeNested() {
 	Nested values;
 	values.push_back(MakeSequence());

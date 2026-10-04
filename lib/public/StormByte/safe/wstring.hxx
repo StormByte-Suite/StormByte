@@ -93,7 +93,8 @@ namespace StormByte {
 		 * surrogate pair is copied together.
 		 *
 		 * Code units are contiguous and mutable. Classic and ranges algorithms
-		 * can read or modify existing units; they cannot resize the owned buffer.
+		 * can read or modify existing units; modifiers rebuild the Base-owned buffer
+		 * from a caller-owned snapshot and do not adopt caller-CRT storage.
 		 * Observers (`starts_with`, `ends_with`, `contains`, `find`, `substr`, …)
 		 * follow `std::wstring_view`.
 		 */
@@ -175,6 +176,15 @@ namespace StormByte {
 				 * @return *this.
 				 */
 				WString& operator=(WString&& other) noexcept;
+
+				/**
+				 * @brief Copy wide text from a caller-owned view into Base storage.
+				 * @param text Source code units.
+				 * @return This string.
+				 */
+				WString& operator=(std::wstring_view text) {
+					return *this = WString(text);
+				}
 
 				/** @} */
 
@@ -320,6 +330,100 @@ namespace StormByte {
 				inline bool empty() const noexcept {
 					return size() == 0;
 				}
+
+				 /**
+				  * @brief Append wide code units.
+				  * @param text Text to append.
+				  * @return This string.
+				  */
+				 WString& append(std::wstring_view text) {
+					 return Mutate([text](std::wstring& value) { value.append(text); });
+				 }
+
+				 /**
+				  * @brief Append count copies of a wide code unit.
+				  * @param count Number of copies.
+				  * @param character Code unit to append.
+				  * @return This string.
+				  */
+				 WString& append(size_type count, wchar_t character) {
+					 return Mutate([count, character](std::wstring& value) { value.append(static_cast<std::size_t>(count), character); });
+				 }
+
+				/**
+				 * @brief Replace the contents with a wide text view.
+				 * @param text Source code units.
+				 * @return This string.
+				 */
+				WString& assign(std::wstring_view text) { return *this = text; }
+
+				/**
+				 * @brief Replace the contents with count copies of a wide code unit.
+				 * @param count Number of copies.
+				 * @param character Code unit to assign.
+				 * @return This string.
+				 */
+				WString& assign(size_type count, wchar_t character) {
+					return Mutate([count, character](std::wstring& value) { value.assign(static_cast<std::size_t>(count), character); });
+				}
+
+				 /** @brief Append a wide view. @param text Text to append. @return This string. */
+				 WString& operator+=(std::wstring_view text) { return append(text); }
+				 /** @brief Append one wide code unit. @param character Code unit. @return This string. */
+				 WString& operator+=(wchar_t character) { return append(1, character); }
+
+				 /** @brief Append one wide code unit. @param character Code unit. */
+				 void push_back(wchar_t character) { (void)append(1, character); }
+
+				 /** @brief Remove the final code unit; empty-string use follows std::wstring preconditions. */
+				 void pop_back() { Mutate([](std::wstring& value) { value.pop_back(); }); }
+
+				 /** @brief Replace the contents with a valid empty wide string. */
+				 void clear() { *this = WString(std::wstring_view{}); }
+
+				 /**
+				  * @brief Resize the code-unit sequence.
+				  * @param count New code-unit count.
+				  * @param character Fill code unit, default initialized to NUL.
+				  */
+				 void resize(size_type count, wchar_t character = wchar_t{}) {
+					 Mutate([count, character](std::wstring& value) { value.resize(static_cast<std::size_t>(count), character); });
+				 }
+
+				 /**
+				  * @brief Insert wide code units at a code-unit position.
+				  * @param position Insertion position.
+				  * @param text Text to insert.
+				  * @return This string.
+				  */
+				 WString& insert(size_type position, std::wstring_view text) {
+					 return Mutate([position, text](std::wstring& value) { value.insert(static_cast<std::size_t>(position), text); });
+				 }
+
+				 /**
+				  * @brief Erase wide code units starting at position.
+				  * @param position First code unit to erase.
+				  * @param count Maximum code units to erase.
+				  * @return This string.
+				  */
+				 WString& erase(size_type position = {}, size_type count = npos) {
+					 return Mutate([position, count](std::wstring& value) {
+						 value.erase(static_cast<std::size_t>(position), static_cast<std::size_t>(count));
+					 });
+				 }
+
+				 /**
+				  * @brief Replace a wide code-unit range with text.
+				  * @param position First code unit to replace.
+				  * @param count Maximum code units to erase.
+				  * @param text Replacement text.
+				  * @return This string.
+				  */
+				 WString& replace(size_type position, size_type count, std::wstring_view text) {
+					 return Mutate([position, count, text](std::wstring& value) {
+						 value.replace(static_cast<std::size_t>(position), static_cast<std::size_t>(count), text);
+					 });
+				 }
 
 				/**
 				 * @brief Code unit at @p index.
@@ -960,6 +1064,20 @@ namespace StormByte {
 				void swap(WString& other) noexcept;
 
 			private:
+					 /**
+					  * @brief Mutate a caller-owned standard wide-string snapshot and copy it back to Base.
+					  * @tparam Function Modifier accepting std::wstring&.
+					  * @param function Modifier to invoke.
+					  * @return This string.
+					  */
+					 template<class Function>
+					 WString& Mutate(Function&& function) {
+						 std::wstring value(static_cast<std::wstring_view>(*this));
+						 std::forward<Function>(function)(value);
+						 *this = WString(std::wstring_view(value));
+						 return *this;
+					 }
+
 				static Size FromIndex(std::size_t index) noexcept {
 					return index == std::wstring_view::npos ? npos : Size{index};
 				}

@@ -122,6 +122,28 @@ namespace StormByte {
 				Queue& operator=(Queue&& other) noexcept = default;
 
 				/**
+				 * @brief Import an STL queue by copy.
+				 * @param values Caller-owned source queue.
+				 * @return This queue.
+				 */
+				Queue& operator=(const std::queue<T>& values) {
+					Queue replacement(values);
+					*this = std::move(replacement);
+					return *this;
+				}
+
+				/**
+				 * @brief Import an STL queue by moving its elements.
+				 * @param values Source queue, empty after successful transfer.
+				 * @return This queue.
+				 */
+				Queue& operator=(std::queue<T>&& values) {
+					Queue replacement(std::move(values));
+					*this = std::move(replacement);
+					return *this;
+				}
+
+				/**
 				 * @brief Return the number of queued elements.
 				 * @return Element count, including zero after move.
 				 */
@@ -146,6 +168,18 @@ namespace StormByte {
 				}
 
 				/**
+				 * @brief Return a copy of the back element.
+				 * @return Back element snapshot.
+				 * @throws StormByte::Exception The queue is empty or copying failed.
+				 */
+				T back() const {
+					T output{};
+					if (m_dispatch(m_owner.Get(), Action::Back, nullptr, &output) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe queue back failed");
+					return output;
+				}
+
+				/**
 				 * @brief Append a value.
 				 * @param value Value to copy into the queue.
 				 * @throws StormByte::Exception Storage creation or copying failed.
@@ -157,12 +191,73 @@ namespace StormByte {
 				}
 
 				/**
+				 * @brief Append an rvalue. The Safe value is copied through the creator callback.
+				 * @param value Value to append.
+				 */
+				void push(T&& value) { push(static_cast<const T&>(value)); }
+
+				/**
+				 * @brief Construct and append an element.
+				 * @tparam Args Constructor argument types.
+				 * @param args Arguments forwarded to T.
+				 * @return Caller-owned snapshot of the inserted value; modifying it does not
+				 *         modify the queued element.
+				 */
+				template<class... Args>
+				T emplace(Args&&... args) {
+					T value(std::forward<Args>(args)...);
+					push(value);
+					return value;
+				}
+
+				/**
 				 * @brief Remove the front element.
 				 * @throws StormByte::Exception The queue is empty or removal failed.
 				 */
 				void pop() {
 					if (m_dispatch(m_owner.Get(), Action::Pop, nullptr, nullptr) != Status::Success)
 						Detail::ThrowSafeConversionFailure("Safe queue pop failed");
+				}
+
+				/**
+				 * @brief Exchange queue storage and creator callbacks.
+				 * @param other Queue to exchange with.
+				 */
+				void swap(Queue& other) noexcept {
+					if (this == &other)
+						return;
+					Queue temporary(std::move(*this));
+					*this = std::move(other);
+					other = std::move(temporary);
+				}
+
+				/**
+				 * @brief Exchange two queues.
+				 * @param left First queue.
+				 * @param right Second queue.
+				 */
+				friend void swap(Queue& left, Queue& right) noexcept { left.swap(right); }
+
+				/**
+				 * @brief Compare FIFO contents in order.
+				 * @param left First queue.
+				 * @param right Second queue.
+				 * @return Whether the queues contain equal values in order.
+				 */
+				friend bool operator==(const Queue& left, const Queue& right)
+					requires Type::EqualityComparable<T> {
+					return static_cast<std::queue<T>>(left) == static_cast<std::queue<T>>(right);
+				}
+
+				/**
+				 * @brief Order FIFO contents lexicographically.
+				 * @param left First queue.
+				 * @param right Second queue.
+				 * @return Comparison category of the underlying standard queue.
+				 */
+				friend auto operator<=>(const Queue& left, const Queue& right)
+					requires Type::ThreeWayComparable<T> {
+					return static_cast<std::queue<T>>(left) <=> static_cast<std::queue<T>>(right);
 				}
 
 				/**
@@ -182,6 +277,7 @@ namespace StormByte {
 				 */
 				enum class Action {
 					Front, ///< Copy the first element.
+					Back, ///< Copy the last element.
 					Push, ///< Append an element.
 					Pop ///< Remove the first element.
 				};
@@ -234,6 +330,19 @@ namespace StormByte {
 		 */
 		template<SafeValue T>
 		struct IsSafeValue<Safe::Queue<T>>: std::true_type {};
+	}
+
+	/**
+	 * @namespace StormByte::Type
+	 * @brief Named concepts and small type utilities used across the suite.
+	 */
+	namespace Type {
+		/**
+		 * @brief Registers Safe FIFO wrappers for generic queue operations.
+		 * @tparam T Safe value.
+		 */
+		template<SafeValue T>
+		struct IsSafeQueue<Safe::Queue<T>>: std::true_type {};
 	}
 }
 

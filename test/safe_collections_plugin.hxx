@@ -65,10 +65,19 @@
  * @brief Test-only interfaces between independent producer and consumer DLLs.
  */
 namespace SafeCollectionsFixture {
+	/**
+	 * @brief Enum fixture used to verify Safe optional values across modules.
+	 */
+	enum class OptionalTestLevel : std::uint8_t {
+		Info,
+		Warning
+	};
+
 	using Text = StormByte::Safe::String;	///< Base-owned UTF-8 value.
 	using Sequence = StormByte::Safe::Vector<Text>;	///< Opaque text sequence.
 	using Dictionary = StormByte::Safe::Map<Text, Text>;	///< Opaque text dictionary.
 	using MaybeText = StormByte::Safe::Optional<Text>;	///< Opaque optional text.
+	using MaybeLevel = StormByte::Safe::Optional<OptionalTestLevel>;	///< Opaque enum optional.
 	using Nested = StormByte::Safe::Vector<Sequence>;	///< Nested opaque sequences.
 	using TokenQueue = StormByte::Safe::Queue<Text>;	///< Opaque text FIFO.
 
@@ -89,6 +98,12 @@ namespace SafeCollectionsFixture {
 	 * @return Owned optional.
 	 */
 	SAFE_COLLECTIONS_PRODUCER_PUBLIC MaybeText MakeOptional();
+
+	/**
+	 * @brief Construct enum optional storage in the producer DLL.
+	 * @return Owned enum optional.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC MaybeLevel MakeOptionalLevel();
 
 	/**
 	 * @brief Construct nested storage in the producer DLL.

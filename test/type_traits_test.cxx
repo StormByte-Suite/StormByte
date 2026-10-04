@@ -39,6 +39,8 @@
 
 #include <StormByte/size.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/optional.hxx>
+#include <StormByte/safe/queue.hxx>
 #include <StormByte/safe/wstring.hxx>
 #include <StormByte/test_handlers.h>
 #include <StormByte/type_traits.hxx>
@@ -279,8 +281,11 @@ int test_optional_concept() {
 	int result = 0;
 	ASSERT_TRUE("test_optional_concept", (is_optional_v<std::optional<int>>));
 	ASSERT_TRUE("test_optional_concept", (is_optional_v<std::optional<std::string>>));
+	ASSERT_TRUE("test_optional_concept", Type::Optional<Safe::Optional<Safe::String>>);
 	ASSERT_FALSE("test_optional_concept", is_optional_v<int>);
 	ASSERT_FALSE("test_optional_concept", (is_optional_v<std::vector<int>>));
+	ASSERT_TRUE("test_optional_concept", Type::Queue<Safe::Queue<Safe::String>>);
+	ASSERT_TRUE("test_optional_concept", Type::Queue<std::queue<int>>);
 	RETURN_TEST("test_optional_concept", result);
 }
 

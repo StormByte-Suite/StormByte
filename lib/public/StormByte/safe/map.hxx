@@ -42,8 +42,10 @@
 #include <StormByte/safe/iterable.hxx>
 #include <StormByte/safe/pair.hxx>
 
+#include <concepts>
 #include <map>
 #include <memory>
+#include <optional>
 #include <utility>
 
 /**
@@ -69,7 +71,7 @@ namespace StormByte {
 		 * writes through a callback. No node iterator or reference escapes.
 		 */
 		template<Type::SafeValue K, Type::SafeValue V, class Compare, class Allocator>
-		requires requires(const K& left, const K& right) { left < right; }
+		requires std::strict_weak_order<Compare, const K&, const K&>
 		class STORMBYTE_PUBLIC_TYPE Iterable<std::map<K, V, Compare, Allocator>> final {
 				using Container = std::map<K, V, Compare, Allocator>;
 
@@ -107,6 +109,17 @@ namespace StormByte {
 							Detail::ThrowSafeConversionFailure("Safe map write failed");
 						return *this;
 					}
+
+						/**
+						 * @brief Assign through a const mapped-value proxy.
+						 * @param value Replacement value.
+						 * @return This proxy.
+						 */
+						const MappedReference& operator=(const V& value) const {
+							if (m_owner->WriteKey(m_key, value) != Status::Success)
+								Detail::ThrowSafeConversionFailure("Safe map write failed");
+							return *this;
+						}
 
 					/**
 					 * @brief Compare the mapped value with a value.
@@ -180,9 +193,40 @@ namespace StormByte {
 						using pointer = void; ///< Map-node pointers are not exposed.
 
 						/**
+						 * @class ArrowProxy
+						 * @brief Owns an entry snapshot or write-through proxy for one arrow expression.
+						 * @note Its pointer is valid only for the full expression. Mutable mapped
+						 *       assignments still dispatch through the creator callback.
+						 */
+						class ArrowProxy final {
+							public:
+								/**
+								 * @brief Store a caller-owned entry snapshot/proxy.
+								 * @param entry Entry obtained from iterator dereference.
+								 */
+								explicit ArrowProxy(reference entry): m_entry(std::move(entry)) {}
+
+								/**
+								 * @brief Access the owned entry snapshot/proxy.
+								 * @return Pointer valid until this arrow proxy expires.
+								 */
+								reference* operator->() noexcept { return &m_entry; }
+
+								/**
+								 * @brief Access a const owned entry snapshot/proxy.
+								 * @return Pointer valid until this arrow proxy expires.
+								 */
+								const reference* operator->() const noexcept { return &m_entry; }
+
+							private:
+								reference m_entry; ///< Caller-owned entry object; mapped proxy retains callback.
+						};
+
+						/**
 						 * @brief Construct a singular iterator.
 					 */
-						BasicIterator() noexcept: m_owner(nullptr), m_index(0) {}
+						BasicIterator() requires std::default_initializable<K>:
+							m_owner(nullptr), m_index(0), m_key(), m_atEnd(true) {}
 
 						/**
 						 * @brief Convert a mutable iterator to a const iterator.
@@ -190,47 +234,84 @@ namespace StormByte {
 						 */
 						template<bool OtherConst>
 						requires IsConst && (!OtherConst)
-						BasicIterator(const BasicIterator<OtherConst>& other) noexcept:
-							m_owner(other.m_owner), m_index(other.m_index) {}
+						BasicIterator(const BasicIterator<OtherConst>& other):
+							m_owner(other.m_owner), m_index(other.m_index), m_key(other.m_key), m_atEnd(other.m_atEnd) {}
 
 						/**
 						 * @brief Dereference an ordered entry.
 						 * @return Safe pair copy or mutable entry proxy.
 						 */
 						reference operator*() const {
-							K key{};
-						V value{};
-						if (m_owner->ReadEntry(static_cast<size_type>(m_index), key, value) != Status::Success)
+							V value{};
+							if (!m_owner || m_atEnd || m_owner->ReadKey(m_key, value) != Status::Success)
 							Detail::ThrowSafeConversionFailure("Safe map iterator read failed");
 						if constexpr (IsConst)
-							return value_type(std::move(key), std::move(value));
+								return value_type(m_key, std::move(value));
 						else
-							return EntryReference(key, value, MappedReference(*m_owner, key));
+								return EntryReference(m_key, value, MappedReference(*m_owner, m_key));
 						}
 
 						/**
+						 * @brief Access an entry through a short-lived caller-owned proxy.
+						 * @return Arrow proxy valid for the full expression only.
+						 */
+						ArrowProxy operator->() const { return ArrowProxy(operator*()); }
+
+						/**
 						 * @brief Advance to the next ordered entry.
 						 * @return This iterator.
 						 */
-						BasicIterator& operator++() noexcept { ++m_index; return *this; }
+						BasicIterator& operator++() {
+							if (!m_owner || m_atEnd)
+								Detail::ThrowSafeConversionFailure("Safe map iterator increment is invalid");
+							const auto index = m_owner->FindIndex(m_key);
+							if (index == m_owner->size())
+								Detail::ThrowSafeConversionFailure("Safe map iterator key was erased");
+							const auto next = index + 1;
+							if (next >= m_owner->size()) {
+								m_index = static_cast<difference_type>(m_owner->size());
+								m_atEnd = true;
+								return *this;
+							}
+						K nextKey{};
+						V nextValue{};
+						if (m_owner->ReadEntry(next, nextKey, nextValue) != Status::Success)
+							Detail::ThrowSafeConversionFailure("Safe map iterator increment failed");
+						m_index = static_cast<difference_type>(next);
+						m_key = std::move(nextKey);
+						return *this;
+					}
 
 						/**
 						 * @brief Advance to the next ordered entry.
 						 * @return Previous iterator value.
 						 */
-						BasicIterator operator++(int) noexcept { auto copy = *this; ++*this; return copy; }
+						BasicIterator operator++(int) { auto copy = *this; ++*this; return copy; }
 
 						/**
 						 * @brief Move to the previous ordered entry.
 						 * @return This iterator.
 						 */
-						BasicIterator& operator--() noexcept { --m_index; return *this; }
+						BasicIterator& operator--() {
+							if (!m_owner || m_owner->empty())
+								Detail::ThrowSafeConversionFailure("Safe map iterator decrement is invalid");
+						std::size_t index = m_atEnd ? m_owner->size() - 1 : m_owner->FindIndex(m_key);
+						if (index == 0 || index >= m_owner->size())
+							Detail::ThrowSafeConversionFailure("Safe map iterator decrement is invalid");
+						--index;
+						V value{};
+						if (m_owner->ReadEntry(index, m_key, value) != Status::Success)
+							Detail::ThrowSafeConversionFailure("Safe map iterator decrement failed");
+						m_index = static_cast<difference_type>(index);
+						m_atEnd = false;
+						return *this;
+					}
 
 						/**
 						 * @brief Move to the previous ordered entry.
 						 * @return Previous iterator value.
 						 */
-						BasicIterator operator--(int) noexcept { auto copy = *this; --*this; return copy; }
+						BasicIterator operator--(int) { auto copy = *this; --*this; return copy; }
 
 						/**
 						 * @brief Compare iterator position and owner.
@@ -239,8 +320,12 @@ namespace StormByte {
 						 * @return Whether both designate the same position.
 						 */
 						template<bool OtherConst>
-						bool operator==(const BasicIterator<OtherConst>& other) const noexcept {
-							return m_owner == other.m_owner && m_index == other.m_index;
+						bool operator==(const BasicIterator<OtherConst>& other) const {
+							if (m_owner != other.m_owner)
+								return false;
+							if (m_atEnd || other.m_atEnd)
+								return m_atEnd && other.m_atEnd;
+							return !m_owner->KeyLess(m_key, other.m_key) && !m_owner->KeyLess(other.m_key, m_key);
 						}
 
 					private:
@@ -252,11 +337,38 @@ namespace StormByte {
 						 * @param owner Map owner.
 						 * @param index Ordered entry index.
 						 */
-						BasicIterator(Owner& owner, difference_type index) noexcept:
-							m_owner(&owner), m_index(index) {}
+						BasicIterator(Owner& owner, difference_type index)
+							requires std::default_initializable<K>:
+							m_owner(&owner), m_index(index), m_key(), m_atEnd(index >= static_cast<difference_type>(owner.size())) {
+							if (!m_atEnd) {
+								V value{};
+								if (owner.ReadEntry(static_cast<size_type>(index), m_key, value) != Status::Success)
+									Detail::ThrowSafeConversionFailure("Safe map iterator construction failed");
+							}
+						}
+
+						/**
+						 * @brief Bind an iterator to a stable key identity.
+						 * @param owner Map being traversed.
+						 * @param key Key identity copied into the iterator.
+						 * @param atEnd Whether to construct the end sentinel.
+						 */
+						BasicIterator(Owner& owner, const K& key, bool atEnd = false):
+							m_owner(&owner), m_index(0), m_key(key), m_atEnd(atEnd) {
+							if (!m_atEnd) {
+								m_index = static_cast<difference_type>(owner.FindIndex(m_key));
+								if (static_cast<std::size_t>(m_index) >= owner.size())
+									Detail::ThrowSafeConversionFailure("Safe map iterator key is absent");
+							}
+							else {
+								m_index = static_cast<difference_type>(owner.size());
+							}
+						}
 
 						Owner* m_owner; ///< Map being traversed.
 						difference_type m_index; ///< Ordered entry index.
+						K m_key; ///< Caller-owned key identity, stable across unrelated mutations.
+						bool m_atEnd; ///< Whether this is the map's end sentinel.
 				};
 
 				using iterator = BasicIterator<false>; ///< Mutable bidirectional iterator.
@@ -268,7 +380,7 @@ namespace StormByte {
 				Iterable():
 					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::Create(), &Store::Clone, &Store::Destroy),
-					m_dispatch(&Store::Apply), m_count(&Store::Count), m_visit(&Store::Visit) {}
+					m_dispatch(&Store::Apply), m_count(&Store::Count), m_visit(&Store::Visit), m_compare(&Store::CompareKeys) {}
 
 				/**
 				 * @brief Copy a caller-owned map into this module.
@@ -277,7 +389,7 @@ namespace StormByte {
 				explicit Iterable(const Container& values):
 					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::Create(values), &Store::Clone, &Store::Destroy),
-					m_dispatch(&Store::Apply), m_count(&Store::Count), m_visit(&Store::Visit) {}
+					m_dispatch(&Store::Apply), m_count(&Store::Count), m_visit(&Store::Visit), m_compare(&Store::CompareKeys) {}
 
 				/**
 				 * @brief Move entries from an STL rvalue into locally allocated nodes.
@@ -286,7 +398,7 @@ namespace StormByte {
 				explicit Iterable(Container&& values):
 					m_create(&Store::Create), m_clone(&Store::Clone), m_destroy(&Store::Destroy),
 					m_owner(Store::CreateMove(values), &Store::Clone, &Store::Destroy),
-					m_dispatch(&Store::Apply), m_count(&Store::Count), m_visit(&Store::Visit) {}
+					m_dispatch(&Store::Apply), m_count(&Store::Count), m_visit(&Store::Visit), m_compare(&Store::CompareKeys) {}
 
 				/**
 				 * @brief Deep-copy an iterable.
@@ -320,6 +432,28 @@ namespace StormByte {
 				Iterable& operator=(Iterable&& other) noexcept = default;
 
 				/**
+				 * @brief Copy-assign from caller-owned std::map storage.
+				 * @param values Source map; it remains unchanged.
+				 * @return This map.
+				 */
+				Iterable& operator=(const Container& values) {
+					Iterable replacement(values);
+					*this = std::move(replacement);
+					return *this;
+				}
+
+				/**
+				 * @brief Move elements from caller-owned std::map storage.
+				 * @param values Source map, empty after successful transfer.
+				 * @return This map.
+				 */
+				Iterable& operator=(Container&& values) {
+					Iterable replacement(std::move(values));
+					*this = std::move(replacement);
+					return *this;
+				}
+
+				/**
 				 * @brief Return the entry count.
 				 * @return Number of entries.
 				 */
@@ -335,37 +469,37 @@ namespace StormByte {
 				 * @brief Return the first mutable iterator.
 				 * @return Iterator to the first key-ordered entry.
 				 */
-				iterator begin() noexcept { return iterator(*this, 0); }
+				iterator begin() { return iterator(*this, 0); }
 
 				/**
 				 * @brief Return the end mutable iterator.
 				 * @return End iterator.
 				 */
-				iterator end() noexcept { return iterator(*this, static_cast<difference_type>(size())); }
+				iterator end() { return iterator(*this, static_cast<difference_type>(size())); }
 
 				/**
 				 * @brief Return the first read-only iterator.
 				 * @return Iterator to the first key-ordered entry.
 				 */
-				const_iterator begin() const noexcept { return const_iterator(*this, 0); }
+				const_iterator begin() const { return const_iterator(*this, 0); }
 
 				/**
 				 * @brief Return the end read-only iterator.
 				 * @return End iterator.
 				 */
-				const_iterator end() const noexcept { return const_iterator(*this, static_cast<difference_type>(size())); }
+				const_iterator end() const { return const_iterator(*this, static_cast<difference_type>(size())); }
 
 				/**
 				 * @brief Return the first read-only iterator.
 				 * @return Iterator to the first entry.
 				 */
-				const_iterator cbegin() const noexcept { return begin(); }
+				const_iterator cbegin() const { return begin(); }
 
 				/**
 				 * @brief Return the end read-only iterator.
 				 * @return End iterator.
 				 */
-				const_iterator cend() const noexcept { return end(); }
+				const_iterator cend() const { return end(); }
 
 				/**
 				 * @brief Find an entry by key.
@@ -375,7 +509,7 @@ namespace StormByte {
 				iterator find(const K& key) {
 					for (auto current = begin(); current != end(); ++current) {
 						auto entry = *current;
-						if (!(entry.first < key) && !(key < entry.first))
+						if (!KeyLess(entry.first, key) && !KeyLess(key, entry.first))
 							return current;
 					}
 					return end();
@@ -389,7 +523,7 @@ namespace StormByte {
 				const_iterator find(const K& key) const {
 					for (auto current = begin(); current != end(); ++current) {
 						const auto entry = *current;
-						if (!(entry.first < key) && !(key < entry.first))
+						if (!KeyLess(entry.first, key) && !KeyLess(key, entry.first))
 							return current;
 					}
 					return end();
@@ -401,6 +535,83 @@ namespace StormByte {
 				 * @return Whether the key is present.
 				 */
 				bool contains(const K& key) const { return find(key) != end(); }
+
+				/**
+				 * @brief Return one when a key exists, otherwise zero.
+				 * @param key Key to search.
+				 * @return Zero or one.
+				 */
+				size_type count(const K& key) const { return contains(key) ? 1 : 0; }
+
+				/**
+				 * @brief Find the first entry not ordered before key.
+				 * @param key Search key.
+				 * @return Lower-bound iterator.
+				 */
+				iterator lower_bound(const K& key) {
+					for (auto current = begin(); current != end(); ++current) {
+						const auto entry = *current;
+						if (!KeyLess(entry.first, key))
+							return current;
+					}
+					return end();
+				}
+
+				/**
+				 * @brief Find the first entry ordered after key.
+				 * @param key Search key.
+				 * @return Upper-bound iterator.
+				 */
+				iterator upper_bound(const K& key) {
+					for (auto current = begin(); current != end(); ++current) {
+						const auto entry = *current;
+						if (KeyLess(key, entry.first))
+							return current;
+					}
+					return end();
+				}
+
+				/**
+				 * @brief Find the first entry not ordered before key in a const map.
+				 * @param key Search key.
+				 * @return Const lower-bound iterator.
+				 */
+				const_iterator lower_bound(const K& key) const {
+					for (auto current = begin(); current != end(); ++current) {
+						const auto entry = *current;
+						if (!KeyLess(entry.first, key))
+							return current;
+					}
+					return end();
+				}
+
+				/**
+				 * @brief Find the first entry ordered after key in a const map.
+				 * @param key Search key.
+				 * @return Const upper-bound iterator.
+				 */
+				const_iterator upper_bound(const K& key) const {
+					for (auto current = begin(); current != end(); ++current) {
+						const auto entry = *current;
+						if (KeyLess(key, entry.first))
+							return current;
+					}
+					return end();
+				}
+
+				/**
+				 * @brief Return the lower and upper bound of key.
+				 * @param key Search key.
+				 * @return Pair of equal-range iterators.
+				 */
+				auto equal_range(const K& key) { return std::pair(lower_bound(key), upper_bound(key)); }
+
+				/**
+				 * @brief Return the lower and upper bound of key in a const map.
+				 * @param key Search key.
+				 * @return Pair of const equal-range iterators.
+				 */
+				auto equal_range(const K& key) const { return std::pair(lower_bound(key), upper_bound(key)); }
 
 				/**
 				 * @brief Access a mapped value by key.
@@ -452,6 +663,53 @@ namespace StormByte {
 				}
 
 				/**
+				 * @brief Insert an entry without replacing an existing mapped value.
+				 * @param entry Entry to insert.
+				 * @return Iterator to the matching entry and whether insertion occurred.
+				 */
+				std::pair<iterator, bool> insert(const std::pair<K, V>& entry) {
+					return try_emplace(entry.first, entry.second);
+				}
+
+				/**
+				 * @brief Insert a moved entry without replacing an existing value.
+				 * @param entry Entry to insert.
+				 * @return Iterator to the matching entry and whether insertion occurred.
+				 */
+				std::pair<iterator, bool> insert(std::pair<K, V>&& entry) {
+					return try_emplace(entry.first, std::move(entry.second));
+				}
+
+				/**
+				 * @brief Construct and insert a mapped value only if key is absent.
+				 * @tparam Args Mapped-value constructor argument types.
+				 * @param key Key to insert or find.
+				 * @param args Arguments forwarded to V when inserting.
+				 * @return Iterator to the matching entry and whether insertion occurred.
+				 */
+				template<class... Args>
+				std::pair<iterator, bool> try_emplace(const K& key, Args&&... args) {
+					if (auto existing = find(key); existing != end())
+						return {existing, false};
+					V value(std::forward<Args>(args)...);
+					if (WriteKey(key, value) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe map try_emplace failed");
+					return {find(key), true};
+				}
+
+				/**
+				 * @brief Construct an entry and insert it if its key is absent.
+				 * @tparam Args Mapped-value constructor argument types.
+				 * @param key Entry key.
+				 * @param args Arguments forwarded to V.
+				 * @return Iterator to the matching entry and whether insertion occurred.
+				 */
+				template<class... Args>
+				std::pair<iterator, bool> emplace(const K& key, Args&&... args) {
+					return try_emplace(key, std::forward<Args>(args)...);
+				}
+
+				/**
 				 * @brief Erase an entry by key.
 				 * @param key Key to erase.
 				 * @return One if an entry was removed, otherwise zero.
@@ -469,13 +727,48 @@ namespace StormByte {
 				 * @return Iterator to the next entry.
 				 */
 				iterator erase(const_iterator position) {
-					K key{};
-					V value{};
-					if (ReadEntry(static_cast<size_type>(position.m_index), key, value) != Status::Success)
+					if (position.m_atEnd)
 						Detail::ThrowSafeConversionFailure("Safe map erase iterator is invalid");
-					EraseKey(key);
-					return iterator(*this, position.m_index);
+					const auto index = FindIndex(position.m_key);
+					if (index == size())
+						Detail::ThrowSafeConversionFailure("Safe map erase iterator is invalid");
+					iterator next(*this, static_cast<difference_type>(index + 1));
+					if (EraseKey(position.m_key) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe map erase iterator failed");
+					return next;
 				}
+
+				/**
+				 * @brief Erase a range of entries.
+				 * @param first First entry to erase.
+				 * @param last Iterator past the final erased entry.
+				 * @return Iterator following the erased range.
+				 */
+				iterator erase(const_iterator first, const_iterator last) {
+					iterator current(*this, first.m_key, first.m_atEnd);
+					while (current != last)
+						current = erase(current);
+					return current;
+				}
+
+				/**
+				 * @brief Exchange map storage and creator callbacks.
+				 * @param other Map to exchange with.
+				 */
+				void swap(Iterable& other) noexcept {
+					if (this == &other)
+						return;
+					Iterable temporary(std::move(*this));
+					*this = std::move(other);
+					other = std::move(temporary);
+				}
+
+				/**
+				 * @brief Exchange two Safe maps.
+				 * @param left First map.
+				 * @param right Second map.
+				 */
+				friend void swap(Iterable& left, Iterable& right) noexcept { left.swap(right); }
 
 				/**
 				 * @brief Remove all entries.
@@ -491,7 +784,17 @@ namespace StormByte {
 				 * @return A std::map allocated in the caller module.
 				 */
 				STORMBYTE_FORCE_INLINE explicit operator Container() const {
-					Container output;
+					std::optional<Container> output;
+					const auto create = [](void* context, const Compare& compare) noexcept {
+						try {
+							static_cast<std::optional<Container>*>(context)->emplace(compare);
+							return Status::Success;
+						} catch (...) {
+							return Status::Failure;
+						}
+					};
+					if (m_prepareOutput(m_owner.Get(), &output, create) != Status::Success || !output)
+						Detail::ThrowSafeConversionFailure("Safe map export failed");
 					const auto insert = [](void* context, const K& key, const V& value) noexcept {
 						try {
 							static_cast<Container*>(context)->insert_or_assign(key, value);
@@ -500,9 +803,9 @@ namespace StormByte {
 							return Status::Failure;
 						}
 					};
-					if (m_visit(m_owner.Get(), &output, insert) != Status::Success)
+					if (m_visit(m_owner.Get(), &*output, insert) != Status::Success)
 						Detail::ThrowSafeConversionFailure("Safe map export failed");
-					return output;
+					return std::move(*output);
 				}
 
 			private:
@@ -511,6 +814,10 @@ namespace StormByte {
 				using Count = StormByte::Size (*)(const void*) noexcept;
 				using InsertEntry = Status (*)(void*, const K&, const V&) noexcept;
 				using VisitEntries = Status (*)(const void*, void*, InsertEntry) noexcept;
+				using CreateOutputContainer = Status (*)(void*, const Compare&) noexcept;
+				using PrepareOutput = Status (*)(const void*, void*, CreateOutputContainer) noexcept;
+				using CompareKeyOperation = Status (*)(const void*, const K&, const K&, bool*, bool*) noexcept;
+				using FindKeyOperation = std::size_t (*)(const void*, const K&) noexcept;
 				using CreateState = void* (*)(); ///< Creator-module empty-store callback type.
 				using CloneState = Detail::Owner::Clone; ///< Creator-module clone callback type.
 				using DestroyState = Detail::Owner::Destroy; ///< Creator-module destroy callback type.
@@ -556,6 +863,74 @@ namespace StormByte {
 
 					static StormByte::Size Count(const void* state) noexcept {
 						return state ? StormByte::Size(static_cast<const Store*>(state)->values.size()) : StormByte::Size(0);
+					}
+
+					/**
+					 * @brief Compare keys with this store's creator-owned comparator.
+					 * @param state Opaque creator store.
+					 * @param left First key.
+					 * @param right Second key.
+					 * @param leftBefore Output whether left precedes right.
+					 * @param rightBefore Output whether right precedes left.
+					 * @return Success or Failure if the comparator throws.
+					 */
+					static Status CompareKeys(const void* state, const K& left, const K& right,
+						bool* leftBefore, bool* rightBefore) noexcept {
+						if (!state)
+							return Status::Failure;
+						try {
+							const Compare compare = static_cast<const Store*>(state)->values.key_comp();
+							*leftBefore = compare(left, right);
+							*rightBefore = compare(right, left);
+							return Status::Success;
+						} catch (...) {
+							return Status::Failure;
+						}
+					}
+
+					/**
+					 * @brief Construct caller-owned map storage with the creator comparator.
+					 * @param state Opaque creator store.
+					 * @param context Caller-owned output context.
+					 * @param create Caller-module map construction callback.
+					 * @return Success or Failure.
+					 */
+					static Status PrepareOutput(const void* state, void* context, CreateOutputContainer create) noexcept {
+						if (!state) {
+							if constexpr (std::is_empty_v<Compare> && std::default_initializable<Compare>) {
+								try {
+									return create(context, Compare{});
+								} catch (...) {
+									return Status::Failure;
+								}
+							} else {
+								return Status::Failure;
+							}
+						}
+						try {
+							const Compare compare = static_cast<const Store*>(state)->values.key_comp();
+							return create(context, compare);
+						} catch (...) {
+							return Status::Failure;
+						}
+					}
+
+					/**
+					 * @brief Find a key's current ordered index using the creator comparator.
+					 * @param state Opaque creator store.
+					 * @param key Key to locate.
+					 * @return Key index or container size when absent or comparison fails.
+					 */
+					static std::size_t FindIndex(const void* state, const K& key) noexcept {
+						if (!state)
+							return 0;
+						try {
+							const auto& values = static_cast<const Store*>(state)->values;
+							const auto found = values.find(key);
+							return found == values.end() ? values.size() : static_cast<std::size_t>(std::distance(values.begin(), found));
+						} catch (...) {
+							return static_cast<const Store*>(state)->values.size();
+						}
 					}
 
 					static Status Visit(const void* state, void* context, InsertEntry insert) noexcept {
@@ -613,6 +988,35 @@ namespace StormByte {
 					}
 				};
 
+				/**
+				 * @brief Query key order through the creator-owned comparator callback.
+				 * @param left First key.
+				 * @param right Second key.
+				 * @return Whether left precedes right.
+				 * @throws StormByte::Exception The creator comparator failed.
+				 */
+				bool KeyLess(const K& left, const K& right) const {
+					bool leftBefore = false;
+					bool rightBefore = false;
+					if (m_compare(m_owner.Get(), left, right, &leftBefore, &rightBefore) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe map key comparison failed");
+					return leftBefore;
+				}
+
+				/**
+				 * @brief Find a key's current ordered index through the creator callback.
+				 * @param key Key to locate.
+				 * @return Current index or size when absent.
+				 */
+				std::size_t FindIndex(const K& key) const noexcept { return m_findKey(m_owner.Get(), key); }
+
+				/**
+				 * @brief Test whether a key is currently stored.
+				 * @param key Key to locate.
+				 * @return Whether the creator lookup found the key.
+				 */
+				bool HasKey(const K& key) const noexcept { return FindIndex(key) < size(); }
+
 				Status ReadKey(const K& key, V& output) const noexcept {
 					return m_dispatch(m_owner.Get(), Action::Get, StormByte::Size(0), &key, nullptr, nullptr, &output);
 				}
@@ -635,8 +1039,12 @@ namespace StormByte {
 				}
 
 				void EnsureOwner() {
-					if (!m_owner.Get())
-						m_owner = Detail::Owner(m_create(), m_clone, m_destroy);
+					if (!m_owner.Get()) {
+						if constexpr (std::is_empty_v<Compare>)
+							m_owner = Detail::Owner(m_create(), m_clone, m_destroy);
+						else
+							Detail::ThrowSafeConversionFailure("Safe map with stateful comparator cannot be reused after move");
+					}
 				}
 
 				CreateState m_create; ///< Creator-module empty-store callback.
@@ -646,6 +1054,9 @@ namespace StormByte {
 				Dispatch m_dispatch; ///< Creator-module dispatch callback.
 				Count m_count; ///< Creator-module count callback.
 				VisitEntries m_visit; ///< Creator-module traversal callback.
+				CompareKeyOperation m_compare; ///< Creator-module comparator callback.
+				FindKeyOperation m_findKey{&Store::FindIndex}; ///< Creator-module key lookup callback.
+				PrepareOutput m_prepareOutput{&Store::PrepareOutput}; ///< Caller map construction dispatcher.
 		};
 	}
 
@@ -662,7 +1073,7 @@ namespace StormByte {
 		 * @tparam Allocator Allocator type.
 		 */
 		template<SafeValue K, SafeValue V, class Compare, class Allocator>
-		requires requires(const K& left, const K& right) { left < right; }
+		requires std::strict_weak_order<Compare, const K&, const K&>
 		struct IsSafe<Safe::Iterable<std::map<K, V, Compare, Allocator>>>: std::true_type {};
 
 		/**
@@ -673,7 +1084,7 @@ namespace StormByte {
 		 * @tparam Allocator Allocator type.
 		 */
 		template<SafeValue K, SafeValue V, class Compare, class Allocator>
-		requires requires(const K& left, const K& right) { left < right; }
+		requires std::strict_weak_order<Compare, const K&, const K&>
 		struct IsSafeValue<Safe::Iterable<std::map<K, V, Compare, Allocator>>>: std::true_type {};
 	}
 }
@@ -695,7 +1106,7 @@ namespace StormByte {
 		 * @tparam V Safe mapped-value type.
 		 */
 		template<Type::SafeValue K, Type::SafeValue V>
-		requires requires(const K& left, const K& right) { left < right; }
+		requires std::strict_weak_order<std::less<K>, const K&, const K&>
 		using Map = Iterable<std::map<K, V>>;
 	}
 }
