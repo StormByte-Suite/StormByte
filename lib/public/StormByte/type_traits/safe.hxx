@@ -185,7 +185,8 @@ namespace StormByte {
 		 * @struct IsSafeValue
 		 * @brief Closed admission list for collection values with Base-controlled lifetime.
 		 * @tparam T Exact, unqualified value type.
-		 * @note Shared, Weak, Unique and arbitrary Clonable implementations are not admitted.
+		 * @note Shared owners are admitted, but this does not certify their pointee or module lifetime.
+		 * @note Weak, Unique and arbitrary Clonable implementations are not admitted.
 		 */
 		template<typename T>
 		struct IsSafeValue: std::false_type {};
@@ -218,6 +219,11 @@ namespace StormByte {
 		 * @brief Admits Base's fixed-width byte count.
 		 */
 		template<> struct IsSafeValue<ByteSize>: std::true_type {};
+		/**
+		 * @brief Admits copyable Base-heap shared ownership as a collection value.
+		 * @tparam T Pointee type; its ABI and lifetime are not certified.
+		 */
+		template<typename T> struct IsSafeValue<Safe::Shared<T>>: std::true_type {};
 		/**
 		 * @brief Admits enumeration values, which cross module boundaries by value.
 		 * @tparam T Enumeration type.

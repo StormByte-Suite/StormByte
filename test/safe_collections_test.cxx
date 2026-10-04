@@ -44,6 +44,7 @@
 #include <StormByte/safe/clonable.hxx>
 #include <StormByte/safe/cstring.hxx>
 #include <StormByte/safe/pair.hxx>
+#include <StormByte/safe/pointers.hxx>
 #include <StormByte/safe/wcstring.hxx>
 #include <StormByte/safe/wstring.hxx>
 #include <StormByte/test_handlers.h>
@@ -91,6 +92,7 @@ static_assert(Type::SafeComponent<Safe::Queue<Safe::String>>);
 static_assert(Type::SafeComponent<SafeCollectionsFixture::Nested>);
 static_assert(Type::SafeComponent<Safe::Callback>);
 static_assert(Type::SafeValue<Safe::String>);
+static_assert(Type::SafeValue<Safe::Shared<Safe::String>>);
 static_assert(Type::SafeValue<int>);
 static_assert(Type::SafeValue<bool>);
 static_assert(Type::SafeValue<double>);
@@ -106,7 +108,6 @@ static_assert(Type::SafeValue<Size>);
 static_assert(Type::SafeValue<ByteSize>);
 static_assert(!Type::SafeValue<const Safe::String>);
 static_assert(!Type::SafeValue<Safe::String&>);
-static_assert(!Type::SafeValue<Safe::Shared<Safe::String>>);
 static_assert(!Type::SafeValue<Safe::Unique<Safe::String>>);
 static_assert(!Type::SafeValue<Safe::Weak<Safe::String>>);
 static_assert(!Type::SafeValue<Safe::Clonable<int>>);
@@ -186,6 +187,12 @@ int TestSafeVectorAlgorithms() {
 	Safe::Vector<int> scalarValues{1, 2, 3};
 	scalarValues[1] = 4;
 	ASSERT_TRUE("TestSafeVectorAlgorithms", static_cast<int>(scalarValues[1]) == 4);
+
+	Safe::Shared<int> sharedValue = Safe::Heap::MakeShared<int>(42);
+	Safe::Vector<Safe::Shared<int>> sharedValues{sharedValue};
+	sharedValue.reset();
+	const auto sharedSnapshot = static_cast<Safe::Shared<int>>(sharedValues.at(0));
+	ASSERT_TRUE("TestSafeVectorAlgorithms", sharedSnapshot && *sharedSnapshot == 42);
 
 	Safe::Vector<Safe::String> listValues{Safe::String("one"), Safe::String("two")};
 	Safe::Vector<Safe::String> countValues(2, Safe::String("fill"));
