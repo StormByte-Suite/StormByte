@@ -54,6 +54,8 @@
 
 using namespace StormByte;
 
+static_assert(sizeof(Safe::CString) == sizeof(char*));
+
 namespace {
 	const char* View(const Safe::CString& text) {
 		return static_cast<const char*>(text);
@@ -216,6 +218,37 @@ int test_reset_replaces() {
 	text.Reset("third");
 	ASSERT_TRUE("test_reset_replaces", static_cast<bool>(text));
 	RETURN_TEST("test_reset_replaces", result);
+}
+
+int test_reserve_grows_and_never_shrinks() {
+	int result = 0;
+	Safe::CString text("alpha");
+	text.reserve(Size{64});
+	const char* reserved = View(text);
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", text.capacity() >= Size{64});
+	ASSERT_EQUAL("test_reserve_grows_and_never_shrinks", Size{5}, text.Length());
+	ASSERT_EQUAL("test_reserve_grows_and_never_shrinks", 0, std::strcmp(reserved, "alpha"));
+	text.reserve(Size{2});
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", View(text) == reserved);
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", text.capacity() >= Size{64});
+	text.Reset("beta");
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", View(text) == reserved);
+	ASSERT_EQUAL("test_reserve_grows_and_never_shrinks", 0, std::strcmp(View(text), "beta"));
+	Safe::CString moved(std::move(text));
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", text.capacity() == Size{});
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", moved.capacity() >= Size{64});
+	RETURN_TEST("test_reserve_grows_and_never_shrinks", result);
+}
+
+int test_reserve_materializes_null_as_empty() {
+	int result = 0;
+	Safe::CString text;
+	text.reserve(Size{16});
+	ASSERT_TRUE("test_reserve_materializes_null_as_empty", static_cast<bool>(text));
+	ASSERT_TRUE("test_reserve_materializes_null_as_empty", text.capacity() >= Size{16});
+	ASSERT_EQUAL("test_reserve_materializes_null_as_empty", Size{}, text.Length());
+	ASSERT_EQUAL("test_reserve_materializes_null_as_empty", '\0', text[Size{}]);
+	RETURN_TEST("test_reserve_materializes_null_as_empty", result);
 }
 
 int test_swap_exchanges() {
@@ -419,6 +452,8 @@ int main() {
 	// Reset / swap
 	// -------------------
 	result += test_reset_replaces();
+	result += test_reserve_grows_and_never_shrinks();
+	result += test_reserve_materializes_null_as_empty();
 	result += test_swap_exchanges();
 
 	// -------------------

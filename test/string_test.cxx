@@ -158,9 +158,15 @@ int test_mutable_text_algorithms() {
 
 int test_string_size_modifiers() {
 	String text("ab");
+	text.reserve(Size{128});
+	const Size reservedCapacity = text.capacity();
+	ASSERT_TRUE("test_string_size_modifiers", reservedCapacity >= Size{128});
+	text.reserve(Size{1});
+	ASSERT_TRUE("test_string_size_modifiers", text.capacity() == reservedCapacity);
 	std::string imported("assigned from STL");
 	text = imported;
 	ASSERT_TRUE("test_string_size_modifiers", text == "assigned from STL");
+	ASSERT_TRUE("test_string_size_modifiers", text.capacity() >= reservedCapacity);
 	text.assign("ab");
 	text.append("cd").append(2, '!');
 	text += "ef";
@@ -176,6 +182,7 @@ int test_string_size_modifiers() {
 	ASSERT_TRUE("test_string_size_modifiers", text == "a-c");
 	text.clear();
 	ASSERT_TRUE("test_string_size_modifiers", text.empty() && static_cast<bool>(text));
+	ASSERT_TRUE("test_string_size_modifiers", text.capacity() >= reservedCapacity);
 	text.assign(3, 'x');
 	ASSERT_TRUE("test_string_size_modifiers", text == "xxx");
 	RETURN_TEST("test_string_size_modifiers", 0);

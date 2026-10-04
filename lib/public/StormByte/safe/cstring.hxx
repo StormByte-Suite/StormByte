@@ -87,6 +87,10 @@ namespace StormByte {
 		 * Base's heap. It is not a heap steal. An empty source yields `""`,
 		 * not a null buffer.
 		 *
+		 * `capacity()` counts allocated characters excluding the trailing NUL.
+		 * `reserve(n)` grows only when `n > capacity()` and never shrinks for a
+		 * smaller request. `Reset` reuses reserved storage when the new text fits.
+		 *
 		 * Mutable `operator[]` and `data()` may change characters in `[0, Length())`.
 		 * `Length()` is the trailing NUL; reading that position is valid, but writing
 		 * any value except `char{}` there is undefined, as with `std::string`.
@@ -192,6 +196,15 @@ namespace StormByte {
 				void Reset(const char* str = nullptr) noexcept;
 
 				/**
+				 * @brief Ensure storage for at least @p new_capacity characters, excluding the NUL.
+				 * @param new_capacity Requested character capacity.
+				 * @note Requests at or below the current capacity do nothing and never shrink.
+				 * @throws StormByte::Exception If the requested allocation size overflows.
+				 * @throws std::bad_alloc If storage cannot be allocated.
+				 */
+				void reserve(size_type new_capacity);
+
+				/**
 				 * @brief Swaps buffers with @p other.
 				 * @param other Other buffer.
 				 */
@@ -209,6 +222,12 @@ namespace StormByte {
 				 * @return Length as @ref StormByte::Size (units, not bytes).
 				 */
 				Size Length() const noexcept;
+
+				/**
+				 * @brief Return the allocated character capacity, excluding the trailing NUL.
+				 * @return Capacity in characters.
+				 */
+				size_type capacity() const noexcept;
 
 				/**
 				 * @brief Return the character count.
@@ -439,6 +458,26 @@ namespace StormByte {
 
 			private:
 				char* m_data;	///< Owned buffer
+
+				/**
+				 * @brief Allocate text plus a private capacity header.
+				 * @param capacity Usable character count, excluding the NUL.
+				 * @return Text pointer after its private header.
+				 */
+				static char* Allocate(std::size_t capacity);
+
+				/**
+				 * @brief Free a pointer returned by @ref Allocate.
+				 * @param text Text pointer, or null.
+				 */
+				static void Release(char* text) noexcept;
+
+				/**
+				 * @brief Read capacity from a pointer returned by @ref Allocate.
+				 * @param text Text pointer, or null.
+				 * @return Usable capacity, excluding the NUL.
+				 */
+				static std::size_t CapacityOf(const char* text) noexcept;
 
 				/**
 				 * @brief Copies @p str into a new buffer.

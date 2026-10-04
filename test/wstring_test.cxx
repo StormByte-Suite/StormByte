@@ -158,9 +158,15 @@ int test_mutable_text_algorithms() {
 
 int test_wstring_size_modifiers() {
 	WString text(L"ab");
+	text.reserve(Size{128});
+	const Size reservedCapacity = text.capacity();
+	ASSERT_TRUE("test_wstring_size_modifiers", reservedCapacity >= Size{128});
+	text.reserve(Size{1});
+	ASSERT_TRUE("test_wstring_size_modifiers", text.capacity() == reservedCapacity);
 	std::wstring imported(L"assigned from STL");
 	text = imported;
 	ASSERT_TRUE("test_wstring_size_modifiers", text == L"assigned from STL");
+	ASSERT_TRUE("test_wstring_size_modifiers", text.capacity() >= reservedCapacity);
 	text.assign(L"ab");
 	text.append(L"cd").append(Size{2}, L'!');
 	text += L"ef";
@@ -176,6 +182,7 @@ int test_wstring_size_modifiers() {
 	ASSERT_TRUE("test_wstring_size_modifiers", text == L"a-c");
 	text.clear();
 	ASSERT_TRUE("test_wstring_size_modifiers", text.empty() && static_cast<bool>(text));
+	ASSERT_TRUE("test_wstring_size_modifiers", text.capacity() >= reservedCapacity);
 	text.assign(Size{3}, L'x');
 	ASSERT_TRUE("test_wstring_size_modifiers", text == L"xxx");
 	RETURN_TEST("test_wstring_size_modifiers", 0);

@@ -96,7 +96,8 @@ namespace StormByte {
 		 * Observers (`starts_with`, `ends_with`, `contains`, `find`,
 		 * `substr`, …) follow `std::string_view`. Size-changing modifiers
 		 * follow `std::string` value semantics but rebuild the Base-owned buffer;
-		 * no caller-CRT string allocation is adopted.
+		 * no caller-CRT string allocation is adopted. `capacity()` and `reserve(Size)`
+		 * count UTF-8 bytes excluding NUL; reserve never shrinks and modifiers retain it.
 		 */
 		class STORMBYTE_PUBLIC String {
 			public:
@@ -183,7 +184,7 @@ namespace StormByte {
 				 * @return This string.
 				 */
 				String& operator=(std::string_view text) {
-					return *this = String(text);
+					return Mutate([text](std::string& value) { value.assign(text); });
 				}
 
 				/** @} */
@@ -316,6 +317,14 @@ namespace StormByte {
 				}
 
 				/**
+				 * @brief Return allocated byte capacity, excluding the trailing NUL.
+				 * @return Capacity in UTF-8 bytes.
+				 */
+				inline Size capacity() const noexcept {
+					return m_text.capacity();
+				}
+
+				/**
 				 * @brief Same as @ref size.
 				 * @return Length as @ref StormByte::Size.
 				 */
@@ -379,7 +388,14 @@ namespace StormByte {
 				void pop_back() { Mutate([](std::string& value) { value.pop_back(); }); }
 
 				/** @brief Replace the contents with a valid empty string. */
-				void clear() { *this = String(std::string_view{}); }
+				void clear() { m_text.Reset(""); }
+
+				/**
+				 * @brief Reserve storage for at least @p new_capacity UTF-8 bytes.
+				 * @param new_capacity Requested byte capacity, excluding the NUL.
+				 * @note Requests at or below capacity do not shrink or reallocate.
+				 */
+				void reserve(size_type new_capacity) { m_text.reserve(new_capacity); }
 
 				/**
 				 * @brief Resize the byte sequence, filling new bytes with character.
@@ -1072,9 +1088,13 @@ namespace StormByte {
 				 */
 				template<class Function>
 				String& Mutate(Function&& function) {
+					const Size old_capacity = m_text.capacity();
 					std::string value(static_cast<std::string_view>(*this));
+					value.reserve(static_cast<std::size_t>(old_capacity));
 					std::forward<Function>(function)(value);
-					*this = String(std::string_view(value));
+					CString replacement{std::string_view(value)};
+					replacement.reserve(old_capacity);
+					m_text = std::move(replacement);
 					return *this;
 				}
 

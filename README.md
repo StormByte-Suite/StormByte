@@ -191,7 +191,7 @@ A module adds its own enum, specializes `Error::Domain`, and puts `make_error_co
 
 ### Safe Text and Buffers
 
-`Safe::String` and `Safe::WString` are the owned text types used by Base APIs (`<StormByte/safe/string.hxx>` and `<StormByte/safe/wstring.hxx>`). They copy `std::string_view` / `std::wstring_view` inputs onto Base's heap and can take `Safe::CString` / `Safe::WCString` explicitly. `Bytes()` returns a non-owning `const char*` / `const wchar_t*`. Their `size()` / `length()` observers return `Size`; conversion to `std::string` / `std::wstring` is explicit and allocates in the caller. Common value modifiers (`assign`, `append`, `+=`, `insert`, `erase`, `replace`, `resize`, `push_back`, `pop_back`, `clear`) rebuild a caller-owned snapshot and copy the result back to Base. Spare capacity is not retained, so `capacity()` / `reserve()` are intentionally absent.
+`Safe::String` and `Safe::WString` are the owned text types used by Base APIs (`<StormByte/safe/string.hxx>` and `<StormByte/safe/wstring.hxx>`). They copy `std::string_view` / `std::wstring_view` inputs onto Base's heap and can take `Safe::CString` / `Safe::WCString` explicitly. `Bytes()` returns a non-owning `const char*` / `const wchar_t*`. Their `size()` / `length()` observers return `Size`; conversion to `std::string` / `std::wstring` is explicit and allocates in the caller. `capacity()` / `reserve(Size)` report or request UTF-8 byte / wide code-unit storage excluding the trailing NUL. A request at or below capacity never shrinks. Common value modifiers (`assign`, `append`, `+=`, `insert`, `erase`, `replace`, `resize`, `push_back`, `pop_back`, `clear`) rebuild a caller-owned snapshot while preserving reserved capacity when copying the result back to Base.
 
 `Safe::CString` and `Safe::WCString` are lower-level NUL-terminated buffers for explicit C-string use. They remain public, but Base text APIs use `Safe::String` / `Safe::WString` instead.
 
@@ -199,7 +199,7 @@ Owned buffers. `operator bool` is true when the pointer is not null: `""` / `L""
 
 Construct from `const char*` / `const wchar_t*` (null stays null), from `std::string_view` / `std::wstring_view`, and from `const std::string&` / `const std::wstring&`. Those last two **copy** onto Base's heap. They are not a heap steal. An empty `string` / view yields `""` / `L""`, not a null buffer.
 
-`CString::Length()` / `WCString::Length()` return `Size` (character count, not octets). `operator[]` takes `Size` on both the buffers and text wrappers.
+`CString::Length()` / `WCString::Length()` return `Size` (character count, not octets). Their `capacity()` / `reserve(Size)` count characters or wide code units excluding NUL. Reserve never shrinks; a positive reserve on a null buffer creates a valid empty NUL-terminated buffer. `Reset` reuses reserved allocation when the new text fits. `operator[]` takes `Size` on both the buffers and text wrappers.
 
 `==` / `!=` / `<=>` compare text, not addresses. Two nulls are equal; null is not equal to `""` / `L""` and orders before any text. `swap` exchanges buffers. `std::hash` hashes the text (`0` when null), so the types work in `std::set` and `std::unordered_set`.
 

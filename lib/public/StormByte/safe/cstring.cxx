@@ -40,25 +40,52 @@
 #include <StormByte/safe/cstring.hxx>
 #include <StormByte/utf.hxx>
 #include <StormByte/safe/wcstring.hxx>
+#include <StormByte/exception.hxx>
 
 #include <cassert>
 #include <cstring>
+#include <limits>
+#include <utility>
 
 using namespace StormByte;
 using namespace StormByte::Safe;
 
+char* CString::Allocate(const std::size_t capacity) {
+	constexpr std::size_t header_size = sizeof(capacity);
+	if (capacity > std::numeric_limits<std::size_t>::max() - header_size - 1)
+		throw StormByte::Exception("Safe::CString reserve capacity is too large");
+	char* allocation = new char[header_size + capacity + 1];
+	std::memcpy(allocation, &capacity, header_size);
+	char* text = allocation + header_size;
+	text[0] = '\0';
+	return text;
+}
+
+void CString::Release(char* text) noexcept {
+	if (text)
+		delete[] (text - sizeof(std::size_t));
+}
+
+std::size_t CString::CapacityOf(const char* text) noexcept {
+	if (!text)
+		return 0;
+	std::size_t capacity = 0;
+	std::memcpy(&capacity, text - sizeof(capacity), sizeof(capacity));
+	return capacity;
+}
+
 char* CString::Duplicate(const char* str) noexcept {
 	if (!str)
 		return nullptr;
-	const std::size_t len = std::strlen(str) + 1;
-	char* out = new char[len];
-	std::memcpy(out, str, len);
+	const std::size_t len = std::strlen(str);
+	char* out = Allocate(len);
+	std::memcpy(out, str, len + 1);
 	return out;
 }
 
 char* CString::Duplicate(std::string_view sv) noexcept {
 	const std::size_t len = sv.size();
-	char* out = new char[len + 1];
+	char* out = Allocate(len);
 	if (len != 0)
 		std::memcpy(out, sv.data(), len);
 	out[len] = '\0';
@@ -82,7 +109,8 @@ CString::CString(const WCString& text) noexcept
 	const wchar_t* raw = static_cast<const wchar_t*>(text);
 	if (!raw)
 		return;
-	m_data = Duplicate(WideToUtf8(raw));
+	const std::string converted = WideToUtf8(raw);
+	m_data = Duplicate(converted.c_str());
 }
 
 CString::CString(const CString& other) noexcept
@@ -94,21 +122,19 @@ CString::CString(CString&& other) noexcept
 }
 
 CString::~CString() noexcept {
-	delete[] m_data;
+	Release(m_data);
 	m_data = nullptr;
 }
 
 CString& CString::operator=(const CString& other) noexcept {
-	if (this != &other) {
-		delete[] m_data;
-		m_data = Duplicate(other.m_data);
-	}
+	if (this != &other)
+		Reset(other.m_data);
 	return *this;
 }
 
 CString& CString::operator=(CString&& other) noexcept {
 	if (this != &other) {
-		delete[] m_data;
+		Release(m_data);
 		m_data = other.m_data;
 		other.m_data = nullptr;
 	}
@@ -116,12 +142,40 @@ CString& CString::operator=(CString&& other) noexcept {
 }
 
 void CString::Reset(const char* str) noexcept {
-	delete[] m_data;
-	m_data = Duplicate(str);
+	if (!str) {
+		Release(m_data);
+		m_data = nullptr;
+		return;
+	}
+	const std::size_t length = std::strlen(str);
+	if (m_data && length <= CapacityOf(m_data)) {
+		std::memmove(m_data, str, length + 1);
+		return;
+	}
+	char* replacement = Duplicate(str);
+	Release(m_data);
+	m_data = replacement;
+}
+
+void CString::reserve(const size_type new_capacity) {
+	const std::size_t requested = static_cast<std::size_t>(new_capacity);
+	if (requested <= CapacityOf(m_data))
+		return;
+	char* replacement = Allocate(requested);
+	if (m_data)
+		std::memcpy(replacement, m_data, std::strlen(m_data) + 1);
+	else
+		replacement[0] = '\0';
+	Release(m_data);
+	m_data = replacement;
 }
 
 Size CString::Length() const noexcept {
 	return m_data ? Size{std::strlen(m_data)} : Size{};
+}
+
+CString::size_type CString::capacity() const noexcept {
+	return Size{CapacityOf(m_data)};
 }
 
 CString::size_type CString::size() const noexcept {

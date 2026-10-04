@@ -95,6 +95,8 @@ namespace StormByte {
 		 * Code units are contiguous and mutable. Classic and ranges algorithms
 		 * can read or modify existing units; modifiers rebuild the Base-owned buffer
 		 * from a caller-owned snapshot and do not adopt caller-CRT storage.
+		 * `capacity()` and `reserve(Size)` count wchar_t code units excluding NUL;
+		 * reserve never shrinks and modifiers retain it.
 		 * Observers (`starts_with`, `ends_with`, `contains`, `find`, `substr`, …)
 		 * follow `std::wstring_view`.
 		 */
@@ -183,7 +185,7 @@ namespace StormByte {
 				 * @return This string.
 				 */
 				WString& operator=(std::wstring_view text) {
-					return *this = WString(text);
+					return Mutate([text](std::wstring& value) { value.assign(text); });
 				}
 
 				/** @} */
@@ -316,6 +318,14 @@ namespace StormByte {
 				}
 
 				/**
+				 * @brief Return allocated capacity, in wchar_t code units, excluding the NUL.
+				 * @return Capacity in wide code units.
+				 */
+				inline Size capacity() const noexcept {
+					return m_text.capacity();
+				}
+
+				/**
 				 * @brief Same as @ref size.
 				 * @return Length as @ref StormByte::Size.
 				 */
@@ -379,7 +389,14 @@ namespace StormByte {
 				 void pop_back() { Mutate([](std::wstring& value) { value.pop_back(); }); }
 
 				 /** @brief Replace the contents with a valid empty wide string. */
-				 void clear() { *this = WString(std::wstring_view{}); }
+				 void clear() { m_text.Reset(L""); }
+
+				 /**
+				  * @brief Reserve storage for at least @p new_capacity wide code units.
+				  * @param new_capacity Requested code-unit capacity, excluding the NUL.
+				  * @note Requests at or below capacity do not shrink or reallocate.
+				  */
+				 void reserve(size_type new_capacity) { m_text.reserve(new_capacity); }
 
 				 /**
 				  * @brief Resize the code-unit sequence.
@@ -1072,9 +1089,13 @@ namespace StormByte {
 					  */
 					 template<class Function>
 					 WString& Mutate(Function&& function) {
+						 const Size old_capacity = m_text.capacity();
 						 std::wstring value(static_cast<std::wstring_view>(*this));
+						 value.reserve(static_cast<std::size_t>(old_capacity));
 						 std::forward<Function>(function)(value);
-						 *this = WString(std::wstring_view(value));
+						 WCString replacement{std::wstring_view(value)};
+						 replacement.reserve(old_capacity);
+						 m_text = std::move(replacement);
 						 return *this;
 					 }
 

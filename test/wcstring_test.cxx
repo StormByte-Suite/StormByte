@@ -55,6 +55,8 @@
 
 using namespace StormByte;
 
+static_assert(sizeof(Safe::WCString) == sizeof(wchar_t*));
+
 namespace {
 	const wchar_t* View(const Safe::WCString& text) {
 		return static_cast<const wchar_t*>(text);
@@ -226,6 +228,37 @@ int test_reset_replaces() {
 	text.Reset(L"third");
 	ASSERT_TRUE("test_reset_replaces", static_cast<bool>(text));
 	RETURN_TEST("test_reset_replaces", result);
+}
+
+int test_reserve_grows_and_never_shrinks() {
+	int result = 0;
+	Safe::WCString text(L"alpha");
+	text.reserve(Size{64});
+	const wchar_t* reserved = View(text);
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", text.capacity() >= Size{64});
+	ASSERT_EQUAL("test_reserve_grows_and_never_shrinks", Size{5}, text.Length());
+	ASSERT_EQUAL("test_reserve_grows_and_never_shrinks", 0, std::wcscmp(reserved, L"alpha"));
+	text.reserve(Size{2});
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", View(text) == reserved);
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", text.capacity() >= Size{64});
+	text.Reset(L"beta");
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", View(text) == reserved);
+	ASSERT_EQUAL("test_reserve_grows_and_never_shrinks", 0, std::wcscmp(View(text), L"beta"));
+	Safe::WCString moved(std::move(text));
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", text.capacity() == Size{});
+	ASSERT_TRUE("test_reserve_grows_and_never_shrinks", moved.capacity() >= Size{64});
+	RETURN_TEST("test_reserve_grows_and_never_shrinks", result);
+}
+
+int test_reserve_materializes_null_as_empty() {
+	int result = 0;
+	Safe::WCString text;
+	text.reserve(Size{16});
+	ASSERT_TRUE("test_reserve_materializes_null_as_empty", static_cast<bool>(text));
+	ASSERT_TRUE("test_reserve_materializes_null_as_empty", text.capacity() >= Size{16});
+	ASSERT_EQUAL("test_reserve_materializes_null_as_empty", Size{}, text.Length());
+	ASSERT_EQUAL("test_reserve_materializes_null_as_empty", L'\0', text[Size{}]);
+	RETURN_TEST("test_reserve_materializes_null_as_empty", result);
 }
 
 int test_swap_exchanges() {
@@ -443,6 +476,8 @@ int main() {
 	// Reset / swap
 	// -------------------
 	result += test_reset_replaces();
+	result += test_reserve_grows_and_never_shrinks();
+	result += test_reserve_materializes_null_as_empty();
 	result += test_swap_exchanges();
 
 	// -------------------

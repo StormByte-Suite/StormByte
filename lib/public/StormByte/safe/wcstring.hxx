@@ -88,6 +88,10 @@ namespace StormByte {
 		 * Base's heap. It is not a heap steal. An empty source yields `L""`,
 		 * not a null buffer.
 		 *
+		 * `capacity()` counts allocated wchar_t code units excluding the trailing
+		 * NUL. `reserve(n)` grows only when `n > capacity()` and never shrinks for
+		 * a smaller request. `Reset` reuses reserved storage when the text fits.
+		 *
 		 * Mutable `operator[]` and `data()` may change code units in `[0, Length())`.
 		 * `Length()` is the trailing NUL; reading that position is valid, but writing
 		 * any value except `wchar_t{}` there is undefined, as with `std::wstring`.
@@ -193,6 +197,15 @@ namespace StormByte {
 				void Reset(const wchar_t* str = nullptr) noexcept;
 
 				/**
+				 * @brief Ensure storage for at least @p new_capacity code units, excluding the NUL.
+				 * @param new_capacity Requested code-unit capacity.
+				 * @note Requests at or below the current capacity do nothing and never shrink.
+				 * @throws StormByte::Exception If the requested allocation size overflows.
+				 * @throws std::bad_alloc If storage cannot be allocated.
+				 */
+				void reserve(size_type new_capacity);
+
+				/**
 				 * @brief Swaps buffers with @p other.
 				 * @param other Other buffer.
 				 */
@@ -210,6 +223,12 @@ namespace StormByte {
 				 * @return Length as @ref StormByte::Size (units, not bytes).
 				 */
 				Size Length() const noexcept;
+
+				/**
+				 * @brief Return allocated capacity in wchar_t code units, excluding the NUL.
+				 * @return Capacity in code units.
+				 */
+				size_type capacity() const noexcept;
 
 				/**
 				 * @brief Return the code-unit count.
@@ -440,6 +459,26 @@ namespace StormByte {
 
 			private:
 				wchar_t* m_data;	///< Owned buffer
+
+				/**
+				 * @brief Allocate wide text plus an aligned private capacity header.
+				 * @param capacity Usable code-unit count, excluding the NUL.
+				 * @return Text pointer after its private header.
+				 */
+				static wchar_t* Allocate(std::size_t capacity);
+
+				/**
+				 * @brief Free a pointer returned by @ref Allocate.
+				 * @param text Text pointer, or null.
+				 */
+				static void Release(wchar_t* text) noexcept;
+
+				/**
+				 * @brief Read capacity from a pointer returned by @ref Allocate.
+				 * @param text Text pointer, or null.
+				 * @return Usable capacity, excluding the NUL.
+				 */
+				static std::size_t CapacityOf(const wchar_t* text) noexcept;
 
 				/**
 				 * @brief Copies @p str into a new buffer.

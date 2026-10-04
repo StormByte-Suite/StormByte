@@ -40,25 +40,57 @@
 #include <StormByte/safe/cstring.hxx>
 #include <StormByte/utf.hxx>
 #include <StormByte/safe/wcstring.hxx>
+#include <StormByte/exception.hxx>
 
 #include <cassert>
 #include <cwchar>
+#include <cstring>
+#include <limits>
+#include <utility>
 
 using namespace StormByte;
 using namespace StormByte::Safe;
 
+wchar_t* WCString::Allocate(const std::size_t capacity) {
+	constexpr std::size_t header_units = (sizeof(std::size_t) + sizeof(wchar_t) - 1) / sizeof(wchar_t);
+	if (capacity > std::numeric_limits<std::size_t>::max() - header_units - 1)
+		throw StormByte::Exception("Safe::WCString reserve capacity is too large");
+	wchar_t* allocation = new wchar_t[header_units + capacity + 1];
+	std::memcpy(allocation, &capacity, sizeof(capacity));
+	wchar_t* text = allocation + header_units;
+	text[0] = L'\0';
+	return text;
+}
+
+void WCString::Release(wchar_t* text) noexcept {
+	if (text) {
+		constexpr std::size_t header_units = (sizeof(std::size_t) + sizeof(wchar_t) - 1) / sizeof(wchar_t);
+		delete[] (text - header_units);
+	}
+}
+
+std::size_t WCString::CapacityOf(const wchar_t* text) noexcept {
+	if (!text)
+		return 0;
+	constexpr std::size_t header_units = (sizeof(std::size_t) + sizeof(wchar_t) - 1) / sizeof(wchar_t);
+	const char* header = reinterpret_cast<const char*>(text - header_units);
+	std::size_t capacity = 0;
+	std::memcpy(&capacity, header, sizeof(capacity));
+	return capacity;
+}
+
  wchar_t* WCString::Duplicate(const wchar_t* str) noexcept {
 	if (!str)
 		return nullptr;
-	const std::size_t len = std::wcslen(str) + 1;
-	wchar_t* out = new wchar_t[len];
-	std::wmemcpy(out, str, len);
+	const std::size_t len = std::wcslen(str);
+	wchar_t* out = Allocate(len);
+	std::wmemcpy(out, str, len + 1);
 	return out;
 }
 
 wchar_t* WCString::Duplicate(std::wstring_view sv) noexcept {
 	const std::size_t len = sv.size();
-	wchar_t* out = new wchar_t[len + 1];
+	wchar_t* out = Allocate(len);
 	if (len != 0)
 		std::wmemcpy(out, sv.data(), len);
 	out[len] = L'\0';
@@ -82,7 +114,8 @@ WCString::WCString(const CString& text) noexcept
 	const char* raw = static_cast<const char*>(text);
 	if (!raw)
 		return;
-	m_data = Duplicate(Utf8ToWide(raw));
+	const std::wstring converted = Utf8ToWide(raw);
+	m_data = Duplicate(converted.c_str());
 }
 
 WCString::WCString(const WCString& other) noexcept
@@ -94,21 +127,19 @@ WCString::WCString(WCString&& other) noexcept
 }
 
 WCString::~WCString() noexcept {
-	delete[] m_data;
+	Release(m_data);
 	m_data = nullptr;
 }
 
 WCString& WCString::operator=(const WCString& other) noexcept {
-	if (this != &other) {
-		delete[] m_data;
-		m_data = Duplicate(other.m_data);
-	}
+	if (this != &other)
+		Reset(other.m_data);
 	return *this;
 }
 
 WCString& WCString::operator=(WCString&& other) noexcept {
 	if (this != &other) {
-		delete[] m_data;
+		Release(m_data);
 		m_data = other.m_data;
 		other.m_data = nullptr;
 	}
@@ -116,12 +147,40 @@ WCString& WCString::operator=(WCString&& other) noexcept {
 }
 
 void WCString::Reset(const wchar_t* str) noexcept {
-	delete[] m_data;
-	m_data = Duplicate(str);
+	if (!str) {
+		Release(m_data);
+		m_data = nullptr;
+		return;
+	}
+	const std::size_t length = std::wcslen(str);
+	if (m_data && length <= CapacityOf(m_data)) {
+		std::wmemmove(m_data, str, length + 1);
+		return;
+	}
+	wchar_t* replacement = Duplicate(str);
+	Release(m_data);
+	m_data = replacement;
+}
+
+void WCString::reserve(const size_type new_capacity) {
+	const std::size_t requested = static_cast<std::size_t>(new_capacity);
+	if (requested <= CapacityOf(m_data))
+		return;
+	wchar_t* replacement = Allocate(requested);
+	if (m_data)
+		std::wmemcpy(replacement, m_data, std::wcslen(m_data) + 1);
+	else
+		replacement[0] = L'\0';
+	Release(m_data);
+	m_data = replacement;
 }
 
 Size WCString::Length() const noexcept {
 	return m_data ? Size{std::wcslen(m_data)} : Size{};
+}
+
+WCString::size_type WCString::capacity() const noexcept {
+	return Size{CapacityOf(m_data)};
 }
 
 WCString::size_type WCString::size() const noexcept {
