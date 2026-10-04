@@ -79,14 +79,14 @@ namespace StormByte {
 		 * @tparam Signature Callback signature, such as @c void(double) or @c Size(Size).
 		 *
 		 * The callback context is destroyed by its creator-module @p Release
-		 * function. @ref Call returns @ref Status for ordinary failures; value-returning
-		 * signatures receive caller-owned result storage explicitly. @ref Call
+		 * function. @c Call returns @ref Status for ordinary failures; value-returning
+		 * signatures receive caller-owned result storage explicitly. @c Call
 		 * propagates @ref StormByte::Exception unchanged. Other exceptions are
 		 * converted to @ref Status::Failure. The provider must keep its callback
 		 * implementation valid until the function is destroyed.
 		 *
 		 * Value arguments are passed for the duration of the call. Const-reference
-		 * arguments are borrowed only until @ref Call returns and must not be
+		 * arguments are borrowed only until @c Call returns and must not be
 		 * retained by the provider. Function pointers use the platform's default
 		 * C++ calling convention. Participants must use a compatible C++ ABI and
 		 * calling convention. The provider module and Base must remain loaded until

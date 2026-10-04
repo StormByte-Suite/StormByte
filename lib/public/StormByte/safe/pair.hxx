@@ -117,13 +117,13 @@ namespace StormByte {
 				 * @brief Copy a pair.
 				 * @param other Source pair.
 				 */
-				Pair(const Pair&) = default;
+				Pair(const Pair& other) = default;
 
 				/**
 				 * @brief Move a pair.
 				 * @param other Source pair.
 				 */
-				Pair(Pair&&) noexcept(std::is_nothrow_move_constructible_v<First> &&
+				Pair(Pair&& other) noexcept(std::is_nothrow_move_constructible_v<First> &&
 					std::is_nothrow_move_constructible_v<Second>) = default;
 
 				/**
@@ -131,14 +131,14 @@ namespace StormByte {
 				 * @param other Source pair.
 				 * @return This pair.
 				 */
-				Pair& operator=(const Pair&) = default;
+				Pair& operator=(const Pair& other) = default;
 
 				/**
 				 * @brief Move-assign a pair.
 				 * @param other Source pair.
 				 * @return This pair.
 				 */
-				Pair& operator=(Pair&&) noexcept(std::is_nothrow_move_assignable_v<First> &&
+				Pair& operator=(Pair&& other) noexcept(std::is_nothrow_move_assignable_v<First> &&
 					std::is_nothrow_move_assignable_v<Second>) = default;
 
 				/**
@@ -209,7 +209,6 @@ namespace StormByte {
 				 * @brief Construct from a pair of compatible values.
 				 * @tparam OtherFirst Source first type.
 				 * @tparam OtherSecond Source second type.
-				 * @param other Source pair.
 				 */
 				template<class OtherFirst, class OtherSecond>
 				requires std::constructible_from<First, const OtherFirst&> &&
@@ -224,7 +223,7 @@ namespace StormByte {
 				 * @param other Pair to compare.
 				 * @return Lexicographical ordering.
 				 */
-				auto operator<=>(const Pair&) const = default;
+				auto operator<=>(const Pair& other) const = default;
 		};
 
 			/**
@@ -264,13 +263,13 @@ namespace StormByte {
 					 * @brief Copy a pair-reference proxy.
 					 * @param other Source proxy.
 					 */
-					PairReference(const PairReference&) = default;
+					PairReference(const PairReference& other) = default;
 
 					/**
 					 * @brief Move a pair-reference proxy.
 					 * @param other Source proxy.
 					 */
-					PairReference(PairReference&&) = default;
+					PairReference(PairReference&& other) = default;
 
 					/**
 					 * @brief Access the first component for structured bindings.

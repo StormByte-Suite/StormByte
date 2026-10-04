@@ -121,13 +121,13 @@ namespace StormByte {
 						 * @brief Copy a proxy binding.
 						 * @param other Source proxy.
 						 */
-						Reference(const Reference&) = default;
+						Reference(const Reference& other) = default;
 
 						/**
 						 * @brief Move a proxy binding.
 						 * @param other Source proxy.
 						 */
-						Reference(Reference&&) = default;
+						Reference(Reference&& other) = default;
 
 						/**
 						 * @brief Read the current element value.

@@ -259,9 +259,8 @@ namespace StormByte {
 				Optional(T&& value);
 
 				/**
-				 * @brief Convert from caller-owned STL optional storage when U constructs T.
+				 * @brief Convert a caller-owned STL optional when U constructs T.
 				 * @tparam U Source value type.
-				 * @param value Source optional.
 				 */
 				template<class U>
 				requires (!std::same_as<U, T>) && std::constructible_from<T, const U&>
@@ -271,9 +270,8 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Convert from a moved STL optional when U constructs T.
+				 * @brief Convert a moved STL optional when U constructs T, resetting it after successful transfer.
 				 * @tparam U Source value type.
-				 * @param value Source optional, reset after successful transfer.
 				 */
 				template<class U>
 				requires (!std::same_as<U, T>) && std::constructible_from<T, U&&>
@@ -287,8 +285,7 @@ namespace StormByte {
 				/**
 				 * @brief Construct from a value that can construct T.
 				 * @tparam U Source value type.
-				 * @param value Source value.
-			 */
+				 */
 				template<class U>
 				requires (!std::same_as<std::remove_cvref_t<U>, T>) && std::constructible_from<T, U>
 				explicit(!std::convertible_to<U, T>) Optional(U&& value): Optional() {
@@ -296,9 +293,8 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Convert from another Safe optional when its value constructs T.
+				 * @brief Convert another Safe optional when its value constructs T.
 				 * @tparam U Source Safe value type.
-				 * @param other Source optional.
 				 */
 				template<Type::SafeValue U>
 				requires (!std::same_as<U, T>) && std::constructible_from<T, const U&>
@@ -308,9 +304,8 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Convert from a moved Safe optional when its value constructs T.
+				 * @brief Convert a moved Safe optional when its value constructs T, resetting it after successful transfer.
 				 * @tparam U Source Safe value type.
-				 * @param other Source optional, reset after successful transfer.
 				 */
 				template<Type::SafeValue U>
 				requires (!std::same_as<U, T>) && std::constructible_from<T, U&&>
