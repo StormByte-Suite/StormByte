@@ -49,9 +49,15 @@ using namespace StormByte;
 using namespace StormByte::Safe;
 using namespace SafeCollectionsFixture;
 
+ProviderException::~ProviderException() noexcept = default;
+
 namespace {
 	std::atomic<std::uint64_t> liveContexts = 0;
 	std::atomic<std::uint64_t> destroyedContexts = 0;
+	std::atomic<std::uint64_t> liveProgressContexts = 0;
+	std::atomic<std::uint64_t> destroyedProgressContexts = 0;
+	std::atomic<double> lastProgress = 0.0;
+	std::atomic<std::uint64_t> liveMaybeValues = 0;
 
 	struct Context {
 		std::string text;
@@ -82,6 +88,96 @@ namespace {
 	void ReleaseContext(void* context) noexcept {
 		std::unique_ptr<Context> owner(static_cast<Context*>(context));
 	}
+
+	struct ProgressContext {
+		ProgressContext() {
+			++liveProgressContexts;
+		}
+
+		~ProgressContext() noexcept {
+			--liveProgressContexts;
+			++destroyedProgressContexts;
+		}
+	};
+
+	Status InvokeProgress(void*, double value) {
+		if (value == -1.0)
+			throw ProviderException("typed callback exception from producer DLL");
+		if (value == -2.0)
+			throw 7;
+		lastProgress = value;
+		return Status::Success;
+	}
+
+	Status InvokeSizeSelector(void* context, StormByte::Size* output, StormByte::Size value) {
+		if (value == StormByte::Size{0})
+			return Status::Failure;
+		*output = value / *static_cast<const unsigned int*>(context);
+		return Status::Success;
+	}
+
+	void ReleaseProgressContext(void* context) noexcept {
+		std::unique_ptr<ProgressContext> owner(static_cast<ProgressContext*>(context));
+	}
+
+	void ReleaseSizeSelector(void* context) noexcept {
+		delete static_cast<unsigned int*>(context);
+	}
+
+	void* CloneMaybeValue(const void* state) noexcept {
+		try {
+			return new MaybeValue(*static_cast<const MaybeValue*>(state));
+		} catch (...) {
+			return nullptr;
+		}
+	}
+
+	void DestroyMaybeValue(void* state) noexcept {
+		delete static_cast<MaybeValue*>(state);
+	}
+
+	Owner MakeMaybeOwner(std::string_view value) {
+		auto state = std::make_unique<MaybeValue>(value);
+		Owner owner(state.get(), &CloneMaybeValue, &DestroyMaybeValue);
+		state.release();
+		return owner;
+	}
+}
+
+MaybeValue::MaybeValue(): m_text{} {
+	++liveMaybeValues;
+}
+
+MaybeValue::MaybeValue(std::string_view value): m_text(value) {
+	++liveMaybeValues;
+}
+
+MaybeValue::MaybeValue(const MaybeValue& other): m_text(other.m_text) {
+	++liveMaybeValues;
+}
+
+MaybeValue::MaybeValue(MaybeValue&& other) noexcept: m_text(std::move(other.m_text)) {
+	++liveMaybeValues;
+}
+
+MaybeValue::~MaybeValue() noexcept {
+	--liveMaybeValues;
+}
+
+MaybeValue& MaybeValue::operator=(const MaybeValue& other) {
+	if (this != &other)
+		m_text = other.m_text;
+	return *this;
+}
+
+MaybeValue& MaybeValue::operator=(MaybeValue&& other) noexcept {
+	if (this != &other)
+		m_text = std::move(other.m_text);
+	return *this;
+}
+
+std::string_view MaybeValue::Text() const noexcept {
+	return m_text;
 }
 
 Sequence SafeCollectionsFixture::MakeSequence() {
@@ -89,6 +185,20 @@ Sequence SafeCollectionsFixture::MakeSequence() {
 	const Text longText(std::string(8192, 'x'));
 	values.push_back(longText);
 	values.push_back(Text("second"));
+	return values;
+}
+
+MaybeValues SafeCollectionsFixture::MakeMaybeValues() {
+	MaybeValues values;
+	values.emplace_back("provider maybe value");
+	values.emplace_back("second provider value");
+	return values;
+}
+
+MaybeOwners SafeCollectionsFixture::MakeMaybeOwners() {
+	MaybeOwners values;
+	values.push_back(MakeMaybeOwner("opaque owner value"));
+	values.push_back(MakeMaybeOwner("second opaque owner"));
 	return values;
 }
 
@@ -122,6 +232,20 @@ Callback SafeCollectionsFixture::MakeCallback() {
 	return callback;
 }
 
+CallbackFunction SafeCollectionsFixture::MakeProgressCallback() {
+	auto context = std::make_unique<ProgressContext>();
+	CallbackFunction callback(context.get(), &InvokeProgress, &ReleaseProgressContext);
+	context.release();
+	return callback;
+}
+
+SizeSelector SafeCollectionsFixture::MakeSizeSelector() {
+	auto divisor = std::make_unique<unsigned int>(2);
+	SizeSelector selector(divisor.get(), &InvokeSizeSelector, &ReleaseSizeSelector);
+	divisor.release();
+	return selector;
+}
+
 TokenQueue SafeCollectionsFixture::MakeTokenQueue() {
 	TokenQueue tokens;
 	if (Text::Explode("producer|queue|value", '|', tokens) != Status::Success)
@@ -133,10 +257,30 @@ void SafeCollectionsFixture::ThrowProducerException() {
 	throw StormByte::Exception("exception from producer DLL");
 }
 
+void SafeCollectionsFixture::ThrowProviderException() {
+	throw ProviderException("derived exception from producer DLL");
+}
+
 std::uint64_t SafeCollectionsFixture::LiveContexts() noexcept {
 	return liveContexts.load();
 }
 
 std::uint64_t SafeCollectionsFixture::DestroyedContexts() noexcept {
 	return destroyedContexts.load();
+}
+
+std::uint64_t SafeCollectionsFixture::LiveProgressContexts() noexcept {
+	return liveProgressContexts.load();
+}
+
+std::uint64_t SafeCollectionsFixture::DestroyedProgressContexts() noexcept {
+	return destroyedProgressContexts.load();
+}
+
+double SafeCollectionsFixture::LastProgress() noexcept {
+	return lastProgress.load();
+}
+
+std::uint64_t SafeCollectionsFixture::LiveMaybeValues() noexcept {
+		return liveMaybeValues.load();
 }

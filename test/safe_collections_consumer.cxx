@@ -68,6 +68,16 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	}
 	if (!caughtProducerException)
 		return false;
+	bool caughtProviderException = false;
+	try {
+		ThrowProviderException();
+	} catch (const ProviderException& exception) {
+		caughtProviderException = std::string_view(exception.what()) == "StormByte: derived exception from producer DLL";
+	} catch (...) {
+		return false;
+	}
+	if (!caughtProviderException)
+		return false;
 
 	Sequence emptySequence;
 	if (!emptySequence.empty())
@@ -314,6 +324,71 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 		}
 		if (LiveContexts() != 0)
 			return false;
+
+		const auto destroyedProgressBefore = DestroyedProgressContexts();
+		{
+			auto progress = MakeProgressCallback();
+			if (!progress.HasValue() || progress.Call(37.5) != Status::Success || LastProgress() != 37.5)
+				return false;
+			bool caughtTypedCallbackException = false;
+			try {
+				progress.Call(-1.0);
+			} catch (const ProviderException&) {
+				caughtTypedCallbackException = true;
+			} catch (...) {
+				return false;
+			}
+			if (!caughtTypedCallbackException || progress.Call(-2.0) != Status::Failure)
+				return false;
+			auto movedProgress = std::move(progress);
+			if (progress.HasValue() || progress.Call(0.0) != Status::Missing)
+				return false;
+			auto assignedProgress = MakeProgressCallback();
+			assignedProgress = std::move(movedProgress);
+			if (movedProgress.HasValue() || LiveProgressContexts() != 1)
+				return false;
+		}
+		if (LiveProgressContexts() != 0 || DestroyedProgressContexts() != destroyedProgressBefore + 2)
+			return false;
 	}
-	return DestroyedContexts() == destroyedBefore + 256;
+	{
+		auto selector = MakeSizeSelector();
+		Size selected{99};
+		if (selector.Call(selected, Size{80}) != Status::Success || selected != Size{40})
+			return false;
+		if (selector.Call(selected, Size{0}) != Status::Failure || selected != Size{40})
+			return false;
+	}
+	if (LiveMaybeValues() != 0)
+		return false;
+	{
+		auto maybeValues = MakeMaybeValues();
+		if (maybeValues.size() != 2 || LiveMaybeValues() == 0)
+			return false;
+		const auto snapshot = static_cast<MaybeValue>(maybeValues.at(0));
+		if (snapshot.Text() != "provider maybe value")
+			return false;
+	}
+	if (LiveMaybeValues() != 0)
+		return false;
+	{
+		auto owners = MakeMaybeOwners();
+		if (owners.size() != 2 || LiveMaybeValues() == 0)
+			return false;
+		const auto ownerSnapshot = static_cast<Owner>(owners.at(0));
+		const auto* borrowed = static_cast<const MaybeValue*>(ownerSnapshot.Get());
+		if (!borrowed || borrowed->Text() != "opaque owner value")
+			return false;
+		auto copiedOwners = owners;
+		auto movedOwners = std::move(copiedOwners);
+		if (!copiedOwners.empty() || movedOwners.size() != 2)
+			return false;
+		Safe::Vector<Owner> replacedOwners;
+		replacedOwners = movedOwners;
+		if (replacedOwners.size() != 2)
+			return false;
+	}
+	if (LiveMaybeValues() != 0)
+		return false;
+		return DestroyedContexts() == destroyedBefore + 256;
 }

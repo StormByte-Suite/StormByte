@@ -1263,8 +1263,16 @@ namespace StormByte {
 		 * @tparam Container Admitted random-access container type.
 		 */
 		template<class Container>
-		requires Safe::Detail::SafeRandomAccessContainer<Container>
+		requires Safe::Detail::SafeRandomAccessContainer<Container> && Type::IsSafe<typename Container::value_type>::value
 		struct IsSafe<Safe::Iterable<Container>>: std::true_type {};
+
+		/**
+		 * @brief Propagates conditional safety from a collection's element type.
+		 * @tparam Container Admitted random-access container type.
+		 */
+		template<class Container>
+		requires Safe::Detail::SafeRandomAccessContainer<Container> && MaybeSafe<typename Container::value_type>
+		struct IsMaybeSafe<Safe::Iterable<Container>>: std::true_type {};
 
 		/**
 		 * @brief Admits safe opaque iterable containers as collection values.

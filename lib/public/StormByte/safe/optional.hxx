@@ -1163,7 +1163,16 @@ namespace StormByte {
 		 * @tparam T Safe value.
 		 */
 		template<SafeValue T>
+		requires Type::IsSafe<T>::value
 		struct IsSafe<Safe::Optional<T>>: std::true_type {};
+
+		/**
+		 * @brief Propagates conditional safety from the contained value.
+		 * @tparam T Safe value type.
+		 */
+		template<SafeValue T>
+		requires Type::MaybeSafe<T>
+		struct IsMaybeSafe<Safe::Optional<T>>: std::true_type {};
 
 		/**
 		 * @brief Registers Safe optional values for optional-aware generic APIs.

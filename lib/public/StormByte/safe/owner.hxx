@@ -39,6 +39,7 @@
 
 #pragma once
 
+#include <StormByte/type_traits/safe.hxx>
 #include <StormByte/visibility.h>
 
 /**
@@ -79,6 +80,11 @@ namespace StormByte {
 			 */
 			class STORMBYTE_PUBLIC Owner final {
 				public:
+					/**
+					 * @brief Empty owner.
+					 */
+					Owner() noexcept;
+
 					/**
 					 * @brief Creator-module deep-copy callback; null reports failure.
 					 */
@@ -130,8 +136,9 @@ namespace StormByte {
 					Owner& operator=(Owner&& other) noexcept;
 
 					/**
-					 * @brief Borrow state internally.
-					 * @return State, or null after move.
+					 * @brief Borrow opaque state for a provider-defined typed facade.
+					 * @return Borrowed state pointer, or null after move.
+					 * @note Invalid after this owner is moved from, replaced or destroyed; do not retain it.
 					 */
 					void* Get() const noexcept;
 
@@ -141,5 +148,26 @@ namespace StormByte {
 					Destroy m_destroy;	///< Callback in that module.
 			};
 		}
+
+		/**
+		 * @brief Public name for opaque state ownership through provider callbacks.
+		 *
+		 * Copy invokes the provider's Clone callback; destruction invokes its
+		 * Destroy callback. This is conditionally DLL-safe only when the state and
+		 * callbacks meet the documented MaybeSafe requirements and the provider
+		 * module remains loaded for every live owner.
+		 */
+		using Owner = Detail::Owner;
 	}
+
+	/**
+	 * @namespace StormByte::Type
+	 * @brief Named concepts and small type utilities used across the suite.
+	 */
+	namespace Type {
+		/**
+		 * @brief Recognizes opaque owner state whose safety depends on its callbacks.
+		 */
+		template<> struct IsMaybeSafe<Safe::Owner>: std::true_type {};
+		}
 }

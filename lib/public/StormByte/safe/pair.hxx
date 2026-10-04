@@ -456,7 +456,17 @@ namespace StormByte {
 		 * @tparam Second Second Safe type.
 		 */
 		template<SafeValue First, SafeValue Second>
+		requires IsSafe<First>::value && IsSafe<Second>::value
 		struct IsSafe<Safe::Pair<First, Second>>: std::true_type {};
+
+		/**
+		 * @brief Propagates conditional safety when either pair component is MaybeSafe.
+		 * @tparam First First Safe value type.
+		 * @tparam Second Second Safe value type.
+		 */
+		template<SafeValue First, SafeValue Second>
+		requires (MaybeSafe<First> || MaybeSafe<Second>)
+		struct IsMaybeSafe<Safe::Pair<First, Second>>: std::true_type {};
 
 		/**
 		 * @brief Admits Safe pairs as collection values.

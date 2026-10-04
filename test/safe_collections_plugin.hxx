@@ -43,6 +43,10 @@
 #include <StormByte/safe/map.hxx>
 #include <StormByte/safe/optional.hxx>
 #include <StormByte/safe/queue.hxx>
+#include <StormByte/safe/function.hxx>
+
+#include <string>
+#include <string_view>
 
 #ifdef WINDOWS
 	#ifdef SafeCollectionsProducer_EXPORTS
@@ -66,8 +70,57 @@
  */
 namespace SafeCollectionsFixture {
 	/**
+	 * @class ProviderException
+	 * @brief Test exception whose destructor is anchored in the producer DLL.
+	 */
+	class SAFE_COLLECTIONS_PRODUCER_PUBLIC ProviderException: public StormByte::Exception {
+		public:
+			using StormByte::Exception::Exception;
+			/**
+			 * @brief Destructor defined in the producer DLL.
+			 */
+			~ProviderException() noexcept override;
+	};
+
+	/**
+	 * @class MaybeValue
+	 * @brief Consumer-registered value whose resource operations are implemented by the provider.
+	 */
+	class SAFE_COLLECTIONS_PRODUCER_PUBLIC MaybeValue final {
+		public:
+			/** @brief Construct an empty value. */
+			MaybeValue();
+			/** @brief Construct from copied text. @param value Text value. */
+			explicit MaybeValue(std::string_view value);
+			/** @brief Copy construct in the provider module. @param other Source value. */
+			MaybeValue(const MaybeValue& other);
+			/** @brief Move construct in the provider module. @param other Source value. */
+			MaybeValue(MaybeValue&& other) noexcept;
+			/** @brief Destroy resources in the provider module. */
+			~MaybeValue() noexcept;
+			/** @brief Copy assign in the provider module. @param other Source. @return This value. */
+			MaybeValue& operator=(const MaybeValue& other);
+			/** @brief Move assign in the provider module. @param other Source. @return This value. */
+			MaybeValue& operator=(MaybeValue&& other) noexcept;
+			/** @brief Borrow the value text. @return View valid while this object remains unchanged. */
+			std::string_view Text() const noexcept;
+
+		private:
+			std::string m_text; ///< Provider-owned text resource.
+	};
+
+}
+
+STORMBYTE_DECLARE_MAYBE_SAFE(SafeCollectionsFixture::MaybeValue);
+
+namespace SafeCollectionsFixture {
+
+	/**
 	 * @brief Enum fixture used to verify Safe optional values across modules.
 	 */
+	using MaybeValues = StormByte::Safe::Vector<MaybeValue>; ///< Conditionally Safe provider-defined values.
+	using MaybeOwners = StormByte::Safe::Vector<StormByte::Safe::Owner>; ///< Opaque provider-owned states.
+
 	enum class OptionalTestLevel : std::uint8_t {
 		Info,
 		Warning
@@ -80,12 +133,26 @@ namespace SafeCollectionsFixture {
 	using MaybeLevel = StormByte::Safe::Optional<OptionalTestLevel>;	///< Opaque enum optional.
 	using Nested = StormByte::Safe::Vector<Sequence>;	///< Nested opaque sequences.
 	using TokenQueue = StormByte::Safe::Queue<Text>;	///< Opaque text FIFO.
+	using CallbackFunction = StormByte::Safe::Function<void(double)>; ///< Function signature for callbacks.
+	using SizeSelector = StormByte::Safe::Function<StormByte::Size(StormByte::Size)>; ///< Typed size selector.
 
 	/**
 	 * @brief Construct and populate text storage in the producer DLL.
 	 * @return Owned sequence.
 	 */
 	SAFE_COLLECTIONS_PRODUCER_PUBLIC Sequence MakeSequence();
+
+	/**
+	 * @brief Create provider-owned MaybeSafe values in a Safe collection.
+	 * @return Owned values.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC MaybeValues MakeMaybeValues();
+
+	/**
+	 * @brief Create opaque MaybeValue states owned and cloned by the producer.
+	 * @return Opaque owners.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC MaybeOwners MakeMaybeOwners();
 
 	/**
 	 * @brief Construct nodes in the producer DLL.
@@ -118,6 +185,18 @@ namespace SafeCollectionsFixture {
 	SAFE_COLLECTIONS_PRODUCER_PUBLIC StormByte::Safe::Callback MakeCallback();
 
 	/**
+	 * @brief Construct a typed progress callback with producer-owned context.
+	 * @return Move-only callback.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC CallbackFunction MakeProgressCallback();
+
+	/**
+	 * @brief Construct a typed Size-to-Size selector in the producer DLL.
+	 * @return Move-only selector.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC SizeSelector MakeSizeSelector();
+
+	/**
 	 * @brief Create a token queue in the producer DLL using String::Explode.
 	 * @return Owned token queue.
 	 */
@@ -127,6 +206,11 @@ namespace SafeCollectionsFixture {
 	 * @brief Throw a Base exception from the producer DLL.
 	 */
 	SAFE_COLLECTIONS_PRODUCER_PUBLIC void ThrowProducerException();
+
+	/**
+	 * @brief Throw a derived provider exception across the producer/consumer boundary.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC void ThrowProviderException();
 
 	/**
 	 * @brief Number of producer contexts still alive.
@@ -141,8 +225,32 @@ namespace SafeCollectionsFixture {
 	SAFE_COLLECTIONS_PRODUCER_PUBLIC std::uint64_t DestroyedContexts() noexcept;
 
 	/**
+	 * @brief Number of progress callback contexts still alive.
+	 * @return Fixed-width count.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC std::uint64_t LiveProgressContexts() noexcept;
+
+	/**
+	 * @brief Number of progress callback contexts destroyed by the producer.
+	 * @return Fixed-width count.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC std::uint64_t DestroyedProgressContexts() noexcept;
+
+	/**
+	 * @brief Last percentage passed to the typed progress callback.
+	 * @return Percentage captured by the producer.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC double LastProgress() noexcept;
+
+	/**
+	 * @brief Number of MaybeValue objects currently alive.
+	 * @return Fixed-width count.
+	 */
+	SAFE_COLLECTIONS_PRODUCER_PUBLIC std::uint64_t LiveMaybeValues() noexcept;
+
+	/**
 	 * @brief Copy, move, modify, read and destroy producer values in another DLL.
 	 * @return True when every ownership and behavior check passes.
 	 */
-	SAFE_COLLECTIONS_CONSUMER_PUBLIC bool ExerciseCollections();
+		SAFE_COLLECTIONS_CONSUMER_PUBLIC bool ExerciseCollections();
 }

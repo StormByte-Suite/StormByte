@@ -58,6 +58,7 @@ Public Base APIs do not take or return a raw `std::size_t` / `std::uint64_t` whe
 - [Expected](#expected)
 - [Error](#error)
 - [Safe text and buffers](#safe-text-and-buffers)
+- [Safe DLL boundaries](#safe-dll-boundaries)
 - [BinaryData](#binarydata)
 - [Size](#size)
 - [ByteSize](#bytesize)
@@ -263,6 +264,46 @@ std::vector<Safe::String> callerValues = static_cast<std::vector<Safe::String>>(
 Safe::Queue<Safe::String> tokens;
 const auto status = Safe::String("a|b").Explode('|', tokens);
 ```
+
+### Safe DLL Boundaries
+
+`StormByte::Type::IsSafe<T>` means Base recognizes the type and backs its documented DLL-boundary contract. The guarantee is conditional on compatible C++ ABI, packing and calling convention, and keeping Base and every provider module loaded while values, owners or callbacks remain alive. It does not promise ABI independence from the compiler, standard library, or STL implementation.
+
+`StormByte::Type::MaybeSafe<T>` means the type is admitted under explicit provider responsibility. Consumers must not specialize `IsSafe` or `IsMaybeSafe` directly. After a complete consumer type is declared, register it at global namespace scope with `STORMBYTE_DECLARE_MAYBE_SAFE(fully::qualified::Type)`. Base checks the operations needed by the selected Safe wrapper and propagates the level through known Safe compositions: all-`IsSafe` components remain `IsSafe`; a composition containing a `MaybeSafe` component is `MaybeSafe`.
+
+The registration is an assertion, not reflection or proof. C++ cannot inspect a class's private fields or determine whether a destructor or special member is defined out-of-line. The provider must ensure that owned resources are copied, moved, assigned and destroyed with the allocator and module that own them. For resource-bearing classes crossing a DLL, define the relevant constructors, assignments and destructor out-of-line in the provider module; keep its ABI compatible and its module loaded. Base can reject known incompatible standard-library values even if someone tries to register them: raw pointers/references, standard containers and strings/views, standard smart pointers, `std::function`, and standard tuple/optional/variant wrappers. Use the corresponding Safe type instead. The veto applies recursively through `Safe::Shared`, `Safe::Unique`, `Safe::Weak` and Safe collections. Base cannot discover a banned member hidden inside a user class; that remains part of the provider's registration responsibility.
+
+`Safe::Vector`, `Safe::Map`, `Safe::Optional`, `Safe::Queue` and `Safe::Pair` accept admitted `SafeValue`s. A `MaybeSafe` element must also meet the construction, copy, assignment and movement requirements of the particular wrapper. `Safe::Unique<T>` and `Safe::Weak<T>` are not collection values; ownership classification does not make a move-only owner copyable. `Safe::Shared<T>` and `Safe::Unique<T>` recurse into `T` for their classification and do not certify its fields or behavior. `Safe::Shared` still wraps `std::shared_ptr`, so compatible STL ABI is required. `StormByte::Expected` remains an alias of `std::expected` and is `MaybeSafe` only when its contained types are admitted; it also requires compatible STL ABI.
+
+`StormByte::Exception` is `IsSafe`: its message is `Safe::String`, its virtual destructor is defined in Base, and producer/consumer tests verify cross-DLL catching. Derived exceptions are `MaybeSafe`; define each named derived destructor out-of-line in its owning module so its RTTI/vtable has a module anchor. `Safe::Function` lets typed callbacks propagate `StormByte::Exception`; non-Safe exceptions are caught and become `Status::Failure`.
+
+#### Typed callbacks
+
+`Safe::Function<Signature>` replaces text-only callback signatures when the callback itself must cross a DLL boundary. Its context is owned by the provider, is move-only, and is released there through a `noexcept` function. Arguments are passed by value or as `const` lvalue references borrowed for the duration of the call. Raw pointers, mutable references and types outside the IsSafe/MaybeSafe contracts are rejected.
+
+Void callbacks return `Safe::Status` from `Call`. Value-returning signatures use an explicit output parameter; the callback writes to a temporary and publishes it only on `Success`:
+
+```cpp
+using Progress = StormByte::Safe::Function<void(double)>;
+using SelectSize = StormByte::Safe::Function<StormByte::Size(StormByte::Size)>;
+
+Progress progress(context, &InvokeProgress, &ReleaseContext);
+const auto status = progress.Call(37.5);
+
+SelectSize select(context, &InvokeSelect, &ReleaseContext);
+StormByte::Size selected{};
+const auto selectStatus = select.Call(selected, StormByte::Size{80});
+```
+
+`Invoke` returns `Status`. A thrown `StormByte::Exception` crosses unchanged; any other exception becomes `Status::Failure`. Provider release callbacks must not throw. The default C++ calling convention and a compatible C++ ABI are required. The provider must keep its module loaded while callbacks exist; synchronization, reentrancy and avoiding self-destruction during invocation remain provider responsibilities.
+
+#### Opaque owners
+
+`StormByte::Safe::Owner` (declared in `StormByte/safe/owner.hxx`) is a copyable opaque state owner. The state is created by the provider; copying invokes its `Clone` callback there, and destroying/replacing invokes `Destroy` there. A null clone reports copy failure through `StormByte::Exception`; `Clone` and `Destroy` callbacks must be `noexcept`, and `Destroy` must release the state with its creating module's allocator. Move transfers ownership and empties the source. The provider and Base must remain loaded for every live owner.
+
+`Owner::Get()` is only a borrowed state pointer for the typed provider facade to interpret. It is invalid after that owner is moved from, replaced or destroyed; never retain the pointer independently. `Owner` cannot inspect the object's members or prove that the callbacks are correct, so it is `MaybeSafe`, not an unconditional certificate. Store it in a Safe collection when an opaque owner value is useful; expose typed operations from the provider facade rather than treating an arbitrary `void*` as a checked object handle.
+
+An `Owner` holding a pointer to a registry object owns only its callback state, not the pointed-to object. The provider must either retain a lifetime token that keeps the referent valid, or document the registry lifetime and the exact invalidation event. Copies must preserve that token or reference contract; `Get()` never extends a borrowed referent's lifetime.
 
 ### BinaryData
 

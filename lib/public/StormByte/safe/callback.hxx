@@ -134,6 +134,6 @@ namespace StormByte {
 		 * @brief Recognizes explicit callback ownership, not a copyable collection value.
 		 */
 		template<>
-		struct IsSafe<Safe::Callback>: std::true_type {};
+		struct IsMaybeSafe<Safe::Callback>: std::true_type {};
 	}
 }

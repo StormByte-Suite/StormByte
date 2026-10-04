@@ -161,8 +161,18 @@ namespace StormByte {
 		 * @tparam SmartPointer Safe shared or unique pointer to the interface.
 		 */
 		template<typename T, typename SmartPointer>
-		requires Safe::ValidSmartPointer<SmartPointer, T>
+		requires Safe::ValidSmartPointer<SmartPointer, T> && IsSafe<T>::value && IsSafe<SmartPointer>::value
 		struct IsSafe<Safe::Clonable<T, SmartPointer>>: std::true_type {};
+
+		/**
+		 * @brief Propagates conditional pointee or owner safety to Clonable.
+		 * @tparam T Interface type.
+		 * @tparam SmartPointer Safe shared or unique owner.
+		 */
+		template<typename T, typename SmartPointer>
+		requires Safe::ValidSmartPointer<SmartPointer, T> && SafeComponent<T> &&
+			SafeComponent<SmartPointer> && (MaybeSafe<T> || MaybeSafe<SmartPointer>)
+		struct IsMaybeSafe<Safe::Clonable<T, SmartPointer>>: std::true_type {};
 	}
 }
 

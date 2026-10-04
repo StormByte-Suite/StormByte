@@ -51,6 +51,9 @@ void StormByte::Safe::Detail::ThrowSafeConversionFailure(const char* message) {
 Owner::Owner(void* state, Clone clone, Destroy destroy) noexcept:
 	m_state(state), m_clone(clone), m_destroy(destroy) {}
 
+Owner::Owner() noexcept:
+	m_state(nullptr), m_clone(nullptr), m_destroy(nullptr) {}
+
 Owner::Owner(const Owner& other):
 	m_state(other.m_state ? other.m_clone(other.m_state) : nullptr),
 	m_clone(other.m_clone), m_destroy(other.m_destroy) {
@@ -87,5 +90,5 @@ Owner& Owner::operator=(Owner&& other) noexcept {
 }
 
 void* Owner::Get() const noexcept {
-	return m_state;
+		return m_state;
 }

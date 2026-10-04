@@ -322,7 +322,16 @@ namespace StormByte {
 		 * @tparam T Safe value.
 		 */
 		template<SafeValue T>
+		requires Type::IsSafe<T>::value
 		struct IsSafe<Safe::Queue<T>>: std::true_type {};
+
+		/**
+		 * @brief Propagates conditional safety from the FIFO value type.
+		 * @tparam T Safe value type.
+		 */
+		template<SafeValue T>
+		requires Type::MaybeSafe<T>
+		struct IsMaybeSafe<Safe::Queue<T>>: std::true_type {};
 
 		/**
 		 * @brief Admits nested opaque FIFOs.

@@ -1073,8 +1073,19 @@ namespace StormByte {
 		 * @tparam Allocator Allocator type.
 		 */
 		template<SafeValue K, SafeValue V, class Compare, class Allocator>
-		requires std::strict_weak_order<Compare, const K&, const K&>
+		requires IsSafe<K>::value && IsSafe<V>::value && std::strict_weak_order<Compare, const K&, const K&>
 		struct IsSafe<Safe::Iterable<std::map<K, V, Compare, Allocator>>>: std::true_type {};
+
+		/**
+		 * @brief Propagates conditional key or mapped-value safety to Safe maps.
+		 * @tparam K Safe key type.
+		 * @tparam V Safe mapped type.
+		 * @tparam Compare Comparator type.
+		 * @tparam Allocator Allocator type.
+		 */
+		template<SafeValue K, SafeValue V, class Compare, class Allocator>
+		requires (MaybeSafe<K> || MaybeSafe<V>) && std::strict_weak_order<Compare, const K&, const K&>
+		struct IsMaybeSafe<Safe::Iterable<std::map<K, V, Compare, Allocator>>>: std::true_type {};
 
 		/**
 		 * @brief Admits safe iterable maps as collection values.

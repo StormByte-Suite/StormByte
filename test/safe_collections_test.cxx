@@ -43,6 +43,7 @@
 #include <StormByte/exception.hxx>
 #include <StormByte/safe/clonable.hxx>
 #include <StormByte/safe/cstring.hxx>
+#include <StormByte/safe/function.hxx>
 #include <StormByte/safe/pair.hxx>
 #include <StormByte/safe/pointers.hxx>
 #include <StormByte/safe/wcstring.hxx>
@@ -69,6 +70,12 @@ struct OptionalAggregateFixture {
 	Safe::Optional<OptionalLevel> Level;
 };
 
+struct ConsumerMaybeSafeFixture {
+	int Value = 0;
+};
+
+STORMBYTE_DECLARE_MAYBE_SAFE(ConsumerMaybeSafeFixture);
+
 struct DirectionalStringCompare {
 	bool descending = false;
 
@@ -90,7 +97,36 @@ static_assert(Type::SafeComponent<Safe::Map<Safe::String, Safe::String>>);
 static_assert(Type::SafeComponent<Safe::Optional<Safe::String>>);
 static_assert(Type::SafeComponent<Safe::Queue<Safe::String>>);
 static_assert(Type::SafeComponent<SafeCollectionsFixture::Nested>);
-static_assert(Type::SafeComponent<Safe::Callback>);
+static_assert(Type::IsSafe<Exception>::value);
+static_assert(Type::MaybeSafe<SafeCollectionsFixture::ProviderException>);
+static_assert(!Type::IsSafe<SafeCollectionsFixture::ProviderException>::value);
+static_assert(Type::MaybeSafe<std::expected<int, Exception>>);
+static_assert(Type::MaybeSafe<Safe::Callback>);
+static_assert(!Type::IsSafe<Safe::Callback>::value);
+static_assert(Type::MaybeSafe<ConsumerMaybeSafeFixture>);
+static_assert(Type::SafeValue<ConsumerMaybeSafeFixture>);
+static_assert(Type::MaybeSafe<SafeCollectionsFixture::MaybeValue>);
+static_assert(Type::SafeValue<SafeCollectionsFixture::MaybeValue>);
+static_assert(Type::MaybeSafe<Safe::Owner>);
+static_assert(Type::SafeValue<Safe::Owner>);
+static_assert(Type::MaybeSafe<SafeCollectionsFixture::MaybeOwners>);
+static_assert(Type::MaybeSafe<Safe::Vector<SafeCollectionsFixture::MaybeValue>>);
+static_assert(Type::MaybeSafe<Safe::Shared<Safe::Vector<Safe::Shared<SafeCollectionsFixture::MaybeValue>>>>);
+static_assert(Type::MaybeSafe<Safe::Map<Safe::String, SafeCollectionsFixture::MaybeValue>>);
+static_assert(Type::MaybeSafe<Safe::Optional<SafeCollectionsFixture::MaybeValue>>);
+static_assert(Type::MaybeSafe<Safe::Queue<SafeCollectionsFixture::MaybeValue>>);
+static_assert(Type::MaybeSafe<Safe::Pair<SafeCollectionsFixture::MaybeValue, Safe::String>>);
+static_assert(!Type::MaybeSafe<std::vector<int>>);
+static_assert(!Type::SafeComponent<std::vector<int>>);
+static_assert(Type::IsSafe<Safe::Shared<Safe::Vector<Safe::Shared<int>>>>::value);
+template<typename T>
+concept CanMakeSafeVector = requires { typename Safe::Vector<T>; };
+static_assert(!CanMakeSafeVector<Safe::Shared<std::vector<int>>>);
+using IntegralCallback = Safe::Function<void(bool, char, signed char, unsigned char, wchar_t, char8_t, char16_t, char32_t, short, unsigned short, int, unsigned int, long, unsigned long, long long, unsigned long long)>;
+static_assert(std::is_move_constructible_v<IntegralCallback>);
+static_assert(!std::is_copy_constructible_v<IntegralCallback>);
+static_assert(Type::MaybeSafe<Safe::Function<Size(Size)>>);
+static_assert(!Type::IsSafe<Safe::Function<Size(Size)>>::value);
 static_assert(Type::SafeValue<Safe::String>);
 static_assert(Type::SafeValue<Safe::Shared<Safe::String>>);
 static_assert(Type::SafeValue<int>);
@@ -490,5 +526,5 @@ int main() {
 	// -------------------
 
 	result += TestDLLOwnership();
-	return result;
+		return result;
 }
