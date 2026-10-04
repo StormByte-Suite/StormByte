@@ -23,11 +23,12 @@ If you landed here from a release link and have not read the tree:
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.0.0...HEAD
 
-## [2.0.0] - 2026-10-01
+## [2.0.0] - 2026-10-04
 
 ### Added
 
 - **Safe::String / Safe::WString** — UTF-8 and wide owned text integrated from StormByte-String into Base, with range, lookup, case conversion and serialization support. Views are copied when retained; `Bytes()` exposes a non-owning C pointer. Explicit construction from `Safe::CString` / `Safe::WCString` remains available, with `StringTests` / `WStringTests`.
+- **CRT-safe containers** — `Safe::Queue` joins `Safe::Vector`, `Safe::Map` and `Safe::Optional`. Each has explicit copy-in from and force-inline export to its STL counterpart. `Safe::String::Split` / `Safe::WString::Split` fill a `Safe::Vector`, and `Explode` fills a `Safe::Queue`, keeping STL container storage out of DLL-facing results.
 - **Telemetry** and **Clock** — base session telemetry (`Telemetry`) with pure `operator Safe::String` and a protected named clock drawer (`Clock`) backed by a thread-safe PIMPL store (`Safe::Unique<Store>`). Leaves derive and add their own domain metrics and counters; `Clock` provides a lightweight stopwatch measuring intervals, count, cumulative time, and mean duration. Covered by `TelemetryTests`.
 - **`STORMBYTE_PUBLIC_TYPE`** — in `visibility.h`. Default visibility on ELF / Mach-O, empty on Windows. Put on header-only types (templates included) whose `typeinfo` and vtable every module emits, so `typeid` / `dynamic_cast` agree across DLLs (on ELF the loader also merges the copies) even when a consumer builds with `-fvisibility=hidden`. Windows needs nothing: MSVC compares RTTI by name and implicitly exports the base specializations of an exported class.
 - **`STORMBYTE_FORCE_INLINE`** — in `platform.h`. `inline` plus `__forceinline` or `always_inline`, so the body is emitted in the caller. `inline` alone is only a hint.

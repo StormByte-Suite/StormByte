@@ -150,6 +150,20 @@ namespace StormByte {
 				virtual PointerType Move() = 0;
 		};
 	}
+	/**
+	 * @namespace StormByte::Type
+	 * @brief Named concepts and small type utilities used across the suite.
+	 */
+	namespace Type {
+		/**
+		 * @brief Recognizes Safe polymorphic clone interfaces, without certifying derived implementations.
+		 * @tparam T Interface stored in the pointer.
+		 * @tparam SmartPointer Safe shared or unique pointer to the interface.
+		 */
+		template<typename T, typename SmartPointer>
+		requires Safe::ValidSmartPointer<SmartPointer, T>
+		struct IsSafe<Safe::Clonable<T, SmartPointer>>: std::true_type {};
+	}
 }
 
 #include <StormByte/safe/clonable.txx>

@@ -37,36 +37,55 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#pragma once
+#include <StormByte/safe/owner.hxx>
+#include <StormByte/exception.hxx>
 
-/**
- * @namespace StormByte
- * @brief Root namespace of the StormByte suite.
- */
-/**
- * @namespace StormByte::Type
- * @brief Named concepts and small type utilities used across the suite.
- *
- * Prefer these names in public templates. Do not reintroduce
- * `std::enable_if` / `void_t` traits next to them.
- *
- * Split by @defgroup across the headers in `StormByte/type_traits/`. Each file
- * `#include`s the group files its own concepts build on (e.g. `detail.hxx`
- * on `categories.hxx`/`object_semantics.hxx`, `enums.hxx` on
- * `categories.hxx`, `ranges.hxx` on `categories.hxx`/`conversions.hxx`), so
- * the list below only needs to be exhaustive, not ordered. Add new concepts
- * to the matching group file, referencing another group's concept directly
- * (plus its `#include`) instead of repeating a raw `std::is_*` check; only
- * add a new file for a genuinely new group.
- */
-#include <StormByte/type_traits/detail.hxx>
-#include <StormByte/type_traits/containers.hxx>
-#include <StormByte/type_traits/wrappers.hxx>
-#include <StormByte/type_traits/enums.hxx>
-#include <StormByte/type_traits/conversions.hxx>
-#include <StormByte/type_traits/categories.hxx>
-#include <StormByte/type_traits/ranges.hxx>
-#include <StormByte/type_traits/object_semantics.hxx>
-#include <StormByte/type_traits/relations.hxx>
-#include <StormByte/type_traits/comparison.hxx>
-#include <StormByte/type_traits/safe.hxx>
+#include <utility>
+
+using namespace StormByte::Safe::Detail;
+
+void StormByte::Safe::Detail::ThrowSafeConversionFailure(const char* message) {
+	throw StormByte::Exception(message);
+}
+
+Owner::Owner(void* state, Clone clone, Destroy destroy) noexcept:
+	m_state(state), m_clone(clone), m_destroy(destroy) {}
+
+Owner::Owner(const Owner& other):
+	m_state(other.m_state ? other.m_clone(other.m_state) : nullptr),
+	m_clone(other.m_clone), m_destroy(other.m_destroy) {
+	if (other.m_state && !m_state)
+		throw StormByte::Exception("Safe collection copy failed");
+}
+
+Owner::Owner(Owner&& other) noexcept:
+	m_state(std::exchange(other.m_state, nullptr)),
+	m_clone(other.m_clone), m_destroy(other.m_destroy) {}
+
+Owner::~Owner() noexcept {
+	if (m_state)
+		m_destroy(m_state);
+}
+
+Owner& Owner::operator=(const Owner& other) {
+	if (this != &other) {
+		Owner copy(other);
+		*this = std::move(copy);
+	}
+	return *this;
+}
+
+Owner& Owner::operator=(Owner&& other) noexcept {
+	if (this != &other) {
+		if (m_state)
+			m_destroy(m_state);
+		m_state = std::exchange(other.m_state, nullptr);
+		m_clone = other.m_clone;
+		m_destroy = other.m_destroy;
+	}
+	return *this;
+}
+
+void* Owner::Get() const noexcept {
+	return m_state;
+}

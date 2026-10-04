@@ -41,6 +41,8 @@
 #pragma once
 
 #include <StormByte/safe/cstring.hxx>
+#include <StormByte/safe/queue.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/visibility.h>
 
 #include <cctype>
@@ -52,6 +54,7 @@
 #include <queue>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 /**
@@ -660,6 +663,35 @@ namespace StormByte {
 				}
 
 				/**
+				 * @brief Whitespace-separated tokens into creator-owned Safe storage.
+				 * @param str Source.
+				 * @param[out] out Safe sequence, replaced only on success.
+				 * @return Success or Failure; failure leaves @p out unchanged.
+				 */
+				static Status Split(std::string_view str, Vector<String>& out) noexcept {
+					try {
+						Vector<String> result;
+						std::size_t index = 0;
+						while (index < str.size()) {
+							while (index < str.size() && std::isspace(static_cast<unsigned char>(str[index])) != 0)
+								++index;
+							if (index >= str.size())
+								break;
+							std::size_t end = index;
+							while (end < str.size() && std::isspace(static_cast<unsigned char>(str[end])) == 0)
+								++end;
+							if (result.PushBack(String(str.substr(index, end - index))) != Status::Success)
+								return Status::Failure;
+							index = end;
+						}
+						out = std::move(result);
+						return Status::Success;
+					} catch (...) {
+						return Status::Failure;
+					}
+				}
+
+				/**
 				 * @brief Tokens on @p delimiter. @p out is the caller’s container.
 				 * @param str Source.
 				 * @param delimiter Separator.
@@ -675,6 +707,31 @@ namespace StormByte {
 							out.emplace(str.substr(start, i - start));
 							start = i + 1;
 						}
+					}
+				}
+
+				/**
+				 * @brief Tokens on @p delimiter into creator-owned Safe storage.
+				 * @param str Source.
+				 * @param delimiter Separator.
+				 * @param[out] out Safe queue, replaced only on success.
+				 * @return Success or Failure; failure leaves @p out unchanged.
+				 */
+				static Status Explode(std::string_view str, char delimiter, Queue<String>& out) noexcept {
+					try {
+						Queue<String> result;
+						std::size_t start = 0;
+						for (std::size_t index = 0; index <= str.size(); ++index) {
+							if (index == str.size() || str[index] == delimiter) {
+								if (result.Push(String(str.substr(start, index - start))) != Status::Success)
+									return Status::Failure;
+								start = index + 1;
+							}
+						}
+						out = std::move(result);
+						return Status::Success;
+					} catch (...) {
+						return Status::Failure;
 					}
 				}
 
@@ -729,6 +786,15 @@ namespace StormByte {
 				}
 
 				/**
+				 * @brief Whitespace-separated tokens into caller-provided Safe storage.
+				 * @param[out] out Destination sequence.
+				 * @return Success or Failure; failure leaves @p out unchanged.
+				 */
+				Status Split(Vector<String>& out) const noexcept {
+					return Split(static_cast<std::string_view>(*this), out);
+				}
+
+				/**
 				 * @brief Tokens on @p delimiter. The queue is built in the caller.
 				 * @param delimiter Separator.
 				 * @return Tokens, including empty ones.
@@ -737,6 +803,16 @@ namespace StormByte {
 					std::queue<String> out;
 					Explode(static_cast<std::string_view>(*this), delimiter, out);
 					return out;
+				}
+
+				/**
+				 * @brief Tokens on @p delimiter into caller-provided Safe storage.
+				 * @param delimiter Separator.
+				 * @param[out] out Destination queue.
+				 * @return Success or Failure; failure leaves @p out unchanged.
+				 */
+				Status Explode(char delimiter, Queue<String>& out) const noexcept {
+					return Explode(static_cast<std::string_view>(*this), delimiter, out);
 				}
 
 				/** @} */

@@ -9,7 +9,7 @@
 
 This repository is **StormByte Base**: the C++26 foundation of the StormByte suite.
 
-It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `Safe::String` / `Safe::WString`, `Safe::CString` / `Safe::WCString`, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
+It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `Safe::String` / `Safe::WString`, `Safe::CString` / `Safe::WCString`, CRT-safe `Safe::Vector`, `Safe::Map`, `Safe::Optional` and `Safe::Queue` containers, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
 
 The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multimedia, Network and System are **other repositories**. They depend on this one; this one does not implement them.
 
@@ -237,6 +237,31 @@ int main() {
 	WCString wide(L"wide");
 	std::wcout << wide << std::endl;
 }
+```
+
+### Safe Containers
+
+`Safe::Vector<T>`, `Safe::Map<K, V>`, `Safe::Optional<T>` and `Safe::Queue<T>` keep their STL storage in the module that created each object. Their public operations copy values through caller-owned output parameters; they do not expose STL iterators or references.
+
+Each container has an explicit constructor from its corresponding STL container and an explicit conversion back. Import copies elements and never adopts a foreign allocation. Export is `STORMBYTE_FORCE_INLINE`, so the returned `std::vector`, `std::map`, `std::optional` or `std::queue` is allocated and destroyed in the caller's CRT. Rvalue STL inputs are also copied; they are not heap steals.
+
+`Safe::String::Split` and `Safe::WString::Split` can fill a `Safe::Vector`; their `Explode` counterparts can fill a `Safe::Queue`. These overloads return `Safe::Status` and replace the destination only on success. Existing caller-local `std::vector` / `std::queue` overloads remain available. Use the Safe overload when tokens need to cross a DLL boundary.
+
+These types require a compatible C++ ABI, packing and calling convention, and their creator module plus Base must remain loaded until all instances are destroyed. They isolate container allocations across CRTs; they do not make C++ templates independent of toolchain ABI.
+
+```cpp
+#include <StormByte/safe/queue.hxx>
+#include <StormByte/safe/string.hxx>
+#include <vector>
+
+using namespace StormByte;
+
+std::vector<Safe::String> source{Safe::String("one"), Safe::String("two")};
+Safe::Vector<Safe::String> safeValues(source);
+std::vector<Safe::String> callerValues = static_cast<std::vector<Safe::String>>(safeValues);
+
+Safe::Queue<Safe::String> tokens;
+const auto status = Safe::String("a|b").Explode('|', tokens);
 ```
 
 ### BinaryData

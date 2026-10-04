@@ -39,34 +39,52 @@
 
 #pragma once
 
-/**
- * @namespace StormByte
- * @brief Root namespace of the StormByte suite.
- */
-/**
- * @namespace StormByte::Type
- * @brief Named concepts and small type utilities used across the suite.
- *
- * Prefer these names in public templates. Do not reintroduce
- * `std::enable_if` / `void_t` traits next to them.
- *
- * Split by @defgroup across the headers in `StormByte/type_traits/`. Each file
- * `#include`s the group files its own concepts build on (e.g. `detail.hxx`
- * on `categories.hxx`/`object_semantics.hxx`, `enums.hxx` on
- * `categories.hxx`, `ranges.hxx` on `categories.hxx`/`conversions.hxx`), so
- * the list below only needs to be exhaustive, not ordered. Add new concepts
- * to the matching group file, referencing another group's concept directly
- * (plus its `#include`) instead of repeating a raw `std::is_*` check; only
- * add a new file for a genuinely new group.
- */
-#include <StormByte/type_traits/detail.hxx>
-#include <StormByte/type_traits/containers.hxx>
-#include <StormByte/type_traits/wrappers.hxx>
-#include <StormByte/type_traits/enums.hxx>
-#include <StormByte/type_traits/conversions.hxx>
-#include <StormByte/type_traits/categories.hxx>
-#include <StormByte/type_traits/ranges.hxx>
-#include <StormByte/type_traits/object_semantics.hxx>
-#include <StormByte/type_traits/relations.hxx>
-#include <StormByte/type_traits/comparison.hxx>
-#include <StormByte/type_traits/safe.hxx>
+#include <StormByte/exception.hxx>
+
+#include <utility>
+
+namespace StormByte {
+	namespace Safe {
+		template<Type::SafeValue T>
+		STORMBYTE_FORCE_INLINE Optional<T>::Optional(): m_value() {}
+
+		template<Type::SafeValue T>
+		Optional<T>::Optional(const std::optional<T>& value): m_value() {
+			if (value && Set(*value) != Status::Success)
+				throw StormByte::Exception("Safe optional import failed");
+		}
+
+		template<Type::SafeValue T>
+		Optional<T>::Optional(std::optional<T>&& value): Optional(static_cast<const std::optional<T>&>(value)) {}
+
+		template<Type::SafeValue T>
+		bool Optional<T>::HasValue() const noexcept {
+			return m_value.Size() != StormByte::Size(0);
+		}
+
+		template<Type::SafeValue T>
+		Status Optional<T>::Value(T& output) const noexcept {
+			return m_value.Get(StormByte::Size(0), output);
+		}
+
+		template<Type::SafeValue T>
+		Status Optional<T>::Set(const T& value) noexcept {
+			return HasValue() ? m_value.Set(StormByte::Size(0), value) : m_value.PushBack(value);
+		}
+
+		template<Type::SafeValue T>
+		Status Optional<T>::Reset() noexcept {
+			return m_value.Clear();
+		}
+
+		template<Type::SafeValue T>
+		STORMBYTE_FORCE_INLINE Optional<T>::operator std::optional<T>() const {
+			if (!HasValue())
+				return std::nullopt;
+			T value{};
+			if (Value(value) != Status::Success)
+				throw StormByte::Exception("Safe optional export failed");
+			return std::optional<T>(std::move(value));
+		}
+	}
+}

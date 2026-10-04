@@ -56,6 +56,25 @@ if(ENABLE_TEST)
 	target_link_libraries(SafePointersTests StormByte)
 	add_test(NAME SafePointersTests COMMAND SafePointersTests)
 
+	add_library(SafeCollectionsProducer SHARED safe_collections_producer.cxx)
+	target_link_libraries(SafeCollectionsProducer PUBLIC StormByte)
+	add_library(SafeCollectionsConsumer SHARED safe_collections_consumer.cxx)
+	target_link_libraries(SafeCollectionsConsumer PUBLIC SafeCollectionsProducer StormByte)
+	set_target_properties(SafeCollectionsProducer SafeCollectionsConsumer PROPERTIES
+		CXX_VISIBILITY_PRESET hidden
+		VISIBILITY_INLINES_HIDDEN ON
+	)
+	if(MSVC)
+		set_target_properties(SafeCollectionsProducer PROPERTIES MSVC_RUNTIME_LIBRARY MultiThreadedDebug)
+		set_target_properties(SafeCollectionsConsumer PROPERTIES MSVC_RUNTIME_LIBRARY MultiThreaded)
+		target_compile_definitions(SafeCollectionsProducer PRIVATE _ITERATOR_DEBUG_LEVEL=2)
+		target_compile_definitions(SafeCollectionsConsumer PRIVATE _ITERATOR_DEBUG_LEVEL=0)
+	endif()
+	add_executable(SafeCollectionsTests safe_collections_test.cxx)
+	target_link_libraries(SafeCollectionsTests SafeCollectionsConsumer StormByte)
+	add_test(NAME SafeCollectionsTests COMMAND SafeCollectionsTests)
+	set_tests_properties(SafeCollectionsTests PROPERTIES TIMEOUT 60)
+
 	add_executable(SerializationTests serialization_test.cxx)
 	target_link_libraries(SerializationTests StormByte)
 	add_test(NAME SerializationTests COMMAND SerializationTests)
