@@ -91,6 +91,9 @@ static_assert(Type::SafeComponent<Safe::Queue<Safe::String>>);
 static_assert(Type::SafeComponent<SafeCollectionsFixture::Nested>);
 static_assert(Type::SafeComponent<Safe::Callback>);
 static_assert(Type::SafeValue<Safe::String>);
+static_assert(Type::SafeValue<int>);
+static_assert(Type::SafeValue<bool>);
+static_assert(Type::SafeValue<double>);
 static_assert(Type::SafeValue<Safe::Vector<Safe::String>>);
 static_assert(Type::SafeValue<Safe::Map<Safe::String, Safe::String>>);
 static_assert(Type::SafeValue<Safe::Optional<Safe::String>>);
@@ -180,6 +183,10 @@ int TestCallbackValidation() {
 }
 
 int TestSafeVectorAlgorithms() {
+	Safe::Vector<int> scalarValues{1, 2, 3};
+	scalarValues[1] = 4;
+	ASSERT_TRUE("TestSafeVectorAlgorithms", static_cast<int>(scalarValues[1]) == 4);
+
 	Safe::Vector<Safe::String> listValues{Safe::String("one"), Safe::String("two")};
 	Safe::Vector<Safe::String> countValues(2, Safe::String("fill"));
 	countValues.assign({Safe::String("one"), Safe::String("two")});

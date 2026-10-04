@@ -224,6 +224,12 @@ namespace StormByte {
 		 */
 		template<Type::Enum T>
 		struct IsSafeValue<T>: std::true_type {};
+		/**
+		 * @brief Admits arithmetic values, which cross module boundaries by value.
+		 * @tparam T Arithmetic type.
+		 */
+		template<Type::Arithmetic T>
+		struct IsSafeValue<T>: std::true_type {};
 
 		/**
 		 * @brief Unqualified value permitted in the opaque Safe collections.

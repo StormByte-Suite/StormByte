@@ -76,6 +76,7 @@ If you landed here from a release link and have not read the tree:
 - **CoreApiTests** — coverage lives in `ClonableTests` and `ErrorTests`.
 
 ### Fixed
+- **Safe collection values.** Admit arithmetic scalar types such as integers and floating-point values, alongside enums, for use in Safe collections.
 - **Safe collection reuse across modules.** Preserve each sequence, map and queue's creator-module storage callbacks after moving from it, so reusing a moved-from collection recreates its storage with the originating module's STL ABI.
 
 - **`FindStormByte`.** `String` is no longer a package component; Base now provides the owned text types. `Buffer` pulls `Logger` and `System`; `Database` pulls `Logger`. `Crypto`, `Multimedia` and `Network` name only `Buffer`; the closure finds `Logger` and `System`. `Config` links only the core.
