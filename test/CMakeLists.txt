@@ -48,9 +48,9 @@ if(ENABLE_TEST)
 	target_link_libraries(ExpectedTests StormByte)
 	add_test(NAME ExpectedTests COMMAND ExpectedTests)
 
-	add_executable(IterableTests iterable_test.cxx)
-	target_link_libraries(IterableTests StormByte)
-	add_test(NAME IterableTests COMMAND IterableTests)
+	add_executable(SafeIterableTests iterable_test.cxx)
+	target_link_libraries(SafeIterableTests StormByte)
+	add_test(NAME SafeIterableTests COMMAND SafeIterableTests)
 
 	add_executable(SafePointersTests safe_pointers_test.cxx)
 	target_link_libraries(SafePointersTests StormByte)

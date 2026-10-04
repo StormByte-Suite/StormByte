@@ -41,9 +41,11 @@
 #include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
 
+#include <algorithm>
 #include <compare>
 #include <cstring>
 #include <functional>
+#include <iterator>
 #include <set>
 #include <sstream>
 #include <string>
@@ -256,6 +258,24 @@ int test_subscript_empty() {
 	RETURN_TEST("test_subscript_empty", result);
 }
 
+int test_algorithm_ranges() {
+	int result = 0;
+	const Safe::CString text("algorithm");
+	ASSERT_TRUE("test_algorithm_ranges", std::find(text.begin(), text.end(), 'r') == text.begin() + 4);
+	ASSERT_EQUAL("test_algorithm_ranges", 1, std::count(text.cbegin(), text.cend(), 'a'));
+	std::string copied;
+	std::ranges::copy(text, std::back_inserter(copied));
+	ASSERT_EQUAL("test_algorithm_ranges", std::string("algorithm"), copied);
+	const Safe::CString null;
+	ASSERT_TRUE("test_algorithm_ranges", null.begin() == null.end());
+	Safe::CString mutableText("dcba");
+	std::ranges::sort(mutableText);
+	ASSERT_TRUE("test_algorithm_ranges", mutableText == "abcd");
+	std::ranges::reverse(mutableText);
+	ASSERT_TRUE("test_algorithm_ranges", mutableText == "dcba");
+	RETURN_TEST("test_algorithm_ranges", result);
+}
+
 // -------------------
 // Conversions / streams
 // -------------------
@@ -407,6 +427,7 @@ int main() {
 	result += test_subscript_characters();
 	result += test_subscript_nul_at_length();
 	result += test_subscript_empty();
+	result += test_algorithm_ranges();
 
 	// -------------------
 	// Conversions / streams

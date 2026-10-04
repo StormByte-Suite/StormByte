@@ -47,7 +47,7 @@
 using namespace StormByte;
 using namespace StormByte::Safe;
 
-const char* CString::Duplicate(const char* str) noexcept {
+char* CString::Duplicate(const char* str) noexcept {
 	if (!str)
 		return nullptr;
 	const std::size_t len = std::strlen(str) + 1;
@@ -56,7 +56,7 @@ const char* CString::Duplicate(const char* str) noexcept {
 	return out;
 }
 
-const char* CString::Duplicate(std::string_view sv) noexcept {
+char* CString::Duplicate(std::string_view sv) noexcept {
 	const std::size_t len = sv.size();
 	char* out = new char[len + 1];
 	if (len != 0)
@@ -124,6 +124,21 @@ Size CString::Length() const noexcept {
 	return m_data ? Size{std::strlen(m_data)} : Size{};
 }
 
+CString::size_type CString::size() const noexcept {
+	return Length();
+}
+
+bool CString::empty() const noexcept {
+	return Length() == Size{};
+}
+
+char& CString::operator[](const Size& index) noexcept {
+	assert(m_data != nullptr);
+	const Size length{std::strlen(m_data)};
+	assert(index <= length);
+	return m_data[static_cast<std::size_t>(index)];
+}
+
 char CString::operator[](const Size& index) const noexcept {
 	assert(m_data != nullptr);
 	const Size length{std::strlen(m_data)};
@@ -132,7 +147,7 @@ char CString::operator[](const Size& index) const noexcept {
 }
 
 void CString::swap(CString& other) noexcept {
-	const char* tmp = m_data;
+	char* tmp = m_data;
 	m_data = other.m_data;
 	other.m_data = tmp;
 }

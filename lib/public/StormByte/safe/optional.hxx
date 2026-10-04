@@ -42,6 +42,7 @@
 #include <StormByte/safe/vector.hxx>
 
 #include <optional>
+#include <utility>
 
 /**
  * @namespace StormByte
@@ -62,6 +63,10 @@ namespace StormByte {
 		template<Type::SafeValue T>
 		class STORMBYTE_PUBLIC_TYPE Optional final {
 			public:
+				using value_type = T; ///< Contained type.
+				using iterator = typename Vector<T>::iterator; ///< Mutable 0/1-element iterator.
+				using const_iterator = typename Vector<T>::const_iterator; ///< Read-only 0/1-element iterator.
+
 				/**
 				 * @brief Construct an empty optional in the calling module.
 				 */
@@ -74,8 +79,8 @@ namespace StormByte {
 				explicit Optional(const std::optional<T>& value);
 
 				/**
-				 * @brief Copy an STL rvalue without adopting its value's allocation.
-				 * @param value Source optional; it remains valid and unchanged.
+				 * @brief Move an STL rvalue's value into local Safe storage.
+				 * @param value Source optional; it is reset after transfer.
 				 */
 				explicit Optional(std::optional<T>&& value);
 
@@ -111,30 +116,84 @@ namespace StormByte {
 				Optional& operator=(Optional&& other) noexcept = default;
 
 				/**
-				 * @brief Observe presence.
-				 * @return Whether a value is held.
+				 * @brief Test whether a value is held.
+				 * @return Whether the optional contains a value.
 				 */
-				bool HasValue() const noexcept;
+				bool has_value() const noexcept { return !m_value.empty(); }
 
 				/**
-				 * @brief Copy the value without exposing an internal reference.
-				 * @param output Destination.
-				 * @return Missing when empty; output stays unchanged.
+				 * @brief Test whether a value is held.
+				 * @return Whether the optional contains a value.
 				 */
-				Status Value(T& output) const noexcept;
+				explicit operator bool() const noexcept { return has_value(); }
 
 				/**
-				 * @brief Store a copied value transactionally.
-				 * @param value Source.
-				 * @return Operation status.
+				 * @brief Return the first mutable iterator, or end when empty.
+				 * @return Mutable iterator.
 				 */
-				Status Set(const T& value) noexcept;
+				iterator begin() noexcept { return m_value.begin(); }
 
 				/**
-				 * @brief Remove the value.
-				 * @return Operation status.
+				 * @brief Return the end mutable iterator.
+				 * @return Mutable iterator.
 				 */
-				Status Reset() noexcept;
+				iterator end() noexcept { return m_value.end(); }
+
+				/**
+				 * @brief Return the first read-only iterator, or end when empty.
+				 * @return Read-only iterator.
+				 */
+				const_iterator begin() const noexcept { return m_value.begin(); }
+
+				/**
+				 * @brief Return the end read-only iterator.
+				 * @return Read-only iterator.
+				 */
+				const_iterator end() const noexcept { return m_value.end(); }
+
+				/**
+				 * @brief Return the first read-only iterator.
+				 * @return Read-only iterator.
+				 */
+				const_iterator cbegin() const noexcept { return begin(); }
+
+				/**
+				 * @brief Return the end read-only iterator.
+				 * @return Read-only iterator.
+				 */
+				const_iterator cend() const noexcept { return end(); }
+
+				/**
+				 * @brief Return a copy of the value.
+				 * @return Contained value.
+				 * @throws StormByte::Exception The optional is empty or copying failed.
+				 */
+				T value() const {
+					if (!has_value())
+						Detail::ThrowSafeConversionFailure("Safe optional value is missing");
+					return m_value.front();
+				}
+
+				/**
+				 * @brief Construct or replace the contained value.
+				 * @tparam Args Constructor argument types.
+				 * @param args Arguments forwarded to @p T.
+				 * @return Iterator proxy to the stored value.
+				 */
+				template<class... Args>
+				iterator::reference emplace(Args&&... args) {
+					T value(std::forward<Args>(args)...);
+					if (has_value())
+						*begin() = value;
+					else
+						m_value.push_back(value);
+					return *begin();
+				}
+
+				/**
+				 * @brief Remove the contained value.
+				 */
+				void reset() { m_value.clear(); }
 
 				/**
 				 * @brief Copy the value into caller-owned STL storage.

@@ -70,47 +70,59 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 		return false;
 
 	Sequence emptySequence;
+	if (!emptySequence.empty())
+		return false;
+	bool boundsThrown = false;
+	try {
+		(void)emptySequence.at(0);
+	} catch (const Exception&) {
+		boundsThrown = true;
+	}
+	if (!boundsThrown)
+		return false;
+	emptySequence.clear();
+	emptySequence.push_back(Text("value"));
 	Text output("empty unchanged");
-	if (emptySequence.Size() != Size(0) || emptySequence.Get(Size(0), output) != Status::Missing || output != "empty unchanged")
-		return false;
-	if (emptySequence.Set(Size(0), Text("value")) != Status::Missing || emptySequence.Erase(Size(0)) != Status::Missing)
-		return false;
-	if (emptySequence.Clear() != Status::Success || emptySequence.Clear() != Status::Success || emptySequence.PushBack(Text("value")) != Status::Success)
-		return false;
 
 	Dictionary emptyDictionary;
-	Text key("key unchanged");
-	if (emptyDictionary.Size() != Size(0) || emptyDictionary.Get(Text("absent"), output) != Status::Missing || output != "empty unchanged")
+	if (!emptyDictionary.empty() || emptyDictionary.erase(Text("absent")) != 0)
 		return false;
-	if (emptyDictionary.GetAt(Size(0), key, output) != Status::Missing || key != "key unchanged" || output != "empty unchanged")
-		return false;
-	if (emptyDictionary.Erase(Text("absent")) != Status::Missing || emptyDictionary.Clear() != Status::Success || emptyDictionary.Clear() != Status::Success)
+	emptyDictionary.clear();
+	bool missingKeyThrown = false;
+	try {
+		(void)emptyDictionary.at(Text("absent"));
+	} catch (const Exception&) {
+		missingKeyThrown = true;
+	}
+	if (!missingKeyThrown)
 		return false;
 
 	MaybeText emptyOptional;
-	if (emptyOptional.HasValue() || emptyOptional.Value(output) != Status::Missing || output != "empty unchanged")
+	if (emptyOptional.has_value())
 		return false;
-	if (emptyOptional.Reset() != Status::Success || emptyOptional.Reset() != Status::Success || emptyOptional.Set(Text("value")) != Status::Success)
+	emptyOptional.reset();
+	emptyOptional.emplace(Text("value"));
+	if (emptyOptional.value() != "value")
 		return false;
-	if (emptyOptional.Value(output) != Status::Success || output != "value" || emptyOptional.Reset() != Status::Success)
-		return false;
+	emptyOptional.reset();
 
 	TokenQueue safeQueue;
-	if (!safeQueue.Empty() || safeQueue.Front(output) != Status::Missing || safeQueue.Pop() != Status::Missing)
+	if (!safeQueue.empty())
 		return false;
-	if (safeQueue.Push(Text("queue one")) != Status::Success || safeQueue.Push(Text("queue two")) != Status::Success)
-		return false;
+	safeQueue.push(Text("queue one"));
+	safeQueue.push(Text("queue two"));
 	std::queue<Text> standardQueue = static_cast<std::queue<Text>>(safeQueue);
 	TokenQueue importedQueue(standardQueue);
-	if (importedQueue.Size() != Size(2) || importedQueue.Front(output) != Status::Success || output != "queue one")
+	if (importedQueue.size() != 2 || importedQueue.front() != "queue one")
 		return false;
-	if (importedQueue.Pop() != Status::Success || importedQueue.Front(output) != Status::Success || output != "queue two")
+	importedQueue.pop();
+	if (importedQueue.front() != "queue two")
 		return false;
 
 	const std::vector<Text> standardVector{Text("vector one"), Text("vector two")};
 	Sequence importedVector(standardVector);
 	const auto exportedVector = static_cast<std::vector<Text>>(importedVector);
-	if (importedVector.Size() != Size(2) || exportedVector.size() != 2 || exportedVector[1] != "vector two")
+	if (importedVector.size() != 2 || exportedVector.size() != 2 || exportedVector[1] != "vector two")
 		return false;
 	auto producerVector = MakeSequence();
 	const auto producerSTLVector = static_cast<std::vector<Text>>(producerVector);
@@ -120,7 +132,7 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	const std::map<Text, Text> standardMap{{Text("alpha"), Text("first")}, {Text("beta"), Text("second")}};
 	Dictionary importedMap(standardMap);
 	const auto exportedMap = static_cast<std::map<Text, Text>>(importedMap);
-	if (importedMap.Size() != Size(2) || exportedMap.size() != 2 || exportedMap.at(Text("beta")) != "second")
+	if (importedMap.size() != 2 || exportedMap.size() != 2 || exportedMap.at(Text("beta")) != "second")
 		return false;
 	auto producerMap = MakeDictionary();
 	const auto producerSTLMap = static_cast<std::map<Text, Text>>(producerMap);
@@ -133,7 +145,7 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	const std::optional<Text> standardEmpty;
 	MaybeText importedEmpty(standardEmpty);
 	const auto exportedEmpty = static_cast<std::optional<Text>>(importedEmpty);
-	if (!exportedOptional || *exportedOptional != "optional value" || importedEmpty.HasValue() || exportedEmpty)
+	if (!exportedOptional || *exportedOptional != "optional value" || importedEmpty.has_value() || exportedEmpty)
 		return false;
 	auto producerOptional = MakeOptional();
 	const auto producerSTLOptional = static_cast<std::optional<Text>>(producerOptional);
@@ -141,45 +153,52 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 		return false;
 
 	TokenQueue exploded;
-	if (Text("left||right|").Explode('|', exploded) != Status::Success || exploded.Size() != Size(4))
+	if (Text("left||right|").Explode('|', exploded) != Status::Success || exploded.size() != 4)
 		return false;
-	if (exploded.Front(output) != Status::Success || output != "left" || exploded.Pop() != Status::Success)
+	if (exploded.front() != "left")
 		return false;
-	if (exploded.Front(output) != Status::Success || output != "" || exploded.Pop() != Status::Success)
+	exploded.pop();
+	if (exploded.front() != "")
 		return false;
-	if (exploded.Front(output) != Status::Success || output != "right" || exploded.Pop() != Status::Success)
+	exploded.pop();
+	if (exploded.front() != "right")
 		return false;
-	if (exploded.Front(output) != Status::Success || output != "" || exploded.Pop() != Status::Success || !exploded.Empty())
+	exploded.pop();
+	if (exploded.front() != "" || exploded.size() != 1)
+		return false;
+	exploded.pop();
+	if (!exploded.empty())
 		return false;
 	Safe::Queue<WString> wideTokens;
 	WString wideOutput;
-	if (WString(L"wide|text").Explode(L'|', wideTokens) != Status::Success || wideTokens.Size() != Size(2))
+	if (WString(L"wide|text").Explode(L'|', wideTokens) != Status::Success || wideTokens.size() != 2)
 		return false;
-	if (wideTokens.Front(wideOutput) != Status::Success || wideOutput != L"wide")
+	if (wideTokens.front() != L"wide")
 		return false;
 
 	Safe::Vector<Text> words;
-	if (Text(" one\t two ").Split(words) != Status::Success || words.Size() != Size(2))
+	if (Text(" one\t two ").Split(words) != Status::Success || words.size() != 2)
 		return false;
-	if (words.Get(Size(0), output) != Status::Success || output != "one")
+	if (static_cast<Text>(words[0]) != "one")
 		return false;
 	Safe::Vector<WString> wideWords;
-	if (WString(L" wide\t text ").Split(wideWords) != Status::Success || wideWords.Size() != Size(2))
+	if (WString(L" wide\t text ").Split(wideWords) != Status::Success || wideWords.size() != 2)
 		return false;
-	if (wideWords.Get(Size(1), wideOutput) != Status::Success || wideOutput != L"text")
+	if (static_cast<WString>(wideWords[1]) != L"text")
 		return false;
 
 	auto producerQueue = MakeTokenQueue();
-	if (producerQueue.Size() != Size(3) || producerQueue.Front(output) != Status::Success || output != "producer")
+	if (producerQueue.size() != 3 || producerQueue.front() != "producer")
 		return false;
 	const auto producerSTLQueue = static_cast<std::queue<Text>>(producerQueue);
 	if (producerSTLQueue.size() != 3 || producerSTLQueue.front() != "producer")
 		return false;
 	auto producerQueueCopy = producerQueue;
 	auto producerQueueMoved = std::move(producerQueueCopy);
-	if (!producerQueueCopy.Empty() || producerQueueMoved.Size() != Size(3))
+	if (!producerQueueCopy.empty() || producerQueueMoved.size() != 3)
 		return false;
-	if (producerQueue.Pop() != Status::Success || producerQueue.Front(output) != Status::Success || output != "queue")
+	producerQueue.pop();
+	if (producerQueue.front() != "queue")
 		return false;
 
 	auto queue = Text("first|second|third").Explode('|');
@@ -195,106 +214,73 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	for (std::uint64_t iteration = 0; iteration < 128; ++iteration) {
 		auto original = MakeSequence();
 		auto copy = original;
-		Sequence assigned;
-		assigned = original;
-		assigned = assigned;
+		Sequence assigned = original;
 		auto moved = std::move(copy);
-		copy = std::move(copy);
-		if (copy.Size() != Size(0) || moved.Size() != Size(2))
+		if (!copy.empty() || moved.size() != 2)
 			return false;
-		if (copy.PushBack(Text("moved-from")) != Status::Failure || copy.Clear() != Status::Failure)
+		copy.push_back(Text("reused"));
+		if (copy.front() != "reused" || static_cast<Text>(moved.front()).size() != Size(8192))
 			return false;
-		output = Text("unchanged");
-		if (copy.Get(Size(0), output) != Status::Missing || output != "unchanged")
+		moved[0] = Text("replacement");
+		if (static_cast<Text>(original[0]).size() != Size(8192))
 			return false;
-		if (moved.Get(Size(0), output) != Status::Success || output.size() != Size(8192))
+		assigned.erase(assigned.begin());
+		if (assigned.size() != 1 || static_cast<Text>(assigned.at(0)) != "second")
 			return false;
-		if (moved.Set(Size(0), Text("replacement")) != Status::Success)
-			return false;
-		if (original.Get(Size(0), output) != Status::Success || output.size() != Size(8192))
-			return false;
-		if (assigned.Erase(Size(0)) != Status::Success || assigned.Size() != Size(1))
-			return false;
-		if (assigned.Get(Size(99), output) != Status::Missing || assigned.Set(Size(99), output) != Status::Missing)
-			return false;
-		if (assigned.Clear() != Status::Success || assigned.Size() != Size(0))
-			return false;
+		assigned.clear();
 		assigned = std::move(moved);
-		if (moved.Size() != Size(0) || assigned.Get(Size(0), output) != Status::Success || output != "replacement")
+		if (!moved.empty() || static_cast<Text>(assigned.at(0)) != "replacement")
 			return false;
-		if (moved.PushBack(Text("moved-from")) != Status::Failure || moved.Clear() != Status::Failure)
+		moved.push_back(Text("reused"));
+		if (moved.front() != "reused")
 			return false;
 
 		auto map = MakeDictionary();
 		auto mapCopy = map;
-		Dictionary mapAssigned;
-		mapAssigned = map;
-		mapAssigned = mapAssigned;
+		Dictionary mapAssigned = map;
 		auto mapMoved = std::move(mapCopy);
-		Text key;
-		if (mapCopy.Size() != Size(0) || mapCopy.Get(Text("alpha"), output) != Status::Missing || output != "replacement")
+		if (!mapCopy.empty() || static_cast<Text>(mapMoved.at(Text("alpha"))) != "first")
 			return false;
-		if (mapCopy.Erase(Text("alpha")) != Status::Missing || mapMoved.GetAt(Size(0), key, output) != Status::Success || key != "alpha" || output != "first")
+		mapMoved.at(Text("alpha")) = Text("changed");
+		mapMoved.insert_or_assign(Text("gamma"), Text("third"));
+		if (static_cast<Text>(map.at(Text("alpha"))) != "first" || mapMoved.size() != 3)
 			return false;
-		if (mapMoved.Set(Text("alpha"), Text("changed")) != Status::Success || map.Get(Text("alpha"), output) != Status::Success || output != "first")
-			return false;
-		if (mapMoved.Set(Text("gamma"), Text("third")) != Status::Success || mapMoved.Size() != Size(3))
-			return false;
-		if (mapMoved.Erase(Text("beta")) != Status::Success || mapMoved.Erase(Text("absent")) != Status::Missing)
-			return false;
-		if (mapMoved.GetAt(Size(0), key, output) != Status::Success || key != "alpha" || output != "changed")
-			return false;
-		if (mapMoved.GetAt(Size(1), key, output) != Status::Success || key != "gamma" || output != "third")
-			return false;
-		output = Text("get unchanged");
-		if (mapMoved.Get(Text("absent"), output) != Status::Missing || output != "get unchanged")
-			return false;
-		key = Text("key unchanged");
-		output = Text("value unchanged");
-		if (mapMoved.GetAt(Size(99), key, output) != Status::Missing || key != "key unchanged" || output != "value unchanged")
+		if (mapMoved.erase(Text("beta")) != 1 || mapMoved.erase(Text("absent")) != 0)
 			return false;
 		mapAssigned = std::move(mapMoved);
-		if (mapMoved.Size() != Size(0) || mapAssigned.Clear() != Status::Success || mapAssigned.Size() != Size(0))
+		if (!mapMoved.empty())
 			return false;
-		if (mapMoved.Set(Text("key"), Text("value")) != Status::Failure || mapMoved.Clear() != Status::Failure)
+		mapMoved.insert_or_assign(Text("reused"), Text("value"));
+		if (static_cast<Text>(mapMoved.at(Text("reused"))) != "value")
 			return false;
-		if (mapAssigned.Set(Text("self"), Text("assignment")) != Status::Success)
-			return false;
-		mapAssigned = std::move(mapAssigned);
-		if (mapAssigned.Get(Text("self"), output) != Status::Success || output != "assignment")
-			return false;
+		mapAssigned.clear();
 
 		auto optional = MakeOptional();
 		auto optionalCopy = optional;
-		MaybeText optionalAssigned;
-		optionalAssigned = optional;
-		optionalAssigned = optionalAssigned;
+		MaybeText optionalAssigned = optional;
 		auto optionalMoved = std::move(optionalCopy);
-		if (optionalCopy.HasValue() || optionalCopy.Value(output) != Status::Missing)
+		if (optionalCopy.has_value() || optionalMoved.value().size() != Size(8192))
 			return false;
-		if (optionalCopy.Set(Text("moved-from")) != Status::Failure || optionalCopy.Reset() != Status::Failure)
-			return false;
-		if (!optionalMoved.HasValue() || optionalMoved.Value(output) != Status::Success || output.size() != Size(8192))
-			return false;
-		if (optionalMoved.Set(Text("changed")) != Status::Success || optional.Value(output) != Status::Success || output.size() != Size(8192))
+		optionalCopy.emplace(Text("reused"));
+		optionalMoved.emplace(Text("changed"));
+		if (optionalCopy.value() != "reused" || optional.value().size() != Size(8192))
 			return false;
 		optionalAssigned = std::move(optionalMoved);
-		if (optionalMoved.HasValue() || optionalAssigned.Reset() != Status::Success || optionalAssigned.HasValue())
+		if (optionalMoved.has_value() || optionalAssigned.value() != "changed")
 			return false;
-		if (optionalAssigned.Set(Text("self")) != Status::Success)
-			return false;
-		optionalAssigned = std::move(optionalAssigned);
-		if (!optionalAssigned.HasValue() || optionalAssigned.Value(output) != Status::Success || output != "self")
+		optionalAssigned.reset();
+		optionalAssigned.emplace(Text("self"));
+		if (optionalAssigned.value() != "self")
 			return false;
 
 		auto nested = MakeNested();
 		auto nestedCopy = nested;
-		Sequence extracted;
-		if (nestedCopy.Get(Size(0), extracted) != Status::Success || extracted.Size() != Size(2))
+		Sequence extracted = static_cast<Sequence>(nestedCopy[0]);
+		if (extracted.size() != 2)
 			return false;
-		if (extracted.Set(Size(0), Text("local")) != Status::Success || nested.Get(Size(0), extracted) != Status::Success)
-			return false;
-		if (extracted.Get(Size(0), output) != Status::Success || output.size() != Size(8192))
+		extracted[0] = Text("local");
+		Sequence nestedOriginal = static_cast<Sequence>(nested[0]);
+		if (static_cast<Text>(nestedOriginal[0]).size() != Size(8192))
 			return false;
 
 		{

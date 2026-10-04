@@ -45,6 +45,7 @@
 #include <cstddef>
 #include <cwchar>
 #include <functional>
+#include <iterator>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -68,8 +69,8 @@ namespace StormByte {
 		 * @brief Owned NUL-terminated wide buffer, safe to use across a DLL boundary.
 		 *
 		 * This is not a replacement or reimplementation of `std::wstring`.
-		 * The class is minimal on purpose: copy, move, reset, a C wide-string
-		 * view, `Length`, subscript, equality, ordering, swap and conversions.
+		 * It provides owned NUL-terminated storage, STL-shaped mutable contiguous
+		 * ranges over existing code units, observers, comparisons and conversions.
 		 *
 		 * `operator const wchar_t*` is the analogue of `std::wstring::c_str()`.
 		 * The pointer is valid only until this object is destroyed, moved
@@ -87,9 +88,10 @@ namespace StormByte {
 		 * Base's heap. It is not a heap steal. An empty source yields `L""`,
 		 * not a null buffer.
 		 *
-		 * `operator[]` is an observer. Valid indices are `[0, Length()]`;
-		 * `Length()` is the trailing NUL. A null buffer or an index past
-		 * `Length()` is undefined and `assert`s when assertions are on.
+		 * Mutable `operator[]` and `data()` may change code units in `[0, Length())`.
+		 * `Length()` is the trailing NUL; reading that position is valid, but writing
+		 * any value except `wchar_t{}` there is undefined, as with `std::wstring`.
+		 * A null buffer or an index past `Length()` is undefined and asserts when enabled.
 		 *
 		 * Equality and `<=>` compare text, not addresses. Two nulls are
 		 * equal. Null is not equal to `L""`. Null orders before any text.
@@ -103,6 +105,13 @@ namespace StormByte {
 		 */
 		class STORMBYTE_PUBLIC WCString final {
 			public:
+				using value_type = wchar_t; ///< Wide character type.
+				using size_type = Size; ///< Code-unit count type.
+				using iterator = wchar_t*; ///< Mutable contiguous iterator.
+				using const_iterator = const wchar_t*; ///< Read-only contiguous iterator.
+				using reverse_iterator = std::reverse_iterator<iterator>; ///< Mutable reverse iterator.
+				using const_reverse_iterator = std::reverse_iterator<const_iterator>; ///< Read-only reverse iterator.
+
 				/**
 				 * @name Life
 				 * @{
@@ -203,9 +212,119 @@ namespace StormByte {
 				Size Length() const noexcept;
 
 				/**
-				 * @brief Character at @p index.
+				 * @brief Return the code-unit count.
+				 * @return Number of code units.
+				 */
+				size_type size() const noexcept;
+
+				/**
+				 * @brief Test whether the buffer is empty.
+				 * @return Whether the code-unit count is zero.
+				 */
+				bool empty() const noexcept;
+
+				/**
+				 * @brief Return the first mutable code-unit iterator, or null for a null buffer.
+				 * @return Mutable iterator.
+				 */
+				iterator begin() noexcept { return data(); }
+
+				/**
+				 * @brief Return the end mutable iterator, or null for a null buffer.
+				 * @return Mutable iterator.
+				 */
+				iterator end() noexcept {
+					wchar_t* text = data();
+					return text ? text + std::wstring_view(text).size() : nullptr;
+				}
+
+				/**
+				 * @brief Return the first read-only code-unit iterator, or null for a null buffer.
+				 * @return Read-only iterator.
+				 */
+				const_iterator begin() const noexcept { return static_cast<const wchar_t*>(*this); }
+
+				/**
+				 * @brief Return the end read-only iterator, or null for a null buffer.
+				 * @return Read-only iterator.
+				 */
+				const_iterator end() const noexcept {
+					const wchar_t* text = begin();
+					return text ? text + std::wstring_view(text).size() : nullptr;
+				}
+
+				/**
+				 * @brief Return the first read-only code-unit iterator.
+				 * @return Read-only iterator.
+				 */
+				const_iterator cbegin() const noexcept { return begin(); }
+
+				/**
+				 * @brief Return the end read-only code-unit iterator.
+				 * @return Read-only iterator.
+				 */
+				const_iterator cend() const noexcept { return end(); }
+
+				/**
+				 * @brief Return the mutable reverse begin iterator.
+				 * @return Reverse iterator to the last code unit.
+				 */
+				reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+
+				/**
+				 * @brief Return the mutable reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+
+				/**
+				 * @brief Return the read-only reverse begin iterator.
+				 * @return Reverse iterator to the last code unit.
+				 */
+				const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+
+				/**
+				 * @brief Return the read-only reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+
+				/**
+				 * @brief Return the read-only reverse begin iterator.
+				 * @return Reverse iterator to the last code unit.
+				 */
+				const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(cend()); }
+
+				/**
+				 * @brief Return the read-only reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				const_reverse_iterator crend() const noexcept { return const_reverse_iterator(cbegin()); }
+
+				/**
+				 * @brief Return the mutable buffer pointer, or null.
+				 * @return Mutable pointer to the first code unit.
+				 */
+				wchar_t* data() noexcept { return m_data; }
+
+				/**
+				 * @brief Return the read-only buffer pointer, or null.
+				 * @return Read-only pointer to the first code unit.
+				 */
+				const wchar_t* data() const noexcept { return m_data; }
+
+				/**
+				 * @brief Mutable code unit at @p index.
 				 * @param index Position in `[0, Length()]`. `Length()` is the trailing NUL.
-				 * @return The character.
+				 * @return Mutable code-unit reference.
+				 * @note At `Length()`, only assigning `wchar_t{}` is valid. Null or past-length access is undefined.
+				 */
+				wchar_t& operator[](const Size& index) noexcept;
+
+				/**
+				 * @brief Read-only code unit at @p index.
+				 * @param index Position in `[0, Length()]`. `Length()` is the trailing NUL.
+				 * @return Code-unit copy.
 				 * @note Null or `index > Length()` is undefined. Checked with `assert` when assertions are on.
 				 */
 				wchar_t operator[](const Size& index) const noexcept;
@@ -320,21 +439,21 @@ namespace StormByte {
 				/** @} */
 
 			private:
-				const wchar_t* m_data;	///< Owned buffer
+				wchar_t* m_data;	///< Owned buffer
 
 				/**
 				 * @brief Copies @p str into a new buffer.
 				 * @param str Source; may be null.
 				 * @return New buffer, or null.
 				 */
-				static const wchar_t* Duplicate(const wchar_t* str) noexcept;
+				static wchar_t* Duplicate(const wchar_t* str) noexcept;
 
 				/**
 				 * @brief Copies @p sv into a new buffer and appends NUL.
 				 * @param sv Source view.
 				 * @return New buffer (`L""` when @p sv is empty).
 				 */
-				static const wchar_t* Duplicate(std::wstring_view sv) noexcept;
+				static wchar_t* Duplicate(std::wstring_view sv) noexcept;
 		};
 
 		/**

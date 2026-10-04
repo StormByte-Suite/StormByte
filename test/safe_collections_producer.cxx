@@ -87,29 +87,27 @@ namespace {
 Sequence SafeCollectionsFixture::MakeSequence() {
 	Sequence values;
 	const Text longText(std::string(8192, 'x'));
-	if (values.PushBack(longText) != Status::Success || values.PushBack(Text("second")) != Status::Success)
-		throw StormByte::Exception("Could not create collection fixture");
+	values.push_back(longText);
+	values.push_back(Text("second"));
 	return values;
 }
 
 Dictionary SafeCollectionsFixture::MakeDictionary() {
 	Dictionary values;
-	if (values.Set(Text("beta"), Text("second")) != Status::Success || values.Set(Text("alpha"), Text("first")) != Status::Success)
-		throw StormByte::Exception("Could not create dictionary fixture");
+	values.insert_or_assign(Text("beta"), Text("second"));
+	values.insert_or_assign(Text("alpha"), Text("first"));
 	return values;
 }
 
 MaybeText SafeCollectionsFixture::MakeOptional() {
 	MaybeText value;
-	if (value.Set(Text(std::string(8192, 'y'))) != Status::Success)
-		throw StormByte::Exception("Could not create optional fixture");
+	value.emplace(Text(std::string(8192, 'y')));
 	return value;
 }
 
 Nested SafeCollectionsFixture::MakeNested() {
 	Nested values;
-	if (values.PushBack(MakeSequence()) != Status::Success)
-		throw StormByte::Exception("Could not create nested fixture");
+	values.push_back(MakeSequence());
 	return values;
 }
 

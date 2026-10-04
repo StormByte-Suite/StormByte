@@ -9,7 +9,7 @@
 
 This repository is **StormByte Base**: the C++26 foundation of the StormByte suite.
 
-It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `Safe::String` / `Safe::WString`, `Safe::CString` / `Safe::WCString`, CRT-safe `Safe::Vector`, `Safe::Map`, `Safe::Optional` and `Safe::Queue` containers, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
+It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `Safe::String` / `Safe::WString`, `Safe::CString` / `Safe::WCString`, opaque `Safe::Iterable`, its `Safe::Vector` / `Safe::Map` aliases, `Safe::Pair`, `Safe::Optional` and `Safe::Queue`, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
 
 The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multimedia, Network and System are **other repositories**. They depend on this one; this one does not implement them.
 
@@ -241,9 +241,9 @@ int main() {
 
 ### Safe Containers
 
-`Safe::Vector<T>`, `Safe::Map<K, V>`, `Safe::Optional<T>` and `Safe::Queue<T>` keep their STL storage in the module that created each object. Their public operations copy values through caller-owned output parameters; they do not expose STL iterators or references.
+`Safe::Iterable<Container>` is the common opaque owner for Safe sequence and ordered-map adapters. Its sequence specialization provides random-access proxy iterators for classic `<algorithm>` and `std::ranges`; its map specialization provides ordered bidirectional proxies with immutable keys, writable mapped values, and `Safe::Pair` entry values. `Safe::Vector<T>` and `Safe::Map<K, V>` are aliases of those specializations. `Safe::Optional<T>` is a zero-or-one-element range backed by the sequence adapter. Iterators never expose owner-module references, pointers, or STL iterators. `Safe::Queue<T>` follows `std::queue`, which is not an iterable range and therefore has no algorithm iterators. `Safe::String` / `Safe::WString` expose mutable contiguous code units for algorithms, while `Safe::CString` / `Safe::WCString` expose mutable buffers.
 
-Each container has an explicit constructor from its corresponding STL container and an explicit conversion back. Import copies elements and never adopts a foreign allocation. Export is `STORMBYTE_FORCE_INLINE`, so the returned `std::vector`, `std::map`, `std::optional` or `std::queue` is allocated and destroyed in the caller's CRT. Rvalue STL inputs are also copied; they are not heap steals.
+Each adapter has an explicit constructor from its corresponding STL container and an explicit conversion back. Lvalue imports copy elements. Rvalue imports move elements and leave the source container valid and empty, but never adopt its allocation or allocator state. Export is `STORMBYTE_FORCE_INLINE`, so the returned `std::vector`, `std::map`, `std::optional` or `std::queue` is allocated and destroyed in the caller's CRT.
 
 `Safe::String::Split` and `Safe::WString::Split` can fill a `Safe::Vector`; their `Explode` counterparts can fill a `Safe::Queue`. These overloads return `Safe::Status` and replace the destination only on success. Existing caller-local `std::vector` / `std::queue` overloads remain available. Use the Safe overload when tokens need to cross a DLL boundary.
 

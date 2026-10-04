@@ -41,6 +41,8 @@
 #include <StormByte/byte_size.hxx>
 #include <StormByte/helpers.hxx>
 #include <StormByte/serializable.hxx>
+#include <StormByte/safe/pair.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
 
@@ -495,6 +497,19 @@ int test_base_idempotent_roundtrip_pair() {
 	ASSERT_TRUE("test_base_idempotent_roundtrip_pair", original == d1.value());
 	ASSERT_TRUE("test_base_idempotent_roundtrip_pair", buf1 == buf2);
 	RETURN_TEST("test_base_idempotent_roundtrip_pair", 0);
+}
+
+int test_safe_pair_roundtrip() {
+	using Pair = Safe::Pair<Safe::String, Safe::String>;
+	const Pair original(Safe::String("key"), Safe::String("value"));
+	const auto buffer = Serializable<Pair>(original).Serialize();
+	const auto decoded = Serializable<Pair>::Deserialize(buffer);
+	if (!decoded) {
+		std::cerr << decoded.error()->what() << std::endl;
+		RETURN_TEST("test_safe_pair_roundtrip", 1);
+	}
+	ASSERT_TRUE("test_safe_pair_roundtrip", decoded.value() == original);
+	RETURN_TEST("test_safe_pair_roundtrip", 0);
 }
 
 int test_base_idempotent_roundtrip_vector() {
@@ -1254,6 +1269,7 @@ int main() {
 	// Nested
 	// -------------------
 	result += test_base_idempotent_roundtrip_pair();
+	result += test_safe_pair_roundtrip();
 	result += test_base_idempotent_roundtrip_vector();
 	result += test_base_nested_vector_of_pairs();
 	result += test_serialize_deep_nested_vector();

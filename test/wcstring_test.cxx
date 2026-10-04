@@ -42,9 +42,11 @@
 #include <StormByte/test_handlers.h>
 #include <StormByte/safe/wcstring.hxx>
 
+#include <algorithm>
 #include <compare>
 #include <cwchar>
 #include <functional>
+#include <iterator>
 #include <set>
 #include <sstream>
 #include <string>
@@ -266,6 +268,24 @@ int test_subscript_empty() {
 	RETURN_TEST("test_subscript_empty", result);
 }
 
+int test_algorithm_ranges() {
+	int result = 0;
+	const Safe::WCString text(L"algorithm");
+	ASSERT_TRUE("test_algorithm_ranges", std::find(text.begin(), text.end(), L'r') == text.begin() + 4);
+	ASSERT_EQUAL("test_algorithm_ranges", 1, std::count(text.cbegin(), text.cend(), L'a'));
+	std::wstring copied;
+	std::ranges::copy(text, std::back_inserter(copied));
+	ASSERT_TRUE("test_algorithm_ranges", copied == L"algorithm");
+	const Safe::WCString null;
+	ASSERT_TRUE("test_algorithm_ranges", null.begin() == null.end());
+	Safe::WCString mutableText(L"dcba");
+	std::ranges::sort(mutableText);
+	ASSERT_TRUE("test_algorithm_ranges", mutableText == L"abcd");
+	std::ranges::reverse(mutableText);
+	ASSERT_TRUE("test_algorithm_ranges", mutableText == L"dcba");
+	RETURN_TEST("test_algorithm_ranges", result);
+}
+
 // -------------------
 // Conversions / streams
 // -------------------
@@ -431,6 +451,7 @@ int main() {
 	result += test_subscript_characters();
 	result += test_subscript_nul_at_length();
 	result += test_subscript_empty();
+	result += test_algorithm_ranges();
 
 	// -------------------
 	// Conversions / streams

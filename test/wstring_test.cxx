@@ -141,6 +141,21 @@ int test_sort_vector() {
 	RETURN_TEST("test_sort_vector", result);
 }
 
+int test_mutable_text_algorithms() {
+	int result = 0;
+	WString text(L"dcba");
+	std::ranges::sort(text);
+	ASSERT_TRUE("test_mutable_text_algorithms", text == L"abcd");
+	std::ranges::reverse(text);
+	ASSERT_TRUE("test_mutable_text_algorithms", text == L"dcba");
+	text.data()[0] = L'a';
+	ASSERT_TRUE("test_mutable_text_algorithms", text.front() == L'a');
+	const WString::size_type pos{1};
+	ASSERT_TRUE("test_mutable_text_algorithms", text.find(L'c', pos) == Size{1});
+	ASSERT_TRUE("test_mutable_text_algorithms", text.find(L'z') == WString::npos);
+	RETURN_TEST("test_mutable_text_algorithms", result);
+}
+
 int test_view_feeds_algorithms() {
 	int result = 0;
 	const WString text(L"contract");
@@ -451,6 +466,7 @@ int main() {
 	result += test_ordered_and_hashed();
 	result += test_ranges_algorithms();
 	result += test_sort_vector();
+	result += test_mutable_text_algorithms();
 	result += test_view_feeds_algorithms();
 
 	// -------------------

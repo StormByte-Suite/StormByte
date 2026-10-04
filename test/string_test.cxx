@@ -141,6 +141,21 @@ int test_sort_vector() {
 	RETURN_TEST("test_sort_vector", result);
 }
 
+int test_mutable_text_algorithms() {
+	int result = 0;
+	String text("dcba");
+	std::ranges::sort(text);
+	ASSERT_TRUE("test_mutable_text_algorithms", text == "abcd");
+	std::ranges::reverse(text);
+	ASSERT_TRUE("test_mutable_text_algorithms", text == "dcba");
+	text.data()[0] = 'a';
+	ASSERT_TRUE("test_mutable_text_algorithms", text.front() == 'a');
+	const String::size_type pos{1};
+	ASSERT_TRUE("test_mutable_text_algorithms", text.find('c', pos) == Size{1});
+	ASSERT_TRUE("test_mutable_text_algorithms", text.find('z') == String::npos);
+	RETURN_TEST("test_mutable_text_algorithms", result);
+}
+
 int test_view_feeds_algorithms() {
 	int result = 0;
 	const String text("contract");
@@ -481,6 +496,7 @@ int main() {
 	result += test_ordered_and_hashed();
 	result += test_ranges_algorithms();
 	result += test_sort_vector();
+	result += test_mutable_text_algorithms();
 	result += test_view_feeds_algorithms();
 
 	// -------------------

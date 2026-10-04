@@ -60,8 +60,8 @@ namespace StormByte {
 		 * @brief Opaque FIFO whose storage and operations remain in its creator module.
 		 * @tparam T Unqualified Type::SafeValue.
 		 *
-		 * STL imports copy elements into creator-owned storage; they never adopt
-		 * another module's container allocation. STL exports are force-inlined so
+		 * Lvalue imports copy and rvalue imports move elements into creator-owned
+		 * storage; they never adopt another module's container allocation. STL exports are force-inlined so
 		 * the returned queue is allocated and destroyed in the caller. Front copies
 		 * into caller-owned output and never lends an internal reference. Copy is
 		 * deep; move leaves an empty readable object. Compatible C++ ABI, packing,
@@ -70,6 +70,9 @@ namespace StormByte {
 		template<Type::SafeValue T>
 		class STORMBYTE_PUBLIC_TYPE Queue final {
 			public:
+				using value_type = T; ///< Element type.
+				using size_type = std::size_t; ///< Element count type.
+
 				/**
 				 * @brief Construct an empty FIFO in the calling module.
 				 */
@@ -82,8 +85,8 @@ namespace StormByte {
 				explicit Queue(const std::queue<T>& values);
 
 				/**
-				 * @brief Copy elements from an STL rvalue without adopting its allocation.
-				 * @param values Source queue; it remains valid and unchanged.
+				 * @brief Move elements from an STL rvalue into locally owned storage.
+				 * @param values Source queue; it is left valid and empty.
 				 */
 				explicit Queue(std::queue<T>&& values);
 
@@ -119,42 +122,48 @@ namespace StormByte {
 				Queue& operator=(Queue&& other) noexcept = default;
 
 				/**
-				 * @brief Number of queued elements.
+				 * @brief Return the number of queued elements.
 				 * @return Element count, including zero after move.
 				 */
-				StormByte::Size Size() const noexcept;
+				size_type size() const noexcept;
 
 				/**
-				 * @brief Test whether the FIFO has no elements.
-				 * @return True when empty.
+				 * @brief Test whether the queue is empty.
+				 * @return Whether no elements are queued.
 				 */
-				bool Empty() const noexcept;
+				bool empty() const noexcept { return size() == 0; }
 
 				/**
-				 * @brief Copy the front element to caller-owned output.
-				 * @param output Destination; unchanged when empty or copying fails.
-				 * @return Missing when empty; otherwise Success or Failure.
+				 * @brief Return a copy of the front element.
+				 * @return Front element.
+				 * @throws StormByte::Exception The queue is empty or copying failed.
 				 */
-				Status Front(T& output) const noexcept;
+				T front() const {
+					T output{};
+					if (m_dispatch(m_owner.Get(), Action::Front, nullptr, &output) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe queue front failed");
+					return output;
+				}
 
 				/**
-				 * @brief Append a copy at the back.
-				 * @param value Source value.
-				 * @return Success or Failure; failure leaves the queue unchanged.
+				 * @brief Append a value.
+				 * @param value Value to copy into the queue.
+				 * @throws StormByte::Exception Storage creation or copying failed.
 				 */
-				Status Push(const T& value) noexcept;
+				void push(const T& value) {
+					EnsureOwner();
+					if (m_dispatch(m_owner.Get(), Action::Push, &value, nullptr) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe queue push failed");
+				}
 
 				/**
 				 * @brief Remove the front element.
-				 * @return Missing when empty; otherwise Success.
+				 * @throws StormByte::Exception The queue is empty or removal failed.
 				 */
-				Status Pop() noexcept;
-
-				/**
-				 * @brief Remove all elements in the owner module.
-				 * @return Operation status.
-				 */
-				Status Clear() noexcept;
+				void pop() {
+					if (m_dispatch(m_owner.Get(), Action::Pop, nullptr, nullptr) != Status::Success)
+						Detail::ThrowSafeConversionFailure("Safe queue pop failed");
+				}
 
 				/**
 				 * @brief Copy elements into caller-owned STL storage.
@@ -174,8 +183,7 @@ namespace StormByte {
 				enum class Action {
 					Front, ///< Copy the first element.
 					Push, ///< Append an element.
-					Pop, ///< Remove the first element.
-					Clear ///< Remove all elements.
+					Pop ///< Remove the first element.
 				};
 
 				/**
@@ -187,6 +195,11 @@ namespace StormByte {
 				 * @brief Creator-local count callback.
 				 */
 				using Count = StormByte::Size (*)(const void*) noexcept;
+
+				/**
+				 * @brief Recreate empty owner storage after move.
+				 */
+				void EnsureOwner();
 
 				Detail::Owner m_owner; ///< State with creator-module lifetime callbacks.
 				Dispatch m_dispatch; ///< Operations in the creator module.

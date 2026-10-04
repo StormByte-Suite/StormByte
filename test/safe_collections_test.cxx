@@ -43,14 +43,17 @@
 #include <StormByte/exception.hxx>
 #include <StormByte/safe/clonable.hxx>
 #include <StormByte/safe/cstring.hxx>
+#include <StormByte/safe/pair.hxx>
 #include <StormByte/safe/wcstring.hxx>
 #include <StormByte/safe/wstring.hxx>
 #include <StormByte/test_handlers.h>
 
+#include <algorithm>
 #include <optional>
 #include <map>
 #include <memory>
 #include <queue>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -75,6 +78,7 @@ static_assert(Type::SafeValue<Safe::Vector<Safe::String>>);
 static_assert(Type::SafeValue<Safe::Map<Safe::String, Safe::String>>);
 static_assert(Type::SafeValue<Safe::Optional<Safe::String>>);
 static_assert(Type::SafeValue<Safe::Queue<Safe::String>>);
+static_assert(Type::SafeValue<Safe::Pair<Safe::String, Safe::String>>);
 static_assert(Type::SafeValue<BinaryData>);
 static_assert(Type::SafeValue<Size>);
 static_assert(Type::SafeValue<ByteSize>);
@@ -90,6 +94,12 @@ static_assert(!Type::SafeValue<std::optional<Safe::String>>);
 static_assert(!Type::SafeValue<std::queue<Safe::String>>);
 static_assert(!Type::SafeValue<Safe::Callback>);
 static_assert(!Type::SafeValue<int*>);
+	static_assert(std::random_access_iterator<Safe::Vector<Safe::String>::iterator>);
+	static_assert(std::sortable<Safe::Vector<Safe::String>::iterator>);
+	static_assert(std::bidirectional_iterator<Safe::Map<Safe::String, Safe::String>::iterator>);
+	static_assert(std::ranges::input_range<Safe::Map<Safe::String, Safe::String>>);
+	static_assert(std::ranges::input_range<Safe::Optional<Safe::String>>);
+	static_assert(!std::ranges::range<Safe::Queue<Safe::String>>);
 
 namespace {
 	struct OwnerFixtureState {
@@ -150,6 +160,70 @@ int TestCallbackValidation() {
 	RETURN_TEST("TestCallbackValidation", 0);
 }
 
+int TestSafeVectorAlgorithms() {
+	Safe::Vector<Safe::String> values(std::vector<Safe::String>{
+		Safe::String("gamma"), Safe::String("alpha"), Safe::String("beta"), Safe::String("alpha")
+	});
+	std::sort(values.begin(), values.end());
+	ASSERT_TRUE("TestSafeVectorAlgorithms", values.size() == Size(4));
+	ASSERT_TRUE("TestSafeVectorAlgorithms", std::find(values.cbegin(), values.cend(), Safe::String("beta")) != values.cend());
+	auto newEnd = std::remove(values.begin(), values.end(), Safe::String("alpha"));
+	values.erase(newEnd, values.end());
+	const auto output = static_cast<std::vector<Safe::String>>(values);
+	ASSERT_TRUE("TestSafeVectorAlgorithms", output.size() == 2);
+	ASSERT_TRUE("TestSafeVectorAlgorithms", output[0] == "beta" && output[1] == "gamma");
+	std::ranges::sort(values);
+	RETURN_TEST("TestSafeVectorAlgorithms", 0);
+}
+
+int TestSafeMapAlgorithms() {
+	Safe::Map<Safe::String, Safe::String> dictionary(std::map<Safe::String, Safe::String>{
+		{Safe::String("alpha"), Safe::String("first")}, {Safe::String("beta"), Safe::String("second")}
+	});
+	const auto found = std::ranges::find_if(dictionary, [](const auto& entry) { return entry.first == "beta"; });
+	ASSERT_TRUE("TestSafeVectorAlgorithms", found != dictionary.end());
+	std::ranges::for_each(dictionary, [](auto entry) { entry.second = Safe::String("updated"); });
+	Safe::String mapped;
+	ASSERT_TRUE("TestSafeMapAlgorithms", dictionary.at(Safe::String("alpha")) == "updated");
+	RETURN_TEST("TestSafeMapAlgorithms", 0);
+}
+
+int TestSafeOptionalAlgorithms() {
+	Safe::Optional<Safe::String> maybe(std::optional<Safe::String>{Safe::String("before")});
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", std::ranges::find(maybe, Safe::String("before")) != maybe.end());
+	*maybe.begin() = Safe::String("after");
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", maybe.value() == "after");
+	std::optional<Safe::String> source{Safe::String("moved")};
+	Safe::Optional<Safe::String> moved(std::move(source));
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", !source.has_value() && moved.value() == "moved");
+	RETURN_TEST("TestSafeOptionalAlgorithms", 0);
+}
+
+int TestSafePair() {
+	Safe::Pair<Safe::String, Safe::String> pair(Safe::String("key"), Safe::String("value"));
+	auto [key, value] = pair;
+	ASSERT_TRUE("TestSafePair", key == "key" && value == "value");
+	pair.second = Safe::String("updated");
+	ASSERT_TRUE("TestSafePair", pair.first == "key" && pair.second == "updated");
+	auto copy = pair;
+	copy.first = Safe::String("copy");
+	ASSERT_TRUE("TestSafePair", pair.first == "key" && copy.first == "copy");
+	RETURN_TEST("TestSafePair", 0);
+}
+
+int TestSafeQueueSTLAPI() {
+	Safe::Queue<Safe::String> queue;
+	queue.push(Safe::String("queued"));
+	ASSERT_TRUE("TestSafeQueueSTLAPI", queue.size() == Size(1) && queue.front() == "queued");
+	queue.pop();
+	ASSERT_TRUE("TestSafeQueueSTLAPI", queue.empty());
+	std::queue<Safe::String> source;
+	source.push(Safe::String("moved"));
+	Safe::Queue<Safe::String> moved(std::move(source));
+	ASSERT_TRUE("TestSafeQueueSTLAPI", source.empty() && moved.front() == "moved");
+	RETURN_TEST("TestSafeQueueSTLAPI", 0);
+}
+
 // -------------------
 // DLL ownership
 // -------------------
@@ -175,6 +249,11 @@ int main() {
 	// -------------------
 
 	result += TestOwnerCopyFailure();
+	result += TestSafeVectorAlgorithms();
+	result += TestSafeMapAlgorithms();
+	result += TestSafeOptionalAlgorithms();
+	result += TestSafePair();
+	result += TestSafeQueueSTLAPI();
 
 	// -------------------
 	// DLL ownership

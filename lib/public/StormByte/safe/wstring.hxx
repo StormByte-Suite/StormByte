@@ -92,14 +92,23 @@ namespace StormByte {
 		 * Other code points are copied. On 16-bit `wchar_t`, a well-formed
 		 * surrogate pair is copied together.
 		 *
-		 * Observers (`starts_with`, `ends_with`, `contains`, `find`,
-		 * `substr`, …) follow `std::wstring_view`. They do not throw and
-		 * they do not mutate. In-place edit is still a new @ref WString.
+		 * Code units are contiguous and mutable. Classic and ranges algorithms
+		 * can read or modify existing units; they cannot resize the owned buffer.
+		 * Observers (`starts_with`, `ends_with`, `contains`, `find`, `substr`, …)
+		 * follow `std::wstring_view`.
 		 */
 		class STORMBYTE_PUBLIC WString {
 			public:
 				using value_type = wchar_t;	///< Code unit type
+				using size_type = Size;	///< Code-unit count and position type
+				using difference_type = std::ptrdiff_t;	///< Iterator distance type
+				using pointer = wchar_t*;	///< Mutable buffer pointer
+				using const_pointer = const wchar_t*;	///< Read-only buffer pointer
+				using reference = wchar_t&;	///< Mutable code-unit reference
+				using const_reference = const wchar_t&;	///< Read-only code-unit reference
+				using iterator = wchar_t*;	///< Mutable contiguous iterator
 				using const_iterator = const wchar_t*;	///< Contiguous observer
+				using reverse_iterator = std::reverse_iterator<iterator>;	///< Mutable reverse observer
 				using const_reverse_iterator = std::reverse_iterator<const_iterator>;	///< Reverse observer
 
 				/**
@@ -178,6 +187,14 @@ namespace StormByte {
 				 * @brief First character, or null.
 				 * @return Iterator.
 				 */
+				inline iterator begin() noexcept {
+					return data();
+				}
+
+				/**
+				 * @brief First character, or null.
+				 * @return Read-only iterator.
+				 */
 				inline const_iterator begin() const noexcept {
 					return data();
 				}
@@ -185,6 +202,15 @@ namespace StormByte {
 				/**
 				 * @brief One past the last character, or null.
 				 * @return Iterator.
+				 */
+				inline iterator end() noexcept {
+					wchar_t* text = data();
+					return text ? text + static_cast<std::size_t>(size()) : nullptr;
+				}
+
+				/**
+				 * @brief One past the last character, or null.
+				 * @return Read-only iterator.
 				 */
 				inline const_iterator end() const noexcept {
 					const wchar_t* text = data();
@@ -211,6 +237,14 @@ namespace StormByte {
 				 * @brief Reverse begin.
 				 * @return Reverse iterator.
 				 */
+				inline reverse_iterator rbegin() noexcept {
+					return reverse_iterator(end());
+				}
+
+				/**
+				 * @brief Reverse begin.
+				 * @return Read-only reverse iterator.
+				 */
 				inline const_reverse_iterator rbegin() const noexcept {
 					return const_reverse_iterator(end());
 				}
@@ -218,6 +252,14 @@ namespace StormByte {
 				/**
 				 * @brief Reverse end.
 				 * @return Reverse iterator.
+				 */
+				inline reverse_iterator rend() noexcept {
+					return reverse_iterator(begin());
+				}
+
+				/**
+				 * @brief Reverse end.
+				 * @return Read-only reverse iterator.
 				 */
 				inline const_reverse_iterator rend() const noexcept {
 					return const_reverse_iterator(begin());
@@ -241,6 +283,14 @@ namespace StormByte {
 
 				/**
 				 * @brief Contiguous pointer; null when the buffer is null.
+				 * @return Pointer to the first code unit.
+				 */
+				inline wchar_t* data() noexcept {
+					return m_text.data();
+				}
+
+				/**
+				 * @brief Read-only contiguous pointer; null when the buffer is null.
 				 * @return Pointer to the first code unit.
 				 */
 				inline const wchar_t* data() const noexcept {
@@ -275,6 +325,16 @@ namespace StormByte {
 				 * @brief Code unit at @p index.
 				 * @param index Position in `[0, size()]`. `size()` is the trailing NUL.
 				 * @return Character.
+				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
+				 */
+				inline wchar_t& operator[](const Size& index) noexcept {
+					return m_text[index];
+				}
+
+				/**
+				 * @brief Read-only code unit at @p index.
+				 * @param index Position in `[0, size()]`. `size()` is the trailing NUL.
+				 * @return Character copy.
 				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
 				 */
 				inline wchar_t operator[](const Size& index) const noexcept {
@@ -343,7 +403,7 @@ namespace StormByte {
 				 * @{
 				 */
 
-				static constexpr Size npos{~0ull};	///< Not found. Not a `size_t`.
+				static constexpr size_type npos{~0ull};	///< Not found.
 
 				/**
 				 * @brief Whether the text begins with @p text.
@@ -584,6 +644,15 @@ namespace StormByte {
 				 * @return Unit.
 				 * @note Empty is undefined, same as `std::wstring::front`.
 				 */
+				inline wchar_t& front() noexcept {
+					return (*this)[Size{0}];
+				}
+
+				/**
+				 * @brief Read the first code unit.
+				 * @return Code-unit copy.
+				 * @note Empty is undefined, same as `std::wstring::front`.
+				 */
 				inline wchar_t front() const noexcept {
 					return (*this)[Size{0}];
 				}
@@ -591,6 +660,15 @@ namespace StormByte {
 				/**
 				 * @brief Last code unit.
 				 * @return Unit.
+				 * @note Empty is undefined, same as `std::wstring::back`.
+				 */
+				inline wchar_t& back() noexcept {
+					return (*this)[size() - Size{1}];
+				}
+
+				/**
+				 * @brief Read the last code unit.
+				 * @return Code-unit copy.
 				 * @note Empty is undefined, same as `std::wstring::back`.
 				 */
 				inline wchar_t back() const noexcept {
@@ -679,8 +757,7 @@ namespace StormByte {
 							std::size_t end = index;
 							while (end < str.size() && std::iswspace(static_cast<wint_t>(str[end])) == 0)
 								++end;
-							if (result.PushBack(WString(str.substr(index, end - index))) != Status::Success)
-								return Status::Failure;
+							result.push_back(WString(str.substr(index, end - index)));
 							index = end;
 						}
 						out = std::move(result);
@@ -722,8 +799,7 @@ namespace StormByte {
 						std::size_t start = 0;
 						for (std::size_t index = 0; index <= str.size(); ++index) {
 							if (index == str.size() || str[index] == delimiter) {
-								if (result.Push(WString(str.substr(start, index - start))) != Status::Success)
-									return Status::Failure;
+								result.push(WString(str.substr(start, index - start)));
 								start = index + 1;
 							}
 						}

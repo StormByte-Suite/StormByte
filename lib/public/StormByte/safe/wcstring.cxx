@@ -47,7 +47,7 @@
 using namespace StormByte;
 using namespace StormByte::Safe;
 
-const wchar_t* WCString::Duplicate(const wchar_t* str) noexcept {
+ wchar_t* WCString::Duplicate(const wchar_t* str) noexcept {
 	if (!str)
 		return nullptr;
 	const std::size_t len = std::wcslen(str) + 1;
@@ -56,7 +56,7 @@ const wchar_t* WCString::Duplicate(const wchar_t* str) noexcept {
 	return out;
 }
 
-const wchar_t* WCString::Duplicate(std::wstring_view sv) noexcept {
+wchar_t* WCString::Duplicate(std::wstring_view sv) noexcept {
 	const std::size_t len = sv.size();
 	wchar_t* out = new wchar_t[len + 1];
 	if (len != 0)
@@ -124,6 +124,21 @@ Size WCString::Length() const noexcept {
 	return m_data ? Size{std::wcslen(m_data)} : Size{};
 }
 
+WCString::size_type WCString::size() const noexcept {
+	return Length();
+}
+
+bool WCString::empty() const noexcept {
+	return Length() == Size{};
+}
+
+wchar_t& WCString::operator[](const Size& index) noexcept {
+	assert(m_data != nullptr);
+	const Size length{std::wcslen(m_data)};
+	assert(index <= length);
+	return m_data[static_cast<std::size_t>(index)];
+}
+
 wchar_t WCString::operator[](const Size& index) const noexcept {
 	assert(m_data != nullptr);
 	const Size length{std::wcslen(m_data)};
@@ -132,7 +147,7 @@ wchar_t WCString::operator[](const Size& index) const noexcept {
 }
 
 void WCString::swap(WCString& other) noexcept {
-	const wchar_t* tmp = m_data;
+	wchar_t* tmp = m_data;
 	m_data = other.m_data;
 	other.m_data = tmp;
 }

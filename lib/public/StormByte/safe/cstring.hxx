@@ -44,6 +44,7 @@
 #include <compare>
 #include <cstddef>
 #include <functional>
+#include <iterator>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -67,8 +68,8 @@ namespace StormByte {
 		 * @brief Owned NUL-terminated buffer, safe to use across a DLL boundary.
 		 *
 		 * This is not a replacement or reimplementation of `std::string`.
-		 * The class is minimal on purpose: copy, move, reset, a C-string
-		 * view, `Length`, subscript, equality, ordering, swap and conversions.
+		 * It provides owned NUL-terminated storage, STL-shaped mutable contiguous
+		 * ranges over existing characters, observers, comparisons and conversions.
 		 *
 		 * `operator const char*` is the analogue of `std::string::c_str()`.
 		 * The pointer is valid only until this object is destroyed, moved
@@ -86,9 +87,10 @@ namespace StormByte {
 		 * Base's heap. It is not a heap steal. An empty source yields `""`,
 		 * not a null buffer.
 		 *
-		 * `operator[]` is an observer. Valid indices are `[0, Length()]`;
-		 * `Length()` is the trailing NUL. A null buffer or an index past
-		 * `Length()` is undefined and `assert`s when assertions are on.
+		 * Mutable `operator[]` and `data()` may change characters in `[0, Length())`.
+		 * `Length()` is the trailing NUL; reading that position is valid, but writing
+		 * any value except `char{}` there is undefined, as with `std::string`.
+		 * A null buffer or an index past `Length()` is undefined and asserts when enabled.
 		 *
 		 * Equality and `<=>` compare text, not addresses. Two nulls are
 		 * equal. Null is not equal to `""`. Null orders before any text.
@@ -102,6 +104,13 @@ namespace StormByte {
 		 */
 		class STORMBYTE_PUBLIC CString final {
 			public:
+				using value_type = char; ///< Character type.
+				using size_type = Size; ///< Character count type.
+				using iterator = char*; ///< Mutable contiguous iterator.
+				using const_iterator = const char*; ///< Read-only contiguous iterator.
+				using reverse_iterator = std::reverse_iterator<iterator>; ///< Mutable reverse iterator.
+				using const_reverse_iterator = std::reverse_iterator<const_iterator>; ///< Read-only reverse iterator.
+
 				/**
 				 * @name Life
 				 * @{
@@ -202,9 +211,119 @@ namespace StormByte {
 				Size Length() const noexcept;
 
 				/**
-				 * @brief Character at @p index.
+				 * @brief Return the character count.
+				 * @return Number of characters.
+				 */
+				size_type size() const noexcept;
+
+				/**
+				 * @brief Test whether the buffer is empty.
+				 * @return Whether the character count is zero.
+				 */
+				bool empty() const noexcept;
+
+				/**
+				 * @brief Return the first mutable character iterator, or null for a null buffer.
+				 * @return Mutable iterator.
+				 */
+				iterator begin() noexcept { return data(); }
+
+				/**
+				 * @brief Return the end mutable iterator, or null for a null buffer.
+				 * @return Mutable iterator.
+				 */
+				iterator end() noexcept {
+					char* text = data();
+				return text ? text + std::string_view(text).size() : nullptr;
+				}
+
+				/**
+				 * @brief Return the first read-only character iterator, or null for a null buffer.
+				 * @return Read-only iterator.
+				 */
+				const_iterator begin() const noexcept { return static_cast<const char*>(*this); }
+
+				/**
+				 * @brief Return the end read-only iterator, or null for a null buffer.
+				 * @return Read-only iterator.
+				 */
+				const_iterator end() const noexcept {
+					const char* text = begin();
+					return text ? text + std::string_view(text).size() : nullptr;
+				}
+
+				/**
+				 * @brief Return the first read-only character iterator.
+				 * @return Read-only iterator.
+				 */
+				const_iterator cbegin() const noexcept { return begin(); }
+
+				/**
+				 * @brief Return the end read-only iterator.
+				 * @return Read-only iterator.
+				 */
+				const_iterator cend() const noexcept { return end(); }
+
+				/**
+				 * @brief Return the mutable reverse begin iterator.
+				 * @return Reverse iterator to the last character.
+				 */
+				reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+
+				/**
+				 * @brief Return the mutable reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+
+				/**
+				 * @brief Return the read-only reverse begin iterator.
+				 * @return Reverse iterator to the last character.
+				 */
+				const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+
+				/**
+				 * @brief Return the read-only reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+
+				/**
+				 * @brief Return the read-only reverse begin iterator.
+				 * @return Reverse iterator to the last character.
+				 */
+				const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(cend()); }
+
+				/**
+				 * @brief Return the read-only reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				const_reverse_iterator crend() const noexcept { return const_reverse_iterator(cbegin()); }
+
+				/**
+				 * @brief Return the mutable buffer pointer, or null.
+				 * @return Mutable pointer to the first character.
+				 */
+				char* data() noexcept { return m_data; }
+
+				/**
+				 * @brief Return the read-only buffer pointer, or null.
+				 * @return Read-only pointer to the first character.
+				 */
+				const char* data() const noexcept { return m_data; }
+
+				/**
+				 * @brief Mutable character at @p index.
 				 * @param index Position in `[0, Length()]`. `Length()` is the trailing NUL.
-				 * @return The character.
+				 * @return Mutable character reference.
+				 * @note At `Length()`, only assigning `char{}` is valid. Null or past-length access is undefined.
+				 */
+				char& operator[](const Size& index) noexcept;
+
+				/**
+				 * @brief Read-only character at @p index.
+				 * @param index Position in `[0, Length()]`. `Length()` is the trailing NUL.
+				 * @return Character copy.
 				 * @note Null or `index > Length()` is undefined. Checked with `assert` when assertions are on.
 				 */
 				char operator[](const Size& index) const noexcept;
@@ -319,21 +438,21 @@ namespace StormByte {
 				/** @} */
 
 			private:
-				const char* m_data;	///< Owned buffer
+				char* m_data;	///< Owned buffer
 
 				/**
 				 * @brief Copies @p str into a new buffer.
 				 * @param str Source; may be null.
 				 * @return New buffer, or null.
 				 */
-				static const char* Duplicate(const char* str) noexcept;
+				static char* Duplicate(const char* str) noexcept;
 
 				/**
 				 * @brief Copies @p sv into a new buffer and appends NUL.
 				 * @param sv Source view.
 				 * @return New buffer (`""` when @p sv is empty).
 				 */
-				static const char* Duplicate(std::string_view sv) noexcept;
+				static char* Duplicate(std::string_view sv) noexcept;
 		};
 
 		/**

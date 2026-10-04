@@ -77,9 +77,9 @@ namespace StormByte {
 		 * @class String
 		 * @brief Owned UTF-8 text composed of @ref StormByte::Safe::CString.
 		 *
-		 * Not a `std::string`. Iterators are constant and contiguous so
-		 * algorithms that read a range of `char` work. In-place mutating
-		 * algorithms do not: helpers return a new @ref String.
+		 * Not a `std::string`, but its code units are contiguous and mutable.
+		 * Classic and ranges algorithms can read or modify existing bytes;
+		 * they cannot change the owned buffer's size.
 		 *
 		 * `operator std::string_view` is implicit and inline. `operator
 		 * std::string` is explicit and `STORMBYTE_FORCE_INLINE` (caller heap).
@@ -100,7 +100,15 @@ namespace StormByte {
 		class STORMBYTE_PUBLIC String {
 			public:
 				using value_type = char;	///< Byte type
+				using size_type = Size;	///< Code-unit count and position type
+				using difference_type = std::ptrdiff_t;	///< Iterator distance type
+				using pointer = char*;	///< Mutable buffer pointer
+				using const_pointer = const char*;	///< Read-only buffer pointer
+				using reference = char&;	///< Mutable character reference
+				using const_reference = const char&;	///< Read-only character reference
+				using iterator = char*;	///< Mutable contiguous iterator
 				using const_iterator = const char*;	///< Contiguous observer
+				using reverse_iterator = std::reverse_iterator<iterator>;	///< Mutable reverse observer
 				using const_reverse_iterator = std::reverse_iterator<const_iterator>;	///< Reverse observer
 
 				/**
@@ -179,6 +187,14 @@ namespace StormByte {
 				 * @brief First character, or null.
 				 * @return Iterator.
 				 */
+				inline iterator begin() noexcept {
+					return data();
+				}
+
+				/**
+				 * @brief First character, or null.
+				 * @return Read-only iterator.
+				 */
 				inline const_iterator begin() const noexcept {
 					return data();
 				}
@@ -186,6 +202,15 @@ namespace StormByte {
 				/**
 				 * @brief One past the last character, or null.
 				 * @return Iterator.
+				 */
+				inline iterator end() noexcept {
+					char* text = data();
+					return text ? text + static_cast<std::size_t>(size()) : nullptr;
+				}
+
+				/**
+				 * @brief One past the last character, or null.
+				 * @return Read-only iterator.
 				 */
 				inline const_iterator end() const noexcept {
 					const char* text = data();
@@ -212,6 +237,14 @@ namespace StormByte {
 				 * @brief Reverse begin.
 				 * @return Reverse iterator.
 				 */
+				inline reverse_iterator rbegin() noexcept {
+					return reverse_iterator(end());
+				}
+
+				/**
+				 * @brief Reverse begin.
+				 * @return Read-only reverse iterator.
+				 */
 				inline const_reverse_iterator rbegin() const noexcept {
 					return const_reverse_iterator(end());
 				}
@@ -219,6 +252,14 @@ namespace StormByte {
 				/**
 				 * @brief Reverse end.
 				 * @return Reverse iterator.
+				 */
+				inline reverse_iterator rend() noexcept {
+					return reverse_iterator(begin());
+				}
+
+				/**
+				 * @brief Reverse end.
+				 * @return Read-only reverse iterator.
 				 */
 				inline const_reverse_iterator rend() const noexcept {
 					return const_reverse_iterator(begin());
@@ -242,6 +283,14 @@ namespace StormByte {
 
 				/**
 				 * @brief Contiguous pointer; null when the buffer is null.
+				 * @return Pointer to the first character.
+				 */
+				inline char* data() noexcept {
+					return m_text.data();
+				}
+
+				/**
+				 * @brief Read-only contiguous pointer; null when the buffer is null.
 				 * @return Pointer to the first character.
 				 */
 				inline const char* data() const noexcept {
@@ -276,6 +325,16 @@ namespace StormByte {
 				 * @brief Character at @p index.
 				 * @param index Position in `[0, size()]`. `size()` is the trailing NUL.
 				 * @return Character.
+				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
+				 */
+				inline char& operator[](const Size& index) noexcept {
+					return m_text[index];
+				}
+
+				/**
+				 * @brief Read-only character at @p index.
+				 * @param index Position in `[0, size()]`. `size()` is the trailing NUL.
+				 * @return Character copy.
 				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
 				 */
 				inline char operator[](const Size& index) const noexcept {
@@ -344,7 +403,7 @@ namespace StormByte {
 				 * @{
 				 */
 
-				static constexpr Size npos{~0ull};	///< Not found. Not a `size_t`.
+				static constexpr size_type npos{~0ull};	///< Not found.
 
 				/**
 				 * @brief Whether the text begins with @p text.
@@ -585,6 +644,15 @@ namespace StormByte {
 				 * @return Byte.
 				 * @note Empty is undefined, same as `std::string::front`.
 				 */
+				inline char& front() noexcept {
+					return (*this)[Size{0}];
+				}
+
+				/**
+				 * @brief Read the first byte.
+				 * @return Byte copy.
+				 * @note Empty is undefined, same as `std::string::front`.
+				 */
 				inline char front() const noexcept {
 					return (*this)[Size{0}];
 				}
@@ -592,6 +660,15 @@ namespace StormByte {
 				/**
 				 * @brief Last byte.
 				 * @return Byte.
+				 * @note Empty is undefined, same as `std::string::back`.
+				 */
+				inline char& back() noexcept {
+					return (*this)[size() - Size{1}];
+				}
+
+				/**
+				 * @brief Read the last byte.
+				 * @return Byte copy.
 				 * @note Empty is undefined, same as `std::string::back`.
 				 */
 				inline char back() const noexcept {
@@ -680,8 +757,7 @@ namespace StormByte {
 							std::size_t end = index;
 							while (end < str.size() && std::isspace(static_cast<unsigned char>(str[end])) == 0)
 								++end;
-							if (result.PushBack(String(str.substr(index, end - index))) != Status::Success)
-								return Status::Failure;
+							result.push_back(String(str.substr(index, end - index)));
 							index = end;
 						}
 						out = std::move(result);
@@ -723,8 +799,7 @@ namespace StormByte {
 						std::size_t start = 0;
 						for (std::size_t index = 0; index <= str.size(); ++index) {
 							if (index == str.size() || str[index] == delimiter) {
-								if (result.Push(String(str.substr(start, index - start))) != Status::Success)
-									return Status::Failure;
+								result.push(String(str.substr(start, index - start)));
 								start = index + 1;
 							}
 						}

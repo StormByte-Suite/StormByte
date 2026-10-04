@@ -73,6 +73,20 @@ namespace StormByte {
 			}
 
 			/**
+			 * @brief Move elements into queue storage owned by this module.
+			 * @param source Source queue, consumed after successful transfer.
+			 * @return New owner state.
+			 */
+			static void* CreateMove(std::queue<T>& source) {
+				auto store = std::make_unique<Store>();
+				while (!source.empty()) {
+					store->values.push(std::move(source.front()));
+					source.pop();
+				}
+				return store.release();
+			}
+
+			/**
 			 * @brief Deep copy locally.
 			 * @param state Source.
 			 * @return New state, or null on failure.
@@ -128,8 +142,6 @@ namespace StormByte {
 					}
 					else if (action == Action::Pop)
 						values.pop();
-					else
-						values = std::queue<T>();
 					return Status::Success;
 				} catch (...) {
 					return Status::Failure;
@@ -148,36 +160,19 @@ namespace StormByte {
 			m_dispatch(&Store::Apply), m_count(&Store::Count) {}
 
 		template<Type::SafeValue T>
-		Queue<T>::Queue(std::queue<T>&& values): Queue(static_cast<const std::queue<T>&>(values)) {}
+		Queue<T>::Queue(std::queue<T>&& values):
+			m_owner(Store::CreateMove(values), &Store::Clone, &Store::Destroy),
+			m_dispatch(&Store::Apply), m_count(&Store::Count) {}
 
 		template<Type::SafeValue T>
-		StormByte::Size Queue<T>::Size() const noexcept {
-			return m_count(m_owner.Get());
+		std::size_t Queue<T>::size() const noexcept {
+			return static_cast<std::size_t>(m_count(m_owner.Get()));
 		}
 
 		template<Type::SafeValue T>
-		bool Queue<T>::Empty() const noexcept {
-			return Size() == StormByte::Size(0);
-		}
-
-		template<Type::SafeValue T>
-		Status Queue<T>::Front(T& output) const noexcept {
-			return m_dispatch(m_owner.Get(), Action::Front, nullptr, &output);
-		}
-
-		template<Type::SafeValue T>
-		Status Queue<T>::Push(const T& value) noexcept {
-			return m_dispatch(m_owner.Get(), Action::Push, &value, nullptr);
-		}
-
-		template<Type::SafeValue T>
-		Status Queue<T>::Pop() noexcept {
-			return m_dispatch(m_owner.Get(), Action::Pop, nullptr, nullptr);
-		}
-
-		template<Type::SafeValue T>
-		Status Queue<T>::Clear() noexcept {
-			return m_dispatch(m_owner.Get(), Action::Clear, nullptr, nullptr);
+		void Queue<T>::EnsureOwner() {
+			if (!m_owner.Get())
+				m_owner = Detail::Owner(Store::Create(), &Store::Clone, &Store::Destroy);
 		}
 
 		template<Type::SafeValue T>
@@ -185,12 +180,10 @@ namespace StormByte {
 			std::queue<T> output;
 			Queue<T> copy(*this);
 			T value{};
-			while (!copy.Empty()) {
-				if (copy.Front(value) != Status::Success)
-					Detail::ThrowSafeConversionFailure("Safe queue export failed");
+			while (!copy.empty()) {
+				value = copy.front();
 				output.push(std::move(value));
-				if (copy.Pop() != Status::Success)
-					Detail::ThrowSafeConversionFailure("Safe queue export failed");
+				copy.pop();
 			}
 			return output;
 		}

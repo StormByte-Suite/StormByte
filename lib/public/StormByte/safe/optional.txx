@@ -50,41 +50,22 @@ namespace StormByte {
 
 		template<Type::SafeValue T>
 		Optional<T>::Optional(const std::optional<T>& value): m_value() {
-			if (value && Set(*value) != Status::Success)
-				throw StormByte::Exception("Safe optional import failed");
+			if (value)
+				emplace(*value);
 		}
 
 		template<Type::SafeValue T>
-		Optional<T>::Optional(std::optional<T>&& value): Optional(static_cast<const std::optional<T>&>(value)) {}
-
-		template<Type::SafeValue T>
-		bool Optional<T>::HasValue() const noexcept {
-			return m_value.Size() != StormByte::Size(0);
-		}
-
-		template<Type::SafeValue T>
-		Status Optional<T>::Value(T& output) const noexcept {
-			return m_value.Get(StormByte::Size(0), output);
-		}
-
-		template<Type::SafeValue T>
-		Status Optional<T>::Set(const T& value) noexcept {
-			return HasValue() ? m_value.Set(StormByte::Size(0), value) : m_value.PushBack(value);
-		}
-
-		template<Type::SafeValue T>
-		Status Optional<T>::Reset() noexcept {
-			return m_value.Clear();
+		Optional<T>::Optional(std::optional<T>&& value): Optional() {
+			if (value)
+				emplace(std::move(*value));
+			value.reset();
 		}
 
 		template<Type::SafeValue T>
 		STORMBYTE_FORCE_INLINE Optional<T>::operator std::optional<T>() const {
-			if (!HasValue())
+			if (!has_value())
 				return std::nullopt;
-			T value{};
-			if (Value(value) != Status::Success)
-				throw StormByte::Exception("Safe optional export failed");
-			return std::optional<T>(std::move(value));
+			return std::optional<T>(value());
 		}
 	}
 }
