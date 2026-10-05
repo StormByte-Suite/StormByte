@@ -42,6 +42,7 @@
 #include <StormByte/exception.hxx>
 #include <StormByte/safe/wstring.hxx>
 
+#include <algorithm>
 #include <map>
 #include <optional>
 #include <string_view>
@@ -208,6 +209,12 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 
 	auto producerQueue = MakeTokenQueue();
 	if (producerQueue.size() != 3 || producerQueue.front() != "producer")
+		return false;
+	auto producerAlgorithmQueue = producerQueue;
+	std::sort(producerAlgorithmQueue.begin(), producerAlgorithmQueue.end(), [](const Text& left, const Text& right) {
+		return left > right;
+	});
+	if (producerAlgorithmQueue.front() != "value" || producerAlgorithmQueue.back() != "producer")
 		return false;
 	const auto producerSTLQueue = static_cast<std::queue<Text>>(producerQueue);
 	if (producerSTLQueue.size() != 3 || producerSTLQueue.front() != "producer")

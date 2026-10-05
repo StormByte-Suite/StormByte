@@ -158,7 +158,8 @@ static_assert(!Type::SafeValue<int*>);
 	static_assert(std::bidirectional_iterator<Safe::Map<Safe::String, Safe::String>::iterator>);
 	static_assert(std::ranges::input_range<Safe::Map<Safe::String, Safe::String>>);
 	static_assert(std::ranges::input_range<Safe::Optional<Safe::String>>);
-	static_assert(!std::ranges::range<Safe::Queue<Safe::String>>);
+	static_assert(std::ranges::random_access_range<Safe::Queue<Safe::String>>);
+	static_assert(std::sortable<Safe::Queue<Safe::String>::iterator>);
 
 namespace {
 	struct OwnerFixtureState {
@@ -489,6 +490,22 @@ int TestSafeQueueSTLAPI() {
 	const Safe::String inserted = queue.emplace("queued");
 	queue.push(Safe::String("tail"));
 	ASSERT_TRUE("TestSafeQueueSTLAPI", inserted == "queued" && queue.size() == Size(2) && queue.front() == "queued" && queue.back() == "tail");
+	static_assert(std::random_access_iterator<Safe::Queue<Safe::String>::iterator>);
+	Safe::Queue<Safe::String> algorithmQueue;
+	algorithmQueue.emplace("z");
+	algorithmQueue.emplace("remove");
+	algorithmQueue.emplace("a");
+	algorithmQueue.emplace("m");
+	algorithmQueue.front() = Safe::String("y");
+	algorithmQueue.back() = Safe::String("n");
+	const auto found = std::find(algorithmQueue.begin(), algorithmQueue.end(), Safe::String("a"));
+	ASSERT_TRUE("TestSafeQueueSTLAPI", found != algorithmQueue.end());
+	std::sort(algorithmQueue.begin(), algorithmQueue.end());
+	const auto newEnd = std::remove_if(algorithmQueue.begin(), algorithmQueue.end(), [](const Safe::String& value) {
+		return value == "remove";
+	});
+	algorithmQueue.erase(newEnd, algorithmQueue.end());
+	ASSERT_TRUE("TestSafeQueueSTLAPI", algorithmQueue.size() == Size(3) && algorithmQueue.front() == "a" && algorithmQueue.back() == "y");
 	queue.pop();
 	ASSERT_TRUE("TestSafeQueueSTLAPI", queue.size() == Size(1) && queue.front() == "tail");
 	Safe::Queue<Safe::String> other;

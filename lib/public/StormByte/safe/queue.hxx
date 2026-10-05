@@ -39,10 +39,11 @@
 
 #pragma once
 
-#include <StormByte/safe/owner.hxx>
+#include <StormByte/safe/iterable.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/type_traits/safe.hxx>
 
+#include <deque>
 #include <queue>
 
 /**
@@ -57,21 +58,26 @@ namespace StormByte {
 	namespace Safe {
 		/**
 		 * @class Queue
-		 * @brief Opaque FIFO whose storage and operations remain in its creator module.
+		 * @brief FIFO sequence with creator-owned storage and Safe random-access iterators.
 		 * @tparam T Unqualified Type::SafeValue.
 		 *
 		 * Lvalue imports copy and rvalue imports move elements into creator-owned
-		 * storage; they never adopt another module's container allocation. STL exports are force-inlined so
-		 * the returned queue is allocated and destroyed in the caller. Front copies
-		 * into caller-owned output and never lends an internal reference. Copy is
-		 * deep; move leaves an empty readable object. Compatible C++ ABI, packing,
-		 * calling convention and loaded creator/Base modules are required.
+		 * storage; they never adopt another module's container allocation. Iterators
+		 * and mutable element access use caller-owned snapshots and callback writes,
+		 * never references into creator-owned storage. Structural mutation invalidates
+		 * iterators and element proxies. STL exports are force-inlined so the returned
+		 * queue is allocated and destroyed in the caller. Copy is deep; move leaves an
+		 * empty readable object. Compatible C++ ABI, packing, calling convention and
+		 * loaded creator/Base modules are required.
 		 */
 		template<Type::SafeValue T>
 		class STORMBYTE_PUBLIC_TYPE Queue final {
 			public:
 				using value_type = T; ///< Element type.
 				using size_type = std::size_t; ///< Element count type.
+				using reference = typename StormByte::Safe::Iterable<std::deque<T>>::reference; ///< Mutable callback-backed element proxy.
+				using iterator = typename StormByte::Safe::Iterable<std::deque<T>>::iterator; ///< Mutable random-access iterator.
+				using const_iterator = typename StormByte::Safe::Iterable<std::deque<T>>::const_iterator; ///< Read-only random-access iterator.
 
 				/**
 				 * @brief Construct an empty FIFO in the calling module.
@@ -156,28 +162,68 @@ namespace StormByte {
 				bool empty() const noexcept { return size() == 0; }
 
 				/**
-				 * @brief Return a copy of the front element.
-				 * @return Front element.
+				 * @brief Access the front element through a callback-backed proxy.
+				 * @return Mutable proxy to the front element.
 				 * @throws StormByte::Exception The queue is empty or copying failed.
 				 */
-				T front() const {
-					T output{};
-					if (m_dispatch(m_owner.Get(), Action::Front, nullptr, &output) != Status::Success)
-						Detail::ThrowSafeConversionFailure("Safe queue front failed");
-					return output;
-				}
+				reference front() { return m_values.front(); }
+
+				/**
+				 * @brief Return a copy of the front element.
+				 * @return Front element copy.
+				 * @throws StormByte::Exception The queue is empty or copying failed.
+				 */
+				T front() const { return m_values.front(); }
+
+				/**
+				 * @brief Access the back element through a callback-backed proxy.
+				 * @return Mutable proxy to the back element.
+				 * @throws StormByte::Exception The queue is empty or copying failed.
+				 */
+				reference back() { return m_values.back(); }
 
 				/**
 				 * @brief Return a copy of the back element.
-				 * @return Back element snapshot.
+				 * @return Back element copy.
 				 * @throws StormByte::Exception The queue is empty or copying failed.
 				 */
-				T back() const {
-					T output{};
-					if (m_dispatch(m_owner.Get(), Action::Back, nullptr, &output) != Status::Success)
-						Detail::ThrowSafeConversionFailure("Safe queue back failed");
-					return output;
-				}
+				T back() const { return m_values.back(); }
+
+				/**
+				 * @brief Return a mutable iterator to the first element.
+				 * @return Mutable begin iterator.
+				 */
+				iterator begin() noexcept { return m_values.begin(); }
+
+				/**
+				 * @brief Return a read-only iterator to the first element.
+				 * @return Read-only begin iterator.
+				 */
+				const_iterator begin() const noexcept { return m_values.begin(); }
+
+				/**
+				 * @brief Return a mutable past-the-end iterator.
+				 * @return Mutable end iterator.
+				 */
+				iterator end() noexcept { return m_values.end(); }
+
+				/**
+				 * @brief Return a read-only past-the-end iterator.
+				 * @return Read-only end iterator.
+				 */
+				const_iterator end() const noexcept { return m_values.end(); }
+
+				/**
+				 * @brief Return a read-only iterator to the first element.
+				 * @return Read-only begin iterator.
+				 */
+				const_iterator cbegin() const noexcept { return m_values.cbegin(); }
+
+				/**
+				 * @brief Return a read-only past-the-end iterator.
+				 * @return Read-only end iterator.
+				 */
+				const_iterator cend() const noexcept { return m_values.cend(); }
 
 				/**
 				 * @brief Append a value.
@@ -185,9 +231,7 @@ namespace StormByte {
 				 * @throws StormByte::Exception Storage creation or copying failed.
 				 */
 				void push(const T& value) {
-					EnsureOwner();
-					if (m_dispatch(m_owner.Get(), Action::Push, &value, nullptr) != Status::Success)
-						Detail::ThrowSafeConversionFailure("Safe queue push failed");
+					m_values.push_back(value);
 				}
 
 				/**
@@ -215,9 +259,25 @@ namespace StormByte {
 				 * @throws StormByte::Exception The queue is empty or removal failed.
 				 */
 				void pop() {
-					if (m_dispatch(m_owner.Get(), Action::Pop, nullptr, nullptr) != Status::Success)
+					if (empty())
 						Detail::ThrowSafeConversionFailure("Safe queue pop failed");
+					m_values.erase(m_values.cbegin());
 				}
+
+				/**
+				 * @brief Erase one element from the iterable queue.
+				 * @param position Iterator to erase.
+				 * @return Iterator to the next element.
+				 */
+				iterator erase(const_iterator position) { return m_values.erase(position); }
+
+				/**
+				 * @brief Erase a range from the iterable queue.
+				 * @param first First iterator to erase.
+				 * @param last Past-the-end iterator of the erased range.
+				 * @return Iterator to the first element after the erased range.
+				 */
+				iterator erase(const_iterator first, const_iterator last) { return m_values.erase(first, last); }
 
 				/**
 				 * @brief Exchange queue storage and creator callbacks.
@@ -268,47 +328,20 @@ namespace StormByte {
 
 			private:
 				/**
-				 * @brief Creator-local implementation.
+				 * @brief Convert an STL FIFO to deque storage without adopting its allocation.
+				 * @param values Source FIFO.
+				 * @return Deque containing copied values in FIFO order.
 				 */
-				struct STORMBYTE_PRIVATE Store;
+				static std::deque<T> Import(const std::queue<T>& values);
 
 				/**
-				 * @brief Internal operation identifier.
+				 * @brief Move values from an STL FIFO into deque storage.
+				 * @param values Source FIFO, emptied after a successful transfer.
+				 * @return Deque containing the values in FIFO order.
 				 */
-				enum class Action {
-					Front, ///< Copy the first element.
-					Back, ///< Copy the last element.
-					Push, ///< Append an element.
-					Pop ///< Remove the first element.
-				};
+				static std::deque<T> Import(std::queue<T>&& values);
 
-				/**
-				 * @brief Creator-local operation callback.
-				 */
-				using Dispatch = Status (*)(void*, Action, const T*, T*) noexcept;
-
-				/**
-				 * @brief Creator-local count callback.
-				 */
-				using Count = StormByte::Size (*)(const void*) noexcept;
-				using Create = void* (*)(); ///< Empty-store callback type in the creator module.
-				using Clone = Detail::Owner::Clone; ///< Deep-clone callback type in the creator module.
-				using Destroy = Detail::Owner::Destroy; ///< Release callback type in the creator module.
-
-				/**
-				 * @brief Recreate empty owner storage after move.
-				 */
-				void EnsureOwner() {
-					if (!m_owner.Get())
-						m_owner = Detail::Owner(m_create(), m_clone, m_destroy);
-				}
-
-				Create m_create; ///< Empty-store callback in the creator module.
-				Clone m_clone; ///< Deep-clone callback in the creator module.
-				Destroy m_destroy; ///< Release callback in the creator module.
-				Detail::Owner m_owner; ///< State with creator-module lifetime callbacks.
-				Dispatch m_dispatch; ///< Operations in the creator module.
-				Count m_count; ///< Count in the creator module.
+				StormByte::Safe::Iterable<std::deque<T>> m_values; ///< Creator-owned deque behind Safe callbacks.
 		};
 	}
 
