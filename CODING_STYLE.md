@@ -24,17 +24,17 @@ else {
 }
 ```
 
-Pointers and references bind to the type: `const char* str`, `CString& other`, `operator const char*()`. Not `char *str`.
+Pointers and references bind to the type: `const char* str`, `Safe::String& other`, `operator const char*()`. Not `char *str`.
 
 Types, enumerations and functions are PascalCase (`Base64Encode`, `Length`, `Fault`). Macros are `SCREAMING_SNAKE` (`STORMBYTE_PUBLIC`, `WINDOWS`). One statement per line.
 
 ## Language
 
-C++26. RAII: no bare `new` / `delete` in new code (the existing `CString` buffer is the exception that already owns it).
+C++26. RAII: no bare `new` / `delete` in new code. Use Safe owners for module-owned resources.
 
 Public templates use `StormByte::Type` concepts. Do not put `std::enable_if`, `void_t` or a raw `std::is_*` next to those concepts.
 
-`enum class` only. Converting constructors are `explicit` unless the type already documents an implicit conversion (`CString` to `std::string` is that case). Mark `noexcept` only when it is true. Prefer `constexpr` when there is no heap and no I/O; a conversion that builds a `CString` inside the DLL is not `constexpr`.
+`enum class` only. Converting constructors are `explicit` unless the type already documents an implicit conversion (`Safe::String` to `std::string_view` is that case). STL-string exports are explicit and allocate in the caller's CRT. Mark `noexcept` only when it is true. Prefer `constexpr` when there is no heap and no I/O; a conversion that builds a `Safe::String` inside the DLL is not `constexpr`.
 
 Precondition failures (`operator[]` out of range, a negative `Size`) are undefined and `assert` when assertions are on. Do not `throw` for those.
 
@@ -47,12 +47,12 @@ No anonymous namespace in a public header.
 `STORMBYTE_PUBLIC` comes **first** on a function declaration. clang-cl rejects `__declspec` after a reference return type.
 
 ```
-STORMBYTE_PUBLIC CString GenerateUUIDv4() noexcept;
+STORMBYTE_PUBLIC Safe::String GenerateUUIDv4() noexcept;
 STORMBYTE_PUBLIC const Category<Code>& category() noexcept;
 static STORMBYTE_PUBLIC std::size_t Size(const std::string& data) noexcept;
 ```
 
-Do not write `CString STORMBYTE_PUBLIC Foo();`.
+Do not write `Safe::String STORMBYTE_PUBLIC Foo();`.
 
 A class keeps the attribute on the type: `class STORMBYTE_PUBLIC Fault`.
 
@@ -74,7 +74,7 @@ template STORMBYTE_INSTANTIATE Size::Size(int) noexcept;
 
 Do not repeat `STORMBYTE_PUBLIC` on an ordinary `.cxx` definition.
 
-Values that leave the shared library are `CString`, `WCString`, `Size`, `Fault`, or a `const char*` owned by this library. Do not return `std::string` or `std::size_t` as the object that crosses the boundary.
+Values that leave the shared library are `Safe::String`, `Safe::WString`, `Size`, `Fault`, or a borrowed `const char*` owned by this library. Do not return `std::string` or `std::size_t` as the object that crosses the boundary. Safe text keeps STL storage private behind a PIMPL, allocated and destroyed in Base's CRT. Length-bearing views preserve embedded NUL code units; pointer-only C-string inputs end at the first NUL.
 
 ## Doxygen
 

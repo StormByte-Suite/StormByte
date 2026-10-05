@@ -42,11 +42,10 @@
 #include <StormByte/binary_data.hxx>
 #include <StormByte/exception.hxx>
 #include <StormByte/safe/clonable.hxx>
-#include <StormByte/safe/cstring.hxx>
 #include <StormByte/safe/function.hxx>
 #include <StormByte/safe/pair.hxx>
 #include <StormByte/safe/pointers.hxx>
-#include <StormByte/safe/wcstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/safe/wstring.hxx>
 #include <StormByte/test_handlers.h>
 
@@ -85,9 +84,10 @@ struct DirectionalStringCompare {
 };
 
 static_assert(Type::SafeComponent<const Safe::String&>);
-static_assert(Type::SafeComponent<Safe::CString>);
+static_assert(Type::SafeComponent<Safe::String>);
 static_assert(Type::SafeComponent<Safe::WString>);
-static_assert(Type::SafeComponent<Safe::WCString>);
+static_assert(Type::SafeValue<Safe::String>);
+static_assert(Type::SafeValue<Safe::WString>);
 static_assert(Type::SafeComponent<Safe::Shared<int>>);
 static_assert(Type::SafeComponent<Safe::Unique<int>>);
 static_assert(Type::SafeComponent<Safe::Weak<int>>);
@@ -363,9 +363,9 @@ int TestSafeOptionalAlgorithms() {
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", direct.has_value() && direct.value() == "direct");
 	Safe::Optional<Safe::String> fromLiteral("literal");
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", fromLiteral == Safe::String("literal"));
-	std::optional<Safe::CString> narrowBuffer{Safe::CString("converted optional")};
+	std::optional<std::string> narrowBuffer{std::string("converted optional")};
 	Safe::Optional<Safe::String> convertedFromSTL(narrowBuffer);
-	Safe::Optional<Safe::CString> safeBuffer(Safe::CString("converted safe"));
+	Safe::Optional<Safe::String> safeBuffer(Safe::String("converted safe"));
 	Safe::Optional<Safe::String> convertedFromSafe(safeBuffer);
 	convertedFromSafe = safeBuffer;
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", convertedFromSTL == Safe::String("converted optional") && convertedFromSafe == Safe::String("converted safe"));

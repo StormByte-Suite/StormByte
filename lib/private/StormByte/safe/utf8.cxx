@@ -43,9 +43,6 @@
 #include <cstdint>
 #include <string>
 
-using StormByte::Safe::CString;
-using StormByte::Safe::WCString;
-
 namespace {
 	constexpr std::uint32_t LatinUpper(std::uint32_t codepoint) noexcept {
 		if (codepoint >= U'a' && codepoint <= U'z')
@@ -166,50 +163,50 @@ namespace {
 	}
 }
 
-CString StormByte::Safe::Utf8::FromWide(std::wstring_view str) noexcept {
+std::string StormByte::Safe::Utf8::FromWide(std::wstring_view str) noexcept {
 	std::string out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
 		AppendUtf8(out, NextWide(str, i));
-	return CString(out.c_str());
+	return out;
 }
 
-WCString StormByte::Safe::Utf8::ToWide(std::string_view str) noexcept {
+std::wstring StormByte::Safe::Utf8::ToWide(std::string_view str) noexcept {
 	std::wstring out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
 		AppendWide(out, NextUtf8(str, i));
-	return WCString(out.c_str());
+	return out;
 }
 
-CString StormByte::Safe::Utf8::ToUpper(std::string_view str) noexcept {
+std::string StormByte::Safe::Utf8::ToUpper(std::string_view str) noexcept {
 	std::string out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
 		AppendUtf8(out, LatinUpper(NextUtf8(str, i)));
-	return CString(out.c_str());
+	return out;
 }
 
-CString StormByte::Safe::Utf8::ToLower(std::string_view str) noexcept {
+std::string StormByte::Safe::Utf8::ToLower(std::string_view str) noexcept {
 	std::string out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
 		AppendUtf8(out, LatinLower(NextUtf8(str, i)));
-	return CString(out.c_str());
+	return out;
 }
 
-WCString StormByte::Safe::Utf8::ToUpper(std::wstring_view str) noexcept {
+std::wstring StormByte::Safe::Utf8::ToUpper(std::wstring_view str) noexcept {
 	std::wstring out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
 		AppendWide(out, LatinUpper(NextWide(str, i)));
-	return WCString(out.c_str());
+	return out;
 }
 
-WCString StormByte::Safe::Utf8::ToLower(std::wstring_view str) noexcept {
+std::wstring StormByte::Safe::Utf8::ToLower(std::wstring_view str) noexcept {
 	std::wstring out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
 		AppendWide(out, LatinLower(NextWide(str, i)));
-	return WCString(out.c_str());
+	return out;
 }

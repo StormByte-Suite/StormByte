@@ -53,7 +53,7 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Owned UTF-8 and wide text on top of @ref StormByte::Safe::CString / @ref StormByte::Safe::WCString.
+	 * @brief Base-owned UTF-8 and wide text with private storage.
 	 */
 	namespace Safe {
 		/**

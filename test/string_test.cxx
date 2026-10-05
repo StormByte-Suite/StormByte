@@ -55,10 +55,18 @@
 #include <unordered_set>
 #include <vector>
 
-using StormByte::Safe::CString;
 using StormByte::Size;
 using StormByte::Safe::String;
 using StormByte::Safe::WString;
+
+static int TestEmbeddedNul() {
+	int result = 0;
+	const std::string_view source("a\0b", 3);
+	String text(source);
+	ASSERT_EQUAL("String preserves embedded NUL size", Size{3}, text.size());
+	ASSERT_EQUAL("String preserves embedded NUL view", source, static_cast<std::string_view>(text));
+	return result;
+}
 
 // -------------------
 // Algorithm
@@ -230,11 +238,12 @@ int test_hash() {
 // Construct
 // -------------------
 
-int test_construct_from_cstring() {
+int test_construct_from_owned_string() {
 	int result = 0;
-	String text(CString("owned"));
-	ASSERT_TRUE("test_construct_from_cstring", text == "owned");
-	RETURN_TEST("test_construct_from_cstring", result);
+	String source("owned");
+	String text(source);
+	ASSERT_TRUE("test_construct_from_owned_string", text == "owned");
+	RETURN_TEST("test_construct_from_owned_string", result);
 }
 
 int test_construct_from_empty() {
@@ -541,7 +550,8 @@ int main() {
 	// -------------------
 	// Construct
 	// -------------------
-	result += test_construct_from_cstring();
+	result += test_construct_from_owned_string();
+	result += TestEmbeddedNul();
 	result += test_construct_from_empty();
 	result += test_construct_from_ptr();
 	result += test_construct_from_view();

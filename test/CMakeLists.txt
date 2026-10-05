@@ -32,10 +32,6 @@ if(ENABLE_TEST)
 	set_target_properties(ClonableTests PROPERTIES ENABLE_EXPORTS ON)
 	add_test(NAME ClonableTests COMMAND ClonableTests)
 
-	add_executable(CStringTests cstring_test.cxx)
-	target_link_libraries(CStringTests StormByte)
-	add_test(NAME CStringTests COMMAND CStringTests)
-
 	add_executable(ErrorTests error_test.cxx)
 	target_link_libraries(ErrorTests StormByte)
 	add_test(NAME ErrorTests COMMAND ErrorTests)
@@ -111,7 +107,4 @@ if(ENABLE_TEST)
 	target_link_libraries(UUIDTest StormByte)
 	add_test(NAME UUIDTest COMMAND UUIDTest)
 
-	add_executable(WCStringTests wcstring_test.cxx)
-	target_link_libraries(WCStringTests StormByte)
-	add_test(NAME WCStringTests COMMAND WCStringTests)
 endif()

@@ -9,7 +9,7 @@
 
 This repository is **StormByte Base**: the C++26 foundation of the StormByte suite.
 
-It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `Safe::String` / `Safe::WString`, `Safe::CString` / `Safe::WCString`, opaque `Safe::Iterable`, its `Safe::Vector` / `Safe::Map` aliases, `Safe::Pair`, `Safe::Optional` and `Safe::Queue`, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
+It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `Safe::String` / `Safe::WString`, opaque `Safe::Iterable`, its `Safe::Vector` / `Safe::Map` aliases, `Safe::Pair`, `Safe::Optional` and `Safe::Queue`, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
 
 The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multimedia, Network and System are **other repositories**. They depend on this one; this one does not implement them.
 
@@ -19,8 +19,7 @@ The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multime
 - **Error** — `Domain`, `Category`, `Code` and `Fault` for `std::error_code`. `Fault` is not thrown; its text is a `Safe::String`.
 - **Expected** — `Expected<T, E>` on top of `std::expected`. The error is a `Safe::Shared<E>` on Base's heap. It converts to `std::shared_ptr<E>`. `Unexpected<E>("… {}", arg)` stays as it is.
 - **Serialization** — `Serializable<T>` to `BinaryData`, always little-endian, no BOM and no version tag. Optional / pair / container / trivial / `Detail::Codec<T>`. On-wire lengths are `ByteSize`.
-- **Safe::String / Safe::WString** — owned UTF-8 and wide text on Base's heap, with range and text helpers. Construct from `string_view` / `wstring_view` (copied) or from `Safe::CString` / `Safe::WCString` (owned buffer). `Bytes()` returns a non-owning `const char*` / `const wchar_t*`.
-- **Safe::CString / Safe::WCString** — public owned NUL-terminated buffers for explicit use; `Length()` is `Size`. Located under `StormByte/safe/`.
+- **Safe::String / Safe::WString** — owned UTF-8 and wide text with private PIMPL `std::string` / `std::wstring` storage allocated and destroyed in Base's CRT. View inputs are copied with their full length, including embedded NUL code units. `Bytes()` returns a non-owning `const char*` / `const wchar_t*`.
 - **BinaryData** — owned contiguous `std::byte` sequence, safe to use across a DLL boundary. Same kind of API as `std::vector<std::byte>`. Lengths and indices use `ByteSize`. `HexDump` prints offset + hex + ASCII; column count is `std::size_t`.
 - **Size** — abstract unit count (`uint64_t` storage), same width on every host and safe across a DLL. Implicit only to `std::size_t`. Character counts, iteration counts, “how many items”.
 - **ByteSize** — octet length (`uint64_t` storage). Implicit only to `std::size_t`. IEC / SI units (`1 * KiB`), human-readable `Safe::String` (`1.00 KiB`). Area products are deleted.
@@ -195,51 +194,35 @@ A module adds its own enum, specializes `Error::Domain`, and puts `make_error_co
 
 ### Safe Text and Buffers
 
-`Safe::String` and `Safe::WString` are the owned text types used by Base APIs (`<StormByte/safe/string.hxx>` and `<StormByte/safe/wstring.hxx>`). They copy `std::string_view` / `std::wstring_view` inputs onto Base's heap and can take `Safe::CString` / `Safe::WCString` explicitly. `Bytes()` returns a non-owning `const char*` / `const wchar_t*`. Their `size()` / `length()` observers return `Size`; conversion to `std::string` / `std::wstring` is explicit and allocates in the caller. `capacity()` / `reserve(Size)` report or request UTF-8 byte / wide code-unit storage excluding the trailing NUL. A request at or below capacity never shrinks. Common value modifiers (`assign`, `append`, `+=`, `insert`, `erase`, `replace`, `resize`, `push_back`, `pop_back`, `clear`) rebuild a caller-owned snapshot while preserving reserved capacity when copying the result back to Base.
+`Safe::String` and `Safe::WString` are the owned text types used by Base APIs (`<StormByte/safe/string.hxx>` and `<StormByte/safe/wstring.hxx>`). Each owns an opaque PIMPL containing `std::string` / `std::wstring`; allocation, size-changing modifiers and destruction run inside Base's CRT. No caller STL allocation or allocator state is adopted or exposed across the DLL boundary.
 
-`Safe::CString` and `Safe::WCString` are lower-level NUL-terminated buffers for explicit C-string use. They remain public, but Base text APIs use `Safe::String` / `Safe::WString` instead.
+Construct from `const char*` / `const wchar_t*` for NUL-terminated input (null stays null), or from `std::string_view` / `std::wstring_view` for length-bearing input. Views copy every code unit, including embedded NULs. Pass a view of an STL string rather than transferring its storage. An empty view creates valid empty text; a default-constructed object is null, and `operator bool` distinguishes those states.
 
-Owned buffers. `operator bool` is true when the pointer is not null: `""` / `L""` are valid empty text; a default-constructed object is null.
+Their `size()` / `length()` observers return `Size` and count the complete stored sequence, not the first C-string prefix. Implicit view conversion, ranges, comparisons, hashing and explicit STL-string exports use the full stored length. `Bytes()` returns a borrowed NUL-terminated `const char*` / `const wchar_t*`; a C API that ignores length will stop at the first embedded NUL. Borrowed pointers, views and iterators must not outlive their owner or an operation that invalidates its storage. Explicit conversion to `std::string` / `std::wstring` allocates in the caller's CRT.
 
-Construct from `const char*` / `const wchar_t*` (null stays null), from `std::string_view` / `std::wstring_view`, and from `const std::string&` / `const std::wstring&`. Those last two **copy** onto Base's heap. They are not a heap steal. An empty `string` / view yields `""` / `L""`, not a null buffer.
-
-`CString::Length()` / `WCString::Length()` return `Size` (character count, not octets). Their `capacity()` / `reserve(Size)` count characters or wide code units excluding NUL. Reserve never shrinks; a positive reserve on a null buffer creates a valid empty NUL-terminated buffer. `Reset` reuses reserved allocation when the new text fits. `operator[]` takes `Size` on both the buffers and text wrappers.
-
-`==` / `!=` / `<=>` compare text, not addresses. Two nulls are equal; null is not equal to `""` / `L""` and orders before any text. `swap` exchanges buffers. `std::hash` hashes the text (`0` when null), so the types work in `std::set` and `std::unordered_set`.
-
-For the buffers, `explicit operator const char*` / `const wchar_t*` has the same lifetime as `std::string::c_str()` / `std::wstring::c_str()`. Their implicit `std::string` / `std::wstring` conversions and `operator<<` are inline (caller CRT).
+`capacity()` / `reserve(Size)` count UTF-8 bytes or wide code units excluding the trailing terminator. Reserve never shrinks. Mutable contiguous ranges support in-place algorithms over existing code units; size-changing modifiers (`assign`, `append`, `+=`, `insert`, `erase`, `replace`, `resize`, `push_back`, `pop_back`, `clear`) operate on the private Base-owned STL storage and retain reserved capacity.
 
 ```cpp
-#include <StormByte/safe/cstring.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/size.hxx>
-#include <StormByte/safe/wcstring.hxx>
+#include <StormByte/safe/wstring.hxx>
 #include <iostream>
-#include <set>
 #include <string>
+#include <string_view>
 
 using namespace StormByte;
 using namespace StormByte::Safe;
 
 int main() {
-	CString text("hello");
+	String text("hello");
 	if (text)
-		std::cout << text << " " << static_cast<std::size_t>(text.Length()) << std::endl;
+		std::cout << text << " " << static_cast<std::size_t>(text.size()) << std::endl;
 
-	CString from_std{std::string("hello")};
-	if (text == from_std && text == "hello")
-		std::cout << "same text" << std::endl;
+	String full{std::string_view{"a\0b", 3}};
+	std::string caller_copy = static_cast<std::string>(full);
+	std::cout << caller_copy.size() << std::endl;
 
-	text.Reset();
-	if (!text)
-		std::cout << "null" << std::endl;
-
-	CString empty("");
-	if (empty && empty.Length() == Size{0} && text < empty)
-		std::cout << "empty but valid" << std::endl;
-
-	std::set<CString> ordered{CString("b"), CString("a")};
-
-	WCString wide(L"wide");
+	WString wide{std::wstring_view{L"wide"}};
 	std::wcout << wide << std::endl;
 }
 ```
@@ -317,7 +300,7 @@ An `Owner` holding a pointer to a registry object owns only its callback state, 
 
 `BinaryData` owns its storage on StormByte Base’s heap. Construction, growth and destruction always run in this library. Other suite modules can carry payloads, encoded blobs, file images or wire fragments without exporting `std::vector<std::byte>`.
 
-It is not text (`CString`) and not a structured document. Lengths and indices are `StormByte::ByteSize`. Member names stay lowercase to match the STL.
+It is not text (`Safe::String`) and not a structured document. Lengths and indices are `StormByte::ByteSize`. Member names stay lowercase to match the STL.
 
 For `<algorithm>` and `std::ranges` it supports everything `std::vector<std::byte>` supports on a contiguous sequence of bytes: copy / transform / sort / reverse / rotate / unique / remove / replace / partition / heap / set operations / binary search / permutations, plus iterators, `std::span` and insert / erase / assign / append / `operator+=` / emplace. `std::iota` is the exception that is *also* true of `std::vector<std::byte>`: `std::byte` is an enum class and has no `operator++`.
 

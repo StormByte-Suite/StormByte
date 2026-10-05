@@ -38,7 +38,8 @@
  */
 
 #include <StormByte/safe/pointers.hxx>
-#include <StormByte/safe/wcstring.hxx>
+#include <StormByte/safe/string.hxx>
+#include <StormByte/safe/wstring.hxx>
 #include <StormByte/exception.hxx>
 #include <StormByte/test_handlers.h>
 
@@ -242,10 +243,10 @@ int test_factory_exception_translation() {
 	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeUnique<FailingConstructor>(2), OutOfBoundsError);
 	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeShared<FailingConstructor>(3), OperationError);
 	ASSERT_THROWS("test_factory_exception_translation", Heap::MakeUnique<FailingConstructor>(3), OperationError);
-	Safe::CString text("unchanged");
+	Safe::String text("unchanged");
 	ASSERT_THROWS("test_factory_exception_translation", text.reserve(std::numeric_limits<std::size_t>::max()), OutOfBoundsError);
 	ASSERT_EQUAL("test_factory_exception_translation", std::string(text), std::string("unchanged"));
-	Safe::WCString wide(L"unchanged");
+	Safe::WString wide(L"unchanged");
 	ASSERT_THROWS("test_factory_exception_translation", wide.reserve(std::numeric_limits<std::size_t>::max() / sizeof(wchar_t)), OutOfBoundsError);
 	ASSERT_TRUE("test_factory_exception_translation", std::wstring(wide) == L"unchanged");
 	RETURN_TEST("test_factory_exception_translation", result);

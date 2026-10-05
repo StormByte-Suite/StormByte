@@ -40,12 +40,14 @@
 
 #pragma once
 
-#include <StormByte/safe/cstring.hxx>
+#include <StormByte/safe/pointers.hxx>
 #include <StormByte/safe/queue.hxx>
 #include <StormByte/safe/vector.hxx>
+#include <StormByte/size.hxx>
 #include <StormByte/visibility.h>
 
 #include <cctype>
+#include <cassert>
 #include <compare>
 #include <cstddef>
 #include <functional>
@@ -64,7 +66,7 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Owned UTF-8 and wide text on top of @ref StormByte::Safe::CString / @ref StormByte::Safe::WCString.
+	 * @brief Owned UTF-8 and wide text with module-owned storage.
 	 */
 	namespace Safe {
 		/**
@@ -75,7 +77,7 @@ namespace StormByte {
 
 		/**
 		 * @class String
-		 * @brief Owned UTF-8 text composed of @ref StormByte::Safe::CString.
+		 * @brief Owned UTF-8 text with private module-owned storage.
 		 *
 		 * Not a `std::string`, but its code units are contiguous and mutable.
 		 * Classic and ranges algorithms can read or modify existing bytes;
@@ -95,7 +97,7 @@ namespace StormByte {
 		 *
 		 * Observers (`starts_with`, `ends_with`, `contains`, `find`,
 		 * `substr`, …) follow `std::string_view`. Size-changing modifiers
-		 * follow `std::string` value semantics but rebuild the Base-owned buffer;
+		 * follow `std::string` value semantics within the Base-owned storage;
 		 * no caller-CRT string allocation is adopted. `capacity()` and `reserve(Size)`
 		 * count UTF-8 bytes excluding NUL; reserve never shrinks and modifiers retain it.
 		 */
@@ -136,12 +138,6 @@ namespace StormByte {
 				explicit String(std::string_view str) noexcept;
 
 				/**
-				 * @brief Takes an owned buffer.
-				 * @param text Buffer.
-				 */
-				explicit String(CString text) noexcept;
-
-				/**
 				 * @brief UTF-8 from wide text.
 				 * @param other Wide source.
 				 */
@@ -162,7 +158,7 @@ namespace StormByte {
 				/**
 				 * @brief Releases the buffer.
 				 */
-				~String() noexcept = default;
+				~String() noexcept;
 
 				/**
 				 * @brief Copy assignment.
@@ -183,9 +179,7 @@ namespace StormByte {
 				 * @param text Source bytes.
 				 * @return This string.
 				 */
-				String& operator=(std::string_view text) {
-					return Mutate([text](std::string& value) { value.assign(text); });
-				}
+				String& operator=(std::string_view text);
 
 				/** @} */
 
@@ -296,33 +290,25 @@ namespace StormByte {
 				 * @brief Contiguous pointer; null when the buffer is null.
 				 * @return Pointer to the first character.
 				 */
-				inline char* data() noexcept {
-					return m_text.data();
-				}
+				char* data() noexcept;
 
 				/**
 				 * @brief Read-only contiguous pointer; null when the buffer is null.
 				 * @return Pointer to the first character.
 				 */
-				inline const char* data() const noexcept {
-					return static_cast<const char*>(m_text);
-				}
+				const char* data() const noexcept;
 
 				/**
 				 * @brief Character count; `0` when null or empty.
 				 * @return Length as @ref StormByte::Size (code units, not bytes).
 				 */
-				inline Size size() const noexcept {
-					return m_text.Length();
-				}
+				Size size() const noexcept;
 
 				/**
 				 * @brief Return allocated byte capacity, excluding the trailing NUL.
 				 * @return Capacity in UTF-8 bytes.
 				 */
-				inline Size capacity() const noexcept {
-					return m_text.capacity();
-				}
+				Size capacity() const noexcept;
 
 				/**
 				 * @brief Same as @ref size.
@@ -345,9 +331,7 @@ namespace StormByte {
 				 * @param text Text to append.
 				 * @return This string.
 				 */
-				String& append(std::string_view text) {
-					return Mutate([text](std::string& value) { value.append(text); });
-				}
+				String& append(std::string_view text);
 
 				/**
 				 * @brief Append count copies of a byte.
@@ -355,16 +339,14 @@ namespace StormByte {
 				 * @param character Byte to append.
 				 * @return This string.
 				 */
-				String& append(size_type count, char character) {
-					return Mutate([count, character](std::string& value) { value.append(static_cast<std::size_t>(count), character); });
-				}
+				String& append(size_type count, char character);
 
 				/**
 				 * @brief Replace the contents with a text view.
 				 * @param text Source bytes.
 				 * @return This string.
 				 */
-				String& assign(std::string_view text) { return *this = text; }
+				String& assign(std::string_view text);
 
 				/**
 				 * @brief Replace the contents with count copies of a byte.
@@ -372,39 +354,51 @@ namespace StormByte {
 				 * @param character Byte to assign.
 				 * @return This string.
 				 */
-				String& assign(size_type count, char character) {
-					return Mutate([count, character](std::string& value) { value.assign(static_cast<std::size_t>(count), character); });
-				}
+				String& assign(size_type count, char character);
 
-				/** @brief Append a view. @param text Text to append. @return This string. */
-				String& operator+=(std::string_view text) { return append(text); }
-				/** @brief Append one byte. @param character Byte to append. @return This string. */
-				String& operator+=(char character) { return append(1, character); }
+				/**
+				 * @brief Append a view.
+				 * @param text Text to append.
+				 * @return This string.
+				 */
+				String& operator+=(std::string_view text);
 
-				/** @brief Append one byte. @param character Byte to append. */
-				void push_back(char character) { (void)append(1, character); }
+				/**
+				 * @brief Append one byte.
+				 * @param character Byte to append.
+				 * @return This string.
+				 */
+				String& operator+=(char character);
 
-				/** @brief Remove the final byte; empty-string use follows std::string preconditions. */
-				void pop_back() { Mutate([](std::string& value) { value.pop_back(); }); }
+				/**
+				 * @brief Append one byte.
+				 * @param character Byte to append.
+				 */
+				void push_back(char character);
 
-				/** @brief Replace the contents with a valid empty string. */
-				void clear() { m_text.Reset(""); }
+				/**
+				 * @brief Remove the final byte; empty-string use follows std::string preconditions.
+				 */
+				void pop_back();
+
+				/**
+				 * @brief Replace the contents with a valid empty string, retaining capacity.
+				 */
+				void clear();
 
 				/**
 				 * @brief Reserve storage for at least @p new_capacity UTF-8 bytes.
 				 * @param new_capacity Requested byte capacity, excluding the NUL.
 				 * @note Requests at or below capacity do not shrink or reallocate.
 				 */
-				void reserve(size_type new_capacity) { m_text.reserve(new_capacity); }
+				void reserve(size_type new_capacity);
 
 				/**
 				 * @brief Resize the byte sequence, filling new bytes with character.
 				 * @param count New byte count.
 				 * @param character Fill byte, default initialized to NUL.
 				 */
-				void resize(size_type count, char character = char{}) {
-					Mutate([count, character](std::string& value) { value.resize(static_cast<std::size_t>(count), character); });
-				}
+				void resize(size_type count, char character = char{});
 
 				/**
 				 * @brief Insert bytes at a byte position.
@@ -412,9 +406,7 @@ namespace StormByte {
 				 * @param text Bytes to insert.
 				 * @return This string.
 				 */
-				String& insert(size_type position, std::string_view text) {
-					return Mutate([position, text](std::string& value) { value.insert(static_cast<std::size_t>(position), text); });
-				}
+				String& insert(size_type position, std::string_view text);
 
 				/**
 				 * @brief Erase bytes starting at position.
@@ -422,11 +414,7 @@ namespace StormByte {
 				 * @param count Maximum bytes to erase.
 				 * @return This string.
 				 */
-				String& erase(size_type position = {}, size_type count = npos) {
-					return Mutate([position, count](std::string& value) {
-						value.erase(static_cast<std::size_t>(position), static_cast<std::size_t>(count));
-					});
-				}
+				String& erase(size_type position = {}, size_type count = npos);
 
 				/**
 				 * @brief Replace a byte range with text.
@@ -435,11 +423,7 @@ namespace StormByte {
 				 * @param text Replacement bytes.
 				 * @return This string.
 				 */
-				String& replace(size_type position, size_type count, std::string_view text) {
-					return Mutate([position, count, text](std::string& value) {
-						value.replace(static_cast<std::size_t>(position), static_cast<std::size_t>(count), text);
-					});
-				}
+				String& replace(size_type position, size_type count, std::string_view text);
 
 				/**
 				 * @brief Character at @p index.
@@ -448,7 +432,8 @@ namespace StormByte {
 				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
 				 */
 				inline char& operator[](const Size& index) noexcept {
-					return m_text[index];
+					assert(data() && index <= size());
+					return data()[static_cast<std::size_t>(index)];
 				}
 
 				/**
@@ -458,15 +443,16 @@ namespace StormByte {
 				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
 				 */
 				inline char operator[](const Size& index) const noexcept {
-					return m_text[index];
+					assert(data() && index <= size());
+					return data()[static_cast<std::size_t>(index)];
 				}
 
 				/**
 				 * @brief Whether a buffer is held.
-				 * @return `false` only for a null @ref CString. `""` is valid and empty.
+				 * @return `false` only for null storage. `""` is valid and empty.
 				 */
 				inline explicit operator bool() const noexcept {
-					return static_cast<bool>(m_text);
+					return data() != nullptr;
 				}
 
 				/** @} */
@@ -482,7 +468,8 @@ namespace StormByte {
 				 * @note Same lifetime as `std::string::c_str()`.
 				 */
 				inline operator std::string_view() const noexcept {
-					return static_cast<std::string_view>(m_text);
+					const char* text = data();
+					return text ? std::string_view(text, static_cast<std::size_t>(size())) : std::string_view{};
 				}
 
 				/**
@@ -490,7 +477,7 @@ namespace StormByte {
 				 * @return Empty string when the buffer is null.
 				 */
 				STORMBYTE_FORCE_INLINE explicit operator std::string() const {
-					return static_cast<std::string>(m_text);
+					return std::string(static_cast<std::string_view>(*this));
 				}
 
 				/**
@@ -499,7 +486,7 @@ namespace StormByte {
 				 * @note Same lifetime as `std::string::c_str()`.
 				 */
 				inline explicit operator const char*() const noexcept {
-					return static_cast<const char*>(m_text);
+					return data();
 				}
 
 				/**
@@ -513,7 +500,7 @@ namespace StormByte {
 				 * @return Buffer, or null.
 				 */
 				inline const char* Bytes() const noexcept {
-					return static_cast<const char*>(m_text);
+					return data();
 				}
 
 				/** @} */
@@ -865,27 +852,7 @@ namespace StormByte {
 				 * @param[out] out Safe sequence, replaced only on success.
 				 * @return Success or Failure; failure leaves @p out unchanged.
 				 */
-				static Status Split(std::string_view str, Vector<String>& out) noexcept {
-					try {
-						Vector<String> result;
-						std::size_t index = 0;
-						while (index < str.size()) {
-							while (index < str.size() && std::isspace(static_cast<unsigned char>(str[index])) != 0)
-								++index;
-							if (index >= str.size())
-								break;
-							std::size_t end = index;
-							while (end < str.size() && std::isspace(static_cast<unsigned char>(str[end])) == 0)
-								++end;
-							result.push_back(String(str.substr(index, end - index)));
-							index = end;
-						}
-						out = std::move(result);
-						return Status::Success;
-					} catch (...) {
-						return Status::Failure;
-					}
-				}
+				static Status Split(std::string_view str, Vector<String>& out) noexcept;
 
 				/**
 				 * @brief Tokens on @p delimiter. @p out is the caller’s container.
@@ -913,22 +880,7 @@ namespace StormByte {
 				 * @param[out] out Safe queue, replaced only on success.
 				 * @return Success or Failure; failure leaves @p out unchanged.
 				 */
-				static Status Explode(std::string_view str, char delimiter, Queue<String>& out) noexcept {
-					try {
-						Queue<String> result;
-						std::size_t start = 0;
-						for (std::size_t index = 0; index <= str.size(); ++index) {
-							if (index == str.size() || str[index] == delimiter) {
-								result.push(String(str.substr(start, index - start)));
-								start = index + 1;
-							}
-						}
-						out = std::move(result);
-						return Status::Success;
-					} catch (...) {
-						return Status::Failure;
-					}
-				}
+				static Status Explode(std::string_view str, char delimiter, Queue<String>& out) noexcept;
 
 				/**
 				 * @brief ASCII-letter lower case of this text.
@@ -985,9 +937,7 @@ namespace StormByte {
 				 * @param[out] out Destination sequence.
 				 * @return Success or Failure; failure leaves @p out unchanged.
 				 */
-				Status Split(Vector<String>& out) const noexcept {
-					return Split(static_cast<std::string_view>(*this), out);
-				}
+				Status Split(Vector<String>& out) const noexcept;
 
 				/**
 				 * @brief Tokens on @p delimiter. The queue is built in the caller.
@@ -1006,9 +956,7 @@ namespace StormByte {
 				 * @param[out] out Destination queue.
 				 * @return Success or Failure; failure leaves @p out unchanged.
 				 */
-				Status Explode(char delimiter, Queue<String>& out) const noexcept {
-					return Explode(static_cast<std::string_view>(*this), delimiter, out);
-				}
+				Status Explode(char delimiter, Queue<String>& out) const noexcept;
 
 				/** @} */
 
@@ -1023,7 +971,8 @@ namespace StormByte {
 				 * @return Whether the texts are equal.
 				 */
 				inline bool operator==(const String& other) const noexcept {
-					return m_text == other.m_text;
+					return static_cast<bool>(*this) == static_cast<bool>(other)
+						&& static_cast<std::string_view>(*this) == static_cast<std::string_view>(other);
 				}
 
 				/**
@@ -1041,7 +990,7 @@ namespace StormByte {
 				 * @return Whether the texts are equal.
 				 */
 				inline bool operator==(const char* str) const noexcept {
-					return m_text == str;
+					return str ? static_cast<bool>(*this) && static_cast<std::string_view>(*this) == std::string_view(str) : !*this;
 				}
 
 				/**
@@ -1059,7 +1008,9 @@ namespace StormByte {
 				 * @return Ordering.
 				 */
 				inline std::strong_ordering operator<=>(const String& other) const noexcept {
-					return m_text <=> other.m_text;
+					if (static_cast<bool>(*this) != static_cast<bool>(other))
+						return *this ? std::strong_ordering::greater : std::strong_ordering::less;
+					return static_cast<std::string_view>(*this) <=> static_cast<std::string_view>(other);
 				}
 
 				/**
@@ -1068,7 +1019,9 @@ namespace StormByte {
 				 * @return Ordering.
 				 */
 				inline std::strong_ordering operator<=>(const char* str) const noexcept {
-					return m_text <=> str;
+					if (static_cast<bool>(*this) != (str != nullptr))
+						return *this ? std::strong_ordering::greater : std::strong_ordering::less;
+					return str ? static_cast<std::string_view>(*this) <=> std::string_view(str) : std::strong_ordering::equal;
 				}
 
 				/** @} */
@@ -1081,27 +1034,34 @@ namespace StormByte {
 
 			private:
 				/**
-				 * @brief Mutate a caller-owned standard string snapshot and copy it back to Base.
-				 * @tparam Function Modifier accepting std::string&.
-				 * @param function Modifier to invoke.
-				 * @return This string.
+				 * @struct TextStorage
+				 * @brief UTF-8 storage defined and destroyed only inside the module.
 				 */
-				template<class Function>
-				String& Mutate(Function&& function) {
-					const Size old_capacity = m_text.capacity();
-					std::string value(static_cast<std::string_view>(*this));
-					value.reserve(static_cast<std::size_t>(old_capacity));
-					std::forward<Function>(function)(value);
-					CString replacement{std::string_view(value)};
-					replacement.reserve(old_capacity);
-					m_text = std::move(replacement);
-					return *this;
-				}
+				struct TextStorage;
 
+				/**
+				 * @brief Lazily create owned empty storage for null or moved-from text.
+				 * @return Module-owned storage.
+				 */
+				TextStorage& EnsureStorage();
+
+				/**
+				 * @brief Convert a standard view index into the public position type.
+				 * @param index Standard position or not-found sentinel.
+				 * @return Public position or @ref npos.
+				 */
 				static Size FromIndex(std::size_t index) noexcept {
 					return index == std::string_view::npos ? npos : Size{index};
 				}
 
+				/**
+				 * @brief Find a needle from a checked starting position.
+				 * @tparam Needle Byte or text view.
+				 * @param self Text to search.
+				 * @param needle Bytes to find.
+				 * @param pos Starting position.
+				 * @return Match position or @ref npos.
+				 */
 				template<typename Needle>
 				static Size FindAt(std::string_view self, Needle needle, Size pos) noexcept {
 					if (pos > Size{self.size()})
@@ -1109,13 +1069,24 @@ namespace StormByte {
 					return FromIndex(self.find(needle, static_cast<std::size_t>(pos)));
 				}
 
+				/**
+				 * @brief Find the last needle at or before a position.
+				 * @tparam Needle Byte or text view.
+				 * @param self Text to search.
+				 * @param needle Bytes to find.
+				 * @param pos Highest starting position.
+				 * @return Match position or @ref npos.
+				 */
 				template<typename Needle>
 				static Size RFindAt(std::string_view self, Needle needle, Size pos) noexcept {
 					const std::size_t start = pos == npos ? std::string_view::npos : static_cast<std::size_t>(pos);
 					return FromIndex(self.rfind(needle, start));
 				}
 
-				CString m_text;	///< Owned bytes
+				/**
+				 * @brief Exclusive module-owned storage; absent for null text.
+				 */
+				Unique<TextStorage> m_text;
 		};
 
 		/**
@@ -1125,8 +1096,7 @@ namespace StormByte {
 		 * @return @p stream.
 		 */
 		inline std::ostream& operator<<(std::ostream& stream, const String& text) {
-				const char* bytes = text.Bytes();
-				return bytes ? stream << bytes : stream;
+			return stream << static_cast<std::string_view>(text);
 		}
 
 		/**

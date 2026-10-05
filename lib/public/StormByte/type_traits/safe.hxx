@@ -103,14 +103,6 @@ namespace StormByte {
 		 */
 		class WString;
 		/**
-		 * @brief Forward declaration of Base-owned C text.
-		 */
-		class CString;
-		/**
-		 * @brief Forward declaration of Base-owned wide C text.
-		 */
-		class WCString;
-		/**
 		 * @brief Forward declaration of shared ownership.
 		 * @tparam T Pointee.
 		 */
@@ -163,14 +155,6 @@ namespace StormByte {
 		 * @brief Recognizes Base-owned wide text.
 		 */
 		template<> struct IsSafe<Safe::WString>: std::true_type {};
-		/**
-		 * @brief Recognizes Base-owned C text.
-		 */
-		template<> struct IsSafe<Safe::CString>: std::true_type {};
-		/**
-		 * @brief Recognizes Base-owned wide C text.
-		 */
-		template<> struct IsSafe<Safe::WCString>: std::true_type {};
 		/**
 		 * @brief Recognizes Base-owned binary storage.
 		 */
@@ -362,14 +346,6 @@ namespace StormByte {
 		 * @brief Admits Base-owned wide text.
 		 */
 		template<> struct IsSafeValue<Safe::WString>: std::true_type {};
-		/**
-		 * @brief Admits Base-owned C text.
-		 */
-		template<> struct IsSafeValue<Safe::CString>: std::true_type {};
-		/**
-		 * @brief Admits Base-owned wide C text.
-		 */
-		template<> struct IsSafeValue<Safe::WCString>: std::true_type {};
 		/**
 		 * @brief Admits Base-owned binary storage.
 		 */

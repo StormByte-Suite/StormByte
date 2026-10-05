@@ -56,7 +56,6 @@
 #include <vector>
 
 using StormByte::Size;
-using StormByte::Safe::WCString;
 using StormByte::Safe::String;
 using StormByte::Safe::WString;
 
@@ -257,11 +256,12 @@ int test_construct_from_view() {
 	RETURN_TEST("test_construct_from_view", result);
 }
 
-int test_construct_from_wcstring() {
+int test_construct_from_owned_wstring() {
 	int result = 0;
-	WString text(WCString(L"owned"));
-	ASSERT_TRUE("test_construct_from_wcstring", text == L"owned");
-	RETURN_TEST("test_construct_from_wcstring", result);
+	WString source(L"owned");
+	WString text(source);
+	ASSERT_TRUE("test_construct_from_owned_wstring", text == L"owned");
+	RETURN_TEST("test_construct_from_owned_wstring", result);
 }
 
 int test_default_is_null() {
@@ -514,7 +514,7 @@ int main() {
 	result += test_construct_from_empty();
 	result += test_construct_from_ptr();
 	result += test_construct_from_view();
-	result += test_construct_from_wcstring();
+	result += test_construct_from_owned_wstring();
 	result += test_default_is_null();
 
 	// -------------------

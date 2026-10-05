@@ -46,6 +46,7 @@
 #include <StormByte/safe/optional.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/safe/vector.hxx>
+#include <StormByte/safe/wstring.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
 
@@ -57,6 +58,7 @@
 #include <random>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace StormByte;
@@ -962,68 +964,93 @@ int test_serialize_string_vector_truncated() {
 // Unicode
 // -------------------
 
-int test_cstring_shares_string_wire() {
-	const Safe::CString owned("StormByte");
+int test_safe_string_shares_string_wire() {
+	const Safe::String owned("StormByte");
 	const std::string text = "StormByte";
-	ASSERT_TRUE("test_cstring_shares_string_wire",
-		Serializable<Safe::CString>(owned).Serialize() == Serializable<std::string>(text).Serialize());
-	RETURN_TEST("test_cstring_shares_string_wire", 0);
+	ASSERT_TRUE("test_safe_string_shares_string_wire",
+		Serializable<Safe::String>(owned).Serialize() == Serializable<std::string>(text).Serialize());
+	RETURN_TEST("test_safe_string_shares_string_wire", 0);
 }
 
-int test_serialize_cstring() {
-	const Safe::CString data("Hello, StormByte!");
-	auto buffer = Serializable<Safe::CString>(data).Serialize();
+int test_serialize_safe_string() {
+	const Safe::String data("Hello, StormByte!");
+	auto buffer = Serializable<Safe::String>(data).Serialize();
 	if (buffer.empty())
-		RETURN_TEST("test_serialize_cstring", 1);
-	auto expected = Serializable<Safe::CString>::Deserialize(buffer);
+		RETURN_TEST("test_serialize_safe_string", 1);
+	auto expected = Serializable<Safe::String>::Deserialize(buffer);
 	if (!expected) {
 		std::cerr << expected.error()->what() << std::endl;
-		RETURN_TEST("test_serialize_cstring", 1);
+		RETURN_TEST("test_serialize_safe_string", 1);
 	}
-	ASSERT_TRUE("test_serialize_cstring", data == expected.value());
-	ASSERT_EQUAL("test_serialize_cstring", Serializable<Safe::CString>::Size(data), ByteCount(buffer));
-	RETURN_TEST("test_serialize_cstring", 0);
+	ASSERT_TRUE("test_serialize_safe_string", data == expected.value());
+	ASSERT_EQUAL("test_serialize_safe_string", Serializable<Safe::String>::Size(data), ByteCount(buffer));
+	RETURN_TEST("test_serialize_safe_string", 0);
 }
 
-int test_serialize_cstring_empty() {
-	const Safe::CString data("");
-	auto buffer = Serializable<Safe::CString>(data).Serialize();
-	auto expected = Serializable<Safe::CString>::Deserialize(buffer);
+int test_serialize_safe_string_empty() {
+	const Safe::String data("");
+	auto buffer = Serializable<Safe::String>(data).Serialize();
+	auto expected = Serializable<Safe::String>::Deserialize(buffer);
 	if (!expected) {
 		std::cerr << expected.error()->what() << std::endl;
-		RETURN_TEST("test_serialize_cstring_empty", 1);
+		RETURN_TEST("test_serialize_safe_string_empty", 1);
 	}
-	ASSERT_TRUE("test_serialize_cstring_empty", expected.value() == "");
-	ASSERT_TRUE("test_serialize_cstring_empty", static_cast<bool>(expected.value()));
-	RETURN_TEST("test_serialize_cstring_empty", 0);
+	ASSERT_TRUE("test_serialize_safe_string_empty", expected.value() == "");
+	ASSERT_TRUE("test_serialize_safe_string_empty", static_cast<bool>(expected.value()));
+	RETURN_TEST("test_serialize_safe_string_empty", 0);
 }
 
-int test_serialize_cstring_null_is_empty_wire() {
-	const Safe::CString missing;
-	const Safe::CString empty("");
-	auto a = Serializable<Safe::CString>(missing).Serialize();
-	auto b = Serializable<Safe::CString>(empty).Serialize();
+int test_serialize_safe_string_null_is_empty_wire() {
+	const Safe::String missing;
+	const Safe::String empty("");
+	auto a = Serializable<Safe::String>(missing).Serialize();
+	auto b = Serializable<Safe::String>(empty).Serialize();
 	auto c = Serializable<std::string>(std::string()).Serialize();
-	ASSERT_TRUE("test_serialize_cstring_null_is_empty_wire", a == b);
-	ASSERT_TRUE("test_serialize_cstring_null_is_empty_wire", a == c);
-	auto expected = Serializable<Safe::CString>::Deserialize(a);
+	ASSERT_TRUE("test_serialize_safe_string_null_is_empty_wire", a == b);
+	ASSERT_TRUE("test_serialize_safe_string_null_is_empty_wire", a == c);
+	auto expected = Serializable<Safe::String>::Deserialize(a);
 	if (!expected)
-		RETURN_TEST("test_serialize_cstring_null_is_empty_wire", 1);
-	ASSERT_TRUE("test_serialize_cstring_null_is_empty_wire", expected.value() == "");
-	RETURN_TEST("test_serialize_cstring_null_is_empty_wire", 0);
+		RETURN_TEST("test_serialize_safe_string_null_is_empty_wire", 1);
+	ASSERT_TRUE("test_serialize_safe_string_null_is_empty_wire", expected.value() == "");
+	RETURN_TEST("test_serialize_safe_string_null_is_empty_wire", 0);
 }
 
-int test_serialize_cstring_truncated() {
-	auto buffer = Serializable<Safe::CString>(Safe::CString("TruncationTest")).Serialize();
+int test_serialize_safe_string_truncated() {
+	auto buffer = Serializable<Safe::String>(Safe::String("TruncationTest")).Serialize();
 	for (std::size_t len = 0; len < ByteCount(buffer); ++len) {
 		auto truncated = Truncate(buffer, len);
-		auto result = Serializable<Safe::CString>::Deserialize(truncated);
+		auto result = Serializable<Safe::String>::Deserialize(truncated);
 		if (result) {
-			std::cerr << "test_serialize_cstring_truncated: size " << len << " accepted\n";
-			RETURN_TEST("test_serialize_cstring_truncated", 1);
+			std::cerr << "test_serialize_safe_string_truncated: size " << len << " accepted\n";
+			RETURN_TEST("test_serialize_safe_string_truncated", 1);
 		}
 	}
-	RETURN_TEST("test_serialize_cstring_truncated", 0);
+	RETURN_TEST("test_serialize_safe_string_truncated", 0);
+}
+
+int test_serialize_safe_string_embedded_nul() {
+	constexpr std::string_view text("before\0after", 12);
+	const Safe::String data(text);
+	const auto buffer = Serializable<Safe::String>(data).Serialize();
+	const auto expected = Serializable<Safe::String>::Deserialize(buffer);
+	if (!expected)
+		RETURN_TEST("test_serialize_safe_string_embedded_nul", 1);
+	ASSERT_TRUE("test_serialize_safe_string_embedded_nul", static_cast<std::string>(expected.value()) == text);
+	ASSERT_EQUAL("test_serialize_safe_string_embedded_nul", Serializable<Safe::String>::Size(data), ByteCount(buffer));
+	RETURN_TEST("test_serialize_safe_string_embedded_nul", 0);
+}
+
+int test_safe_string_embedded_nul_wire() {
+	constexpr std::string_view text("before\0after", 12);
+	const Safe::String data(text);
+	const auto buffer = Serializable<Safe::String>(data).Serialize();
+	ASSERT_TRUE("test_safe_string_embedded_nul_wire", buffer == Serializable<std::string>(std::string(text)).Serialize());
+	ASSERT_EQUAL("test_safe_string_embedded_nul_wire", sizeof(std::uint64_t) + text.size(), ByteCount(buffer));
+	const auto expected = Serializable<Safe::String>::Deserialize(Serializable<std::string>(std::string(text)).Serialize());
+	if (!expected)
+		RETURN_TEST("test_safe_string_embedded_nul_wire", 1);
+	ASSERT_TRUE("test_safe_string_embedded_nul_wire", static_cast<std::string>(expected.value()) == text);
+	RETURN_TEST("test_safe_string_embedded_nul_wire", 0);
 }
 
 int test_serialize_u16string() {
@@ -1106,71 +1133,101 @@ int test_serialize_unicode_boundary_codepoints() {
 	RETURN_TEST("test_serialize_unicode_boundary_codepoints", 0);
 }
 
-int test_serialize_wcstring() {
-	const Safe::WCString data(L"Hello, StormByte!");
-	auto buffer = Serializable<Safe::WCString>(data).Serialize();
+int test_serialize_safe_wstring() {
+	const Safe::WString data(L"Hello, StormByte!");
+	auto buffer = Serializable<Safe::WString>(data).Serialize();
 	if (buffer.empty())
-		RETURN_TEST("test_serialize_wcstring", 1);
-	auto expected = Serializable<Safe::WCString>::Deserialize(buffer);
+		RETURN_TEST("test_serialize_safe_wstring", 1);
+	auto expected = Serializable<Safe::WString>::Deserialize(buffer);
 	if (!expected) {
 		std::cerr << expected.error()->what() << std::endl;
-		RETURN_TEST("test_serialize_wcstring", 1);
+		RETURN_TEST("test_serialize_safe_wstring", 1);
 	}
-	ASSERT_TRUE("test_serialize_wcstring", data == expected.value());
-	ASSERT_EQUAL("test_serialize_wcstring", Serializable<Safe::WCString>::Size(data), ByteCount(buffer));
-	RETURN_TEST("test_serialize_wcstring", 0);
+	ASSERT_TRUE("test_serialize_safe_wstring", data == expected.value());
+	ASSERT_EQUAL("test_serialize_safe_wstring", Serializable<Safe::WString>::Size(data), ByteCount(buffer));
+	RETURN_TEST("test_serialize_safe_wstring", 0);
 }
 
-int test_serialize_wcstring_empty() {
-	const Safe::WCString data(L"");
-	auto buffer = Serializable<Safe::WCString>(data).Serialize();
-	auto expected = Serializable<Safe::WCString>::Deserialize(buffer);
+int test_serialize_safe_wstring_empty() {
+	const Safe::WString data(L"");
+	auto buffer = Serializable<Safe::WString>(data).Serialize();
+	auto expected = Serializable<Safe::WString>::Deserialize(buffer);
 	if (!expected) {
 		std::cerr << expected.error()->what() << std::endl;
-		RETURN_TEST("test_serialize_wcstring_empty", 1);
+		RETURN_TEST("test_serialize_safe_wstring_empty", 1);
 	}
-	ASSERT_TRUE("test_serialize_wcstring_empty", expected.value() == L"");
-	RETURN_TEST("test_serialize_wcstring_empty", 0);
+	ASSERT_TRUE("test_serialize_safe_wstring_empty", expected.value() == L"");
+	RETURN_TEST("test_serialize_safe_wstring_empty", 0);
 }
 
-int test_serialize_wcstring_non_bmp() {
-	const Safe::WCString data(L"\U0001F4A9");
-	auto buffer = Serializable<Safe::WCString>(data).Serialize();
-	auto expected = Serializable<Safe::WCString>::Deserialize(buffer);
+int test_serialize_safe_wstring_non_bmp() {
+	const Safe::WString data(L"\U0001F4A9");
+	auto buffer = Serializable<Safe::WString>(data).Serialize();
+	auto expected = Serializable<Safe::WString>::Deserialize(buffer);
 	if (!expected) {
 		std::cerr << expected.error()->what() << std::endl;
-		RETURN_TEST("test_serialize_wcstring_non_bmp", 1);
+		RETURN_TEST("test_serialize_safe_wstring_non_bmp", 1);
 	}
-	ASSERT_TRUE("test_serialize_wcstring_non_bmp", data == expected.value());
-	RETURN_TEST("test_serialize_wcstring_non_bmp", 0);
+	ASSERT_TRUE("test_serialize_safe_wstring_non_bmp", data == expected.value());
+	RETURN_TEST("test_serialize_safe_wstring_non_bmp", 0);
 }
 
-int test_serialize_wcstring_null_is_empty_wire() {
-	const Safe::WCString missing;
-	const Safe::WCString empty(L"");
-	auto a = Serializable<Safe::WCString>(missing).Serialize();
-	auto b = Serializable<Safe::WCString>(empty).Serialize();
+int test_serialize_safe_wstring_null_is_empty_wire() {
+	const Safe::WString missing;
+	const Safe::WString empty(L"");
+	auto a = Serializable<Safe::WString>(missing).Serialize();
+	auto b = Serializable<Safe::WString>(empty).Serialize();
 	auto c = Serializable<std::wstring>(std::wstring()).Serialize();
-	ASSERT_TRUE("test_serialize_wcstring_null_is_empty_wire", a == b);
-	ASSERT_TRUE("test_serialize_wcstring_null_is_empty_wire", a == c);
-	auto expected = Serializable<Safe::WCString>::Deserialize(a);
+	ASSERT_TRUE("test_serialize_safe_wstring_null_is_empty_wire", a == b);
+	ASSERT_TRUE("test_serialize_safe_wstring_null_is_empty_wire", a == c);
+	auto expected = Serializable<Safe::WString>::Deserialize(a);
 	if (!expected)
-		RETURN_TEST("test_serialize_wcstring_null_is_empty_wire", 1);
-	ASSERT_TRUE("test_serialize_wcstring_null_is_empty_wire", expected.value() == L"");
-	RETURN_TEST("test_serialize_wcstring_null_is_empty_wire", 0);
+		RETURN_TEST("test_serialize_safe_wstring_null_is_empty_wire", 1);
+	ASSERT_TRUE("test_serialize_safe_wstring_null_is_empty_wire", expected.value() == L"");
+	RETURN_TEST("test_serialize_safe_wstring_null_is_empty_wire", 0);
 }
 
-int test_serialize_wcstring_truncated() {
-	auto buffer = Serializable<Safe::WCString>(Safe::WCString(L"TruncationTest")).Serialize();
+int test_serialize_safe_wstring_truncated() {
+	auto buffer = Serializable<Safe::WString>(Safe::WString(L"TruncationTest")).Serialize();
 	for (std::size_t len = 0; len < ByteCount(buffer); ++len) {
 		auto truncated = Truncate(buffer, len);
-		auto result = Serializable<Safe::WCString>::Deserialize(truncated);
+		auto result = Serializable<Safe::WString>::Deserialize(truncated);
 		if (result) {
-			std::cerr << "test_serialize_wcstring_truncated: size " << len << " accepted\n";
-			RETURN_TEST("test_serialize_wcstring_truncated", 1);
+			std::cerr << "test_serialize_safe_wstring_truncated: size " << len << " accepted\n";
+			RETURN_TEST("test_serialize_safe_wstring_truncated", 1);
 		}
 	}
-	RETURN_TEST("test_serialize_wcstring_truncated", 0);
+	RETURN_TEST("test_serialize_safe_wstring_truncated", 0);
+}
+
+int test_serialize_safe_wstring_embedded_nul() {
+	constexpr wchar_t text[] = L"before\0\u00f1\U0001F600after";
+	const std::wstring_view view(text, std::size(text) - 1);
+	const Safe::WString data(view);
+	const auto buffer = Serializable<Safe::WString>(data).Serialize();
+	const auto expected = Serializable<Safe::WString>::Deserialize(buffer);
+	if (!expected)
+		RETURN_TEST("test_serialize_safe_wstring_embedded_nul", 1);
+	ASSERT_TRUE("test_serialize_safe_wstring_embedded_nul", static_cast<std::wstring>(expected.value()) == view);
+	ASSERT_EQUAL("test_serialize_safe_wstring_embedded_nul", Serializable<Safe::WString>::Size(data), ByteCount(buffer));
+	RETURN_TEST("test_serialize_safe_wstring_embedded_nul", 0);
+}
+
+int test_safe_wstring_embedded_nul_utf8_wire() {
+	constexpr wchar_t text[] = L"before\0\u00f1\U0001F600after";
+	const std::wstring_view view(text, std::size(text) - 1);
+	constexpr std::string_view utf8("before\0\xC3\xB1\xF0\x9F\x98\x80" "after", 18);
+	const Safe::WString data(view);
+	const auto buffer = Serializable<Safe::WString>(data).Serialize();
+	const auto utf8_wire = Serializable<std::string>(std::string(utf8)).Serialize();
+	ASSERT_TRUE("test_safe_wstring_embedded_nul_utf8_wire", buffer == utf8_wire);
+	ASSERT_TRUE("test_safe_wstring_embedded_nul_utf8_wire", buffer == Serializable<std::wstring>(std::wstring(view)).Serialize());
+	ASSERT_EQUAL("test_safe_wstring_embedded_nul_utf8_wire", sizeof(std::uint64_t) + utf8.size(), ByteCount(buffer));
+	const auto expected = Serializable<Safe::WString>::Deserialize(utf8_wire);
+	if (!expected)
+		RETURN_TEST("test_safe_wstring_embedded_nul_utf8_wire", 1);
+	ASSERT_TRUE("test_safe_wstring_embedded_nul_utf8_wire", static_cast<std::wstring>(expected.value()) == view);
+	RETURN_TEST("test_safe_wstring_embedded_nul_utf8_wire", 0);
 }
 
 int test_serialize_wstring() {
@@ -1199,12 +1256,12 @@ int test_serialize_wstring_non_bmp() {
 	RETURN_TEST("test_serialize_wstring_non_bmp", 0);
 }
 
-int test_wcstring_shares_wstring_wire() {
-	const Safe::WCString owned(L"StormByte");
+int test_safe_wstring_shares_wstring_wire() {
+	const Safe::WString owned(L"StormByte");
 	const std::wstring text = L"StormByte";
-	ASSERT_TRUE("test_wcstring_shares_wstring_wire",
-		Serializable<Safe::WCString>(owned).Serialize() == Serializable<std::wstring>(text).Serialize());
-	RETURN_TEST("test_wcstring_shares_wstring_wire", 0);
+	ASSERT_TRUE("test_safe_wstring_shares_wstring_wire",
+		Serializable<Safe::WString>(owned).Serialize() == Serializable<std::wstring>(text).Serialize());
+	RETURN_TEST("test_safe_wstring_shares_wstring_wire", 0);
 }
 
 int test_safe_strings_share_standard_wire() {
@@ -1431,26 +1488,30 @@ int main() {
 	// -------------------
 	// Unicode
 	// -------------------
-	result += test_cstring_shares_string_wire();
-	result += test_serialize_cstring();
-	result += test_serialize_cstring_empty();
-	result += test_serialize_cstring_null_is_empty_wire();
-	result += test_serialize_cstring_truncated();
+	result += test_safe_string_shares_string_wire();
+	result += test_serialize_safe_string();
+	result += test_serialize_safe_string_empty();
+	result += test_serialize_safe_string_null_is_empty_wire();
+	result += test_serialize_safe_string_truncated();
+	result += test_serialize_safe_string_embedded_nul();
+	result += test_safe_string_embedded_nul_wire();
 	result += test_serialize_u16string();
 	result += test_serialize_u16string_empty();
 	result += test_serialize_u16string_huge_size();
 	result += test_serialize_u16string_non_bmp();
 	result += test_serialize_u16string_truncated();
 	result += test_serialize_unicode_boundary_codepoints();
-	result += test_serialize_wcstring();
-	result += test_serialize_wcstring_empty();
-	result += test_serialize_wcstring_non_bmp();
-	result += test_serialize_wcstring_null_is_empty_wire();
-	result += test_serialize_wcstring_truncated();
+	result += test_serialize_safe_wstring();
+	result += test_serialize_safe_wstring_empty();
+	result += test_serialize_safe_wstring_non_bmp();
+	result += test_serialize_safe_wstring_null_is_empty_wire();
+	result += test_serialize_safe_wstring_truncated();
+	result += test_serialize_safe_wstring_embedded_nul();
+	result += test_safe_wstring_embedded_nul_utf8_wire();
 	result += test_serialize_wstring();
 	result += test_serialize_wstring_non_bmp();
-	result += test_wcstring_shares_wstring_wire();
-		result += test_safe_strings_share_standard_wire();
+	result += test_safe_wstring_shares_wstring_wire();
+	result += test_safe_strings_share_standard_wire();
 	result += test_wide_and_u16_share_utf8_wire();
 
 	// -------------------

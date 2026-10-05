@@ -60,9 +60,13 @@ namespace StormByte {
 	 * @brief Suite text types owned by Base.
 	 */
 	namespace Safe {
-		class CString;
-		class WCString;
+		/**
+		 * @brief Forward declaration of Base-owned UTF-8 text.
+		 */
 		class String;
+		/**
+		 * @brief Forward declaration of Base-owned wide text.
+		 */
 		class WString;
 	}
 
@@ -87,8 +91,7 @@ namespace StormByte {
 		 * @tparam T Type to test.
 		 *
 		 * Includes `std::string`, `std::wstring`, `std::u16string`,
-		 * `std::u32string`, `StormByte::Safe::String`, `StormByte::Safe::WString`,
-		 * `StormByte::Safe::CString` and `StormByte::Safe::WCString`. They stay out of
+		 * `std::u32string`, `StormByte::Safe::String` and `StormByte::Safe::WString`. They stay out of
 		 * @ref StormByte::Type::Container so @ref StormByte::Serializable routes them through
 		 * @ref StormByte::Detail::Codec.
 		 *
@@ -105,8 +108,6 @@ namespace StormByte {
 			SameAs<T, std::wstring> ||
 			SameAs<T, std::u16string> ||
 			SameAs<T, std::u32string> ||
-			SameAs<T, StormByte::Safe::CString> ||
-			SameAs<T, StormByte::Safe::WCString> ||
 			SameAs<T, StormByte::Safe::String> ||
 			SameAs<T, StormByte::Safe::WString>;
 

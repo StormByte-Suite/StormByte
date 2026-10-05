@@ -40,9 +40,7 @@
 
 #pragma once
 
-#include <StormByte/safe/cstring.hxx>
-#include <StormByte/safe/wcstring.hxx>
-
+#include <string>
 #include <string_view>
 
 /**
@@ -52,7 +50,7 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Owned UTF-8 and wide text on top of @ref StormByte::Safe::CString / @ref StormByte::Safe::WCString.
+	 * @brief Creator-owned storage and DLL-safe resource wrappers.
 	 */
 	namespace Safe {
 		/**
@@ -65,42 +63,42 @@ namespace StormByte {
 			 * @param str Wide text.
 			 * @return Owned UTF-8.
 			 */
-			CString FromWide(std::wstring_view str) noexcept;
+			std::string FromWide(std::wstring_view str) noexcept;
 
 			/**
 			 * @brief Wide code units from UTF-8. Ill-formed input becomes U+FFFD.
 			 * @param str UTF-8 text.
 			 * @return Owned wide text.
 			 */
-			WCString ToWide(std::string_view str) noexcept;
+			std::wstring ToWide(std::string_view str) noexcept;
 
 			/**
 			 * @brief ASCII + Latin-1 upper case of UTF-8 text.
 			 * @param str Source.
 			 * @return Owned UTF-8.
 			 */
-			CString ToUpper(std::string_view str) noexcept;
+			std::string ToUpper(std::string_view str) noexcept;
 
 			/**
 			 * @brief ASCII + Latin-1 lower case of UTF-8 text.
 			 * @param str Source.
 			 * @return Owned UTF-8.
 			 */
-			CString ToLower(std::string_view str) noexcept;
+			std::string ToLower(std::string_view str) noexcept;
 
 			/**
 			 * @brief ASCII + Latin-1 upper case of wide text.
 			 * @param str Source.
 			 * @return Owned wide text.
 			 */
-			WCString ToUpper(std::wstring_view str) noexcept;
+			std::wstring ToUpper(std::wstring_view str) noexcept;
 
 			/**
 			 * @brief ASCII + Latin-1 lower case of wide text.
 			 * @param str Source.
 			 * @return Owned wide text.
 			 */
-			WCString ToLower(std::wstring_view str) noexcept;
+			std::wstring ToLower(std::wstring_view str) noexcept;
 		}
 	}
 }
