@@ -103,6 +103,10 @@ static_assert(!Type::IsSafe<SafeCollectionsFixture::ProviderException>::value);
 static_assert(Type::MaybeSafe<std::expected<int, Exception>>);
 static_assert(Type::MaybeSafe<Safe::Callback>);
 static_assert(!Type::IsSafe<Safe::Callback>::value);
+static_assert(std::is_copy_constructible_v<Safe::Callback>);
+static_assert(std::is_copy_assignable_v<Safe::Callback>);
+static_assert(std::is_move_constructible_v<Safe::Callback>);
+static_assert(std::is_move_assignable_v<Safe::Callback>);
 static_assert(Type::MaybeSafe<ConsumerMaybeSafeFixture>);
 static_assert(Type::SafeValue<ConsumerMaybeSafeFixture>);
 static_assert(Type::MaybeSafe<SafeCollectionsFixture::MaybeValue>);
@@ -124,7 +128,9 @@ concept CanMakeSafeVector = requires { typename Safe::Vector<T>; };
 static_assert(!CanMakeSafeVector<Safe::Shared<std::vector<int>>>);
 using IntegralCallback = Safe::Function<void(bool, char, signed char, unsigned char, wchar_t, char8_t, char16_t, char32_t, short, unsigned short, int, unsigned int, long, unsigned long, long long, unsigned long long)>;
 static_assert(std::is_move_constructible_v<IntegralCallback>);
-static_assert(!std::is_copy_constructible_v<IntegralCallback>);
+static_assert(std::is_copy_constructible_v<IntegralCallback>);
+static_assert(std::is_copy_assignable_v<IntegralCallback>);
+static_assert(std::is_move_assignable_v<IntegralCallback>);
 static_assert(Type::MaybeSafe<Safe::Function<Size(Size)>>);
 static_assert(!Type::IsSafe<Safe::Function<Size(Size)>>::value);
 static_assert(Type::SafeValue<Safe::String>);
@@ -231,9 +237,10 @@ int TestOwnerRejectsInvalidCallbacks() {
 
 int TestCallbackValidation() {
 	int releaseCount = 0;
-	ASSERT_THROWS("TestCallbackValidation", Safe::Callback(&releaseCount, nullptr, &RecordCallbackRelease), Exception);
-	ASSERT_THROWS("TestCallbackValidation", Safe::Callback(&releaseCount, &IgnoreCallback, nullptr), Exception);
-	ASSERT_THROWS("TestCallbackValidation", Safe::Callback(nullptr, &IgnoreCallback, &RecordCallbackRelease), Exception);
+	ASSERT_THROWS("TestCallbackValidation", Safe::Callback(&releaseCount, nullptr, &FailOwnerClone, &RecordCallbackRelease), Exception);
+	ASSERT_THROWS("TestCallbackValidation", Safe::Callback(&releaseCount, &IgnoreCallback, nullptr, &RecordCallbackRelease), Exception);
+	ASSERT_THROWS("TestCallbackValidation", Safe::Callback(&releaseCount, &IgnoreCallback, &FailOwnerClone, nullptr), Exception);
+	ASSERT_THROWS("TestCallbackValidation", Safe::Callback(nullptr, &IgnoreCallback, &FailOwnerClone, &RecordCallbackRelease), Exception);
 	ASSERT_EQUAL("TestCallbackValidation", 0, releaseCount);
 	RETURN_TEST("TestCallbackValidation", 0);
 }

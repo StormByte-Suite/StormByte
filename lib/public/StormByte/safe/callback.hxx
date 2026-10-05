@@ -55,7 +55,7 @@ namespace StormByte {
 	namespace Safe {
 		/**
 		 * @class Callback
-		 * @brief Move-only callback with explicit owned context and creator-module release.
+		 * @brief Callback with explicitly cloned context and creator-module release.
 		 *
 		 * Invoke borrows UTF-8 text for the duration of the call. Retained text must be
 		 * copied into a Safe owner. Function pointers use the project's default C++
@@ -72,6 +72,11 @@ namespace StormByte {
 				using Invoke = Status (*)(void*, const String&) noexcept;
 
 				/**
+				 * @brief Clone the callback context in its creator module; null reports failure.
+				 */
+				using Clone = void* (*)(const void*) noexcept;
+
+				/**
 				 * @brief Release the context in its creator module exactly once.
 				 */
 				using Release = void (*)(void*) noexcept;
@@ -80,13 +85,26 @@ namespace StormByte {
 				 * @brief Adopt a non-null context with non-null callbacks.
 				 * @param context Owned context.
 				 * @param invoke Invocation callback.
+				 * @param clone Context clone callback.
 				 * @param release Destruction callback.
 				 * @throws StormByte::Exception Invalid arguments; ownership is not transferred.
 				 */
-				Callback(void* context, Invoke invoke, Release release);
+				Callback(void* context, Invoke invoke, Clone clone, Release release);
 
-				Callback(const Callback&) = delete;
-				Callback& operator=(const Callback&) = delete;
+				/**
+				 * @brief Deep-copy the context through its creator-module callback.
+				 * @param other Source callback.
+				 * @throws StormByte::Exception Context cloning failed.
+				 */
+				Callback(const Callback& other) = default;
+
+				/**
+				 * @brief Deep-copy the context with the strong guarantee.
+				 * @param other Source callback.
+				 * @return This callback.
+				 * @throws StormByte::Exception Context cloning failed.
+				 */
+				Callback& operator=(const Callback& other) = default;
 
 				/**
 				 * @brief Transfer context; source becomes empty.

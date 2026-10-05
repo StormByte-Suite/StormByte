@@ -66,6 +66,10 @@ namespace {
 			++liveContexts;
 		}
 
+		Context(const Context& other): text(other.text) {
+			++liveContexts;
+		}
+
 		~Context() noexcept {
 			--liveContexts;
 			++destroyedContexts;
@@ -78,10 +82,20 @@ namespace {
 			return Status::Failure;
 		try {
 			auto& stored = static_cast<Context*>(context)->text;
+			if (value == "check untouched clone")
+				return stored == std::string(8192, 'x') ? Status::Success : Status::Failure;
 			stored.assign(value.data(), value.size());
 			return value == "callback payload" ? Status::Success : Status::Missing;
 		} catch (...) {
 			return Status::Failure;
+		}
+	}
+
+	void* CloneContext(const void* context) noexcept {
+		try {
+			return new Context(*static_cast<const Context*>(context));
+		} catch (...) {
+			return nullptr;
 		}
 	}
 
@@ -91,6 +105,10 @@ namespace {
 
 	struct ProgressContext {
 		ProgressContext() {
+			++liveProgressContexts;
+		}
+
+		ProgressContext(const ProgressContext&) {
 			++liveProgressContexts;
 		}
 
@@ -109,11 +127,27 @@ namespace {
 		return Status::Success;
 	}
 
+	void* CloneProgressContext(const void*) noexcept {
+		try {
+			return new ProgressContext();
+		} catch (...) {
+			return nullptr;
+		}
+	}
+
 	Status InvokeSizeSelector(void* context, StormByte::Size* output, StormByte::Size value) {
 		if (value == StormByte::Size{0})
 			return Status::Failure;
 		*output = value / *static_cast<const unsigned int*>(context);
 		return Status::Success;
+	}
+
+	void* CloneSizeSelector(const void* context) noexcept {
+		try {
+			return new unsigned int(*static_cast<const unsigned int*>(context));
+		} catch (...) {
+			return nullptr;
+		}
 	}
 
 	void ReleaseProgressContext(void* context) noexcept {
@@ -227,21 +261,21 @@ Nested SafeCollectionsFixture::MakeNested() {
 
 Callback SafeCollectionsFixture::MakeCallback() {
 	auto context = std::make_unique<Context>();
-	Callback callback(context.get(), &InvokeContext, &ReleaseContext);
+	Callback callback(context.get(), &InvokeContext, &CloneContext, &ReleaseContext);
 	context.release();
 	return callback;
 }
 
 CallbackFunction SafeCollectionsFixture::MakeProgressCallback() {
 	auto context = std::make_unique<ProgressContext>();
-	CallbackFunction callback(context.get(), &InvokeProgress, &ReleaseProgressContext);
+	CallbackFunction callback(context.get(), &InvokeProgress, &CloneProgressContext, &ReleaseProgressContext);
 	context.release();
 	return callback;
 }
 
 SizeSelector SafeCollectionsFixture::MakeSizeSelector() {
 	auto divisor = std::make_unique<unsigned int>(2);
-	SizeSelector selector(divisor.get(), &InvokeSizeSelector, &ReleaseSizeSelector);
+	SizeSelector selector(divisor.get(), &InvokeSizeSelector, &CloneSizeSelector, &ReleaseSizeSelector);
 	divisor.release();
 	return selector;
 }

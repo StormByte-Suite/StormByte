@@ -44,11 +44,12 @@
 
 using namespace StormByte::Safe;
 
-Callback::Callback(void* context, Invoke invoke, Release release):
+
+Callback::Callback(void* context, Invoke invoke, Clone clone, Release release):
 	m_owner(nullptr, nullptr, nullptr), m_invoke(invoke) {
-	if (!context || !invoke || !release)
-		throw StormByte::Exception("Safe callback requires context, invoke and release");
-	m_owner = Detail::Owner(context, nullptr, release);
+	if (!context || !invoke || !clone || !release)
+		throw StormByte::Exception("Safe callback requires context, invoke, clone and release");
+	m_owner = Detail::Owner(context, clone, release);
 }
 
 Callback::Callback(Callback&& other) noexcept = default;

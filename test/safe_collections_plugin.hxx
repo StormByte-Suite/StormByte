@@ -179,20 +179,20 @@ namespace SafeCollectionsFixture {
 	SAFE_COLLECTIONS_PRODUCER_PUBLIC Nested MakeNested();
 
 	/**
-	 * @brief Construct a callback with a producer-owned STL context.
-	 * @return Move-only callback.
+	 * @brief Construct a callback with a clonable producer-owned STL context.
+	 * @return Copyable callback whose copies receive independent contexts.
 	 */
 	SAFE_COLLECTIONS_PRODUCER_PUBLIC StormByte::Safe::Callback MakeCallback();
 
 	/**
-	 * @brief Construct a typed progress callback with producer-owned context.
-	 * @return Move-only callback.
+	 * @brief Construct a typed progress callback with clonable producer-owned context.
+	 * @return Copyable callback whose copies receive independent contexts.
 	 */
 	SAFE_COLLECTIONS_PRODUCER_PUBLIC CallbackFunction MakeProgressCallback();
 
 	/**
-	 * @brief Construct a typed Size-to-Size selector in the producer DLL.
-	 * @return Move-only selector.
+	 * @brief Construct a typed Size-to-Size selector with clonable producer context.
+	 * @return Copyable selector whose copies receive independent contexts.
 	 */
 	SAFE_COLLECTIONS_PRODUCER_PUBLIC SizeSelector MakeSizeSelector();
 

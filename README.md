@@ -266,7 +266,7 @@ The registration is an assertion, not reflection or proof. C++ cannot inspect a 
 
 #### Typed callbacks
 
-`Safe::Function<Signature>` replaces text-only callback signatures when the callback itself must cross a DLL boundary. Its context is owned by the provider, is move-only, and is released there through a `noexcept` function. Arguments are passed by value or as `const` lvalue references borrowed for the duration of the call. Raw pointers, mutable references and types outside the IsSafe/MaybeSafe contracts are rejected.
+`Safe::Callback` and `Safe::Function<Signature>` own callback contexts in the provider module and are copyable as well as movable. Copying invokes the provider's `noexcept Clone` function to create an independent context; a null result reports failure through `StormByte::Exception`. Release remains in the provider through a `noexcept` function. Typed `Function` arguments are passed by value or as `const` lvalue references borrowed for the duration of the call. Raw pointers, mutable references and types outside the IsSafe/MaybeSafe contracts are rejected.
 
 Void callbacks return `Safe::Status` from `Call`. Value-returning signatures use an explicit output parameter; the callback writes to a temporary and publishes it only on `Success`:
 
@@ -274,10 +274,10 @@ Void callbacks return `Safe::Status` from `Call`. Value-returning signatures use
 using Progress = StormByte::Safe::Function<void(double)>;
 using SelectSize = StormByte::Safe::Function<StormByte::Size(StormByte::Size)>;
 
-Progress progress(context, &InvokeProgress, &ReleaseContext);
+Progress progress(context, &InvokeProgress, &CloneContext, &ReleaseContext);
 const auto status = progress.Call(37.5);
 
-SelectSize select(context, &InvokeSelect, &ReleaseContext);
+SelectSize select(context, &InvokeSelect, &CloneContext, &ReleaseContext);
 StormByte::Size selected{};
 const auto selectStatus = select.Call(selected, StormByte::Size{80});
 ```

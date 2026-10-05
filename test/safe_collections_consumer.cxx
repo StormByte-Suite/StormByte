@@ -315,8 +315,12 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 		if (static_cast<Text>(nestedOriginal[0]).size() != Size(8192))
 			return false;
 
+		const auto destroyedCallbacksBefore = DestroyedContexts();
 		{
 			auto callback = MakeCallback();
+			auto callbackCopy = callback;
+			if (LiveContexts() != 2 || !callbackCopy.HasValue())
+				return false;
 			auto callbackMoved = std::move(callback);
 			if (callback.HasValue() || callback.Call(output) != Status::Missing)
 				return false;
@@ -324,17 +328,30 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 				callbackMoved.Call(Text("unexpected payload")) != Status::Missing ||
 				callbackMoved.Call(Text("callback failure")) != Status::Failure)
 				return false;
+			if (callbackCopy.Call(Text("check untouched clone")) != Status::Success)
+				return false;
 			auto callbackAssigned = MakeCallback();
+			callbackAssigned = callbackCopy;
+			if (LiveContexts() != 3)
+				return false;
+			if (callbackCopy.Call(Text("callback payload")) != Status::Success ||
+				callbackAssigned.Call(Text("check untouched clone")) != Status::Success)
+				return false;
 			callbackAssigned = std::move(callbackMoved);
-			if (callbackMoved.HasValue() || LiveContexts() != 1)
+			if (callbackMoved.HasValue() || LiveContexts() != 2)
 				return false;
 		}
-		if (LiveContexts() != 0)
+		if (LiveContexts() != 0 || DestroyedContexts() != destroyedCallbacksBefore + 4)
 			return false;
 
 		const auto destroyedProgressBefore = DestroyedProgressContexts();
 		{
 			auto progress = MakeProgressCallback();
+			auto progressCopy = progress;
+			auto assignedProgress = MakeProgressCallback();
+			assignedProgress = progressCopy;
+			if (LiveProgressContexts() != 3)
+				return false;
 			if (!progress.HasValue() || progress.Call(37.5) != Status::Success || LastProgress() != 37.5)
 				return false;
 			bool caughtTypedCallbackException = false;
@@ -350,20 +367,26 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 			auto movedProgress = std::move(progress);
 			if (progress.HasValue() || progress.Call(0.0) != Status::Missing)
 				return false;
-			auto assignedProgress = MakeProgressCallback();
 			assignedProgress = std::move(movedProgress);
-			if (movedProgress.HasValue() || LiveProgressContexts() != 1)
+			if (movedProgress.HasValue() || LiveProgressContexts() != 2)
 				return false;
 		}
-		if (LiveProgressContexts() != 0 || DestroyedProgressContexts() != destroyedProgressBefore + 2)
+		if (LiveProgressContexts() != 0 || DestroyedProgressContexts() != destroyedProgressBefore + 4)
 			return false;
 	}
 	{
 		auto selector = MakeSizeSelector();
+		auto selectorCopy = selector;
+		auto selectorAssigned = MakeSizeSelector();
+		selectorAssigned = selectorCopy;
 		Size selected{99};
 		if (selector.Call(selected, Size{80}) != Status::Success || selected != Size{40})
 			return false;
 		if (selector.Call(selected, Size{0}) != Status::Failure || selected != Size{40})
+			return false;
+		if (selectorCopy.Call(selected, Size{60}) != Status::Success || selected != Size{30})
+			return false;
+		if (selectorAssigned.Call(selected, Size{40}) != Status::Success || selected != Size{20})
 			return false;
 	}
 	if (LiveMaybeValues() != 0)
@@ -397,5 +420,5 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	}
 	if (LiveMaybeValues() != 0)
 		return false;
-		return DestroyedContexts() == destroyedBefore + 256;
+		return DestroyedContexts() == destroyedBefore + 512;
 }

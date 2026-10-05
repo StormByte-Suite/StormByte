@@ -75,7 +75,7 @@ namespace StormByte {
 
 		/**
 		 * @class Function
-		 * @brief Move-only, creator-context callback with a typed signature.
+		 * @brief Copyable, creator-context callback with a typed signature.
 		 * @tparam Signature Callback signature, such as @c void(double) or @c Size(Size).
 		 *
 		 * The callback context is destroyed by its creator-module @p Release
@@ -111,6 +111,11 @@ namespace StormByte {
 				using Invoke = Status (*)(void*, Args...);
 
 				/**
+				 * @brief Provider context clone function; null reports failure.
+				 */
+				using Clone = void* (*)(const void*) noexcept;
+
+				/**
 				 * @brief Provider context destruction function pointer.
 				 */
 				using Release = void (*)(void*) noexcept;
@@ -120,26 +125,31 @@ namespace StormByte {
 				 * @param context Context allocated and owned by the provider.
 				 * @param invoke Provider callback. @ref StormByte::Exception may escape;
 				 *        other exceptions are caught and reported as @ref Status::Failure.
+				 * @param clone Provider context clone callback; it must create independent provider-owned state.
 				 * @param release Provider context destructor; it must not throw.
 				 * @throws StormByte::Exception If an argument is null; ownership is not transferred.
 				 */
-				Function(void* context, Invoke invoke, Release release):
+				Function(void* context, Invoke invoke, Clone clone, Release release):
 					m_owner(nullptr, nullptr, nullptr), m_invoke(invoke) {
-					if (!context || !invoke || !release)
-						throw StormByte::Exception("Safe function requires context, invoke and release");
-					m_owner = Detail::Owner(context, nullptr, release);
+					if (!context || !invoke || !clone || !release)
+						throw StormByte::Exception("Safe function requires context, invoke, clone and release");
+					m_owner = Detail::Owner(context, clone, release);
 				}
 
 				/**
-				 * @brief Copy construction is disabled.
+				 * @brief Deep-copy provider-owned context.
+				 * @param other Source callback.
+				 * @throws StormByte::Exception Context cloning failed.
 				 */
-				Function(const Function&) = delete;
+				Function(const Function&) = default;
 
 				/**
-				 * @brief Copy assignment is disabled.
-				 * @return No value.
+				 * @brief Deep-copy provider context with the strong guarantee.
+				 * @param other Source callback.
+				 * @return This callback.
+				 * @throws StormByte::Exception Context cloning failed.
 				 */
-				Function& operator=(const Function&) = delete;
+				Function& operator=(const Function&) = default;
 
 				/**
 				 * @brief Transfer callback context.
@@ -214,33 +224,58 @@ namespace StormByte {
 			requires(Return& output, Return&& result) { { output = std::move(result) } noexcept; }
 		class STORMBYTE_PUBLIC_TYPE Function<Return(Args...)> final {
 			public:
-				/** @brief Provider invocation function pointer. */
+				/**
+				 * @brief Provider invocation function pointer.
+				 */
 				using Invoke = Status (*)(void*, Return*, Args...);
-				/** @brief Provider context destruction function pointer. */
+				/**
+				 * @brief Provider context clone function pointer; null reports failure.
+				 */
+				using Clone = void* (*)(const void*) noexcept;
+				/**
+				 * @brief Provider context destruction function pointer.
+				 */
 				using Release = void (*)(void*) noexcept;
 
 				/**
 				 * @brief Adopt provider-owned callback context.
 				 * @param context Context allocated and owned by the provider.
 				 * @param invoke Provider callback; Safe exceptions may escape, other exceptions become Failure.
+				 * @param clone Provider context clone callback; it must create independent provider-owned state.
 				 * @param release Provider context destructor; it must not throw.
 				 * @throws StormByte::Exception If an argument is null; ownership is not transferred.
 				 */
-				Function(void* context, Invoke invoke, Release release):
+				Function(void* context, Invoke invoke, Clone clone, Release release):
 					m_owner(nullptr, nullptr, nullptr), m_invoke(invoke) {
-					if (!context || !invoke || !release)
-						throw StormByte::Exception("Safe function requires context, invoke and release");
-					m_owner = Detail::Owner(context, nullptr, release);
+					if (!context || !invoke || !clone || !release)
+						throw StormByte::Exception("Safe function requires context, invoke, clone and release");
+					m_owner = Detail::Owner(context, clone, release);
 				}
 
-				/** @brief Copy construction is disabled. */
-				Function(const Function&) = delete;
-				/** @brief Copy assignment is disabled. @return No value. */
-				Function& operator=(const Function&) = delete;
-				/** @brief Transfer callback context. @param other Source callback. */
+				/**
+				 * @brief Deep-copy provider context.
+				 * @param other Source callback.
+				 * @throws StormByte::Exception Context cloning failed.
+				 */
+				Function(const Function& other) = default;
+				/**
+				 * @brief Deep-copy provider context with the strong guarantee.
+				 * @param other Source callback.
+				 * @return This callback.
+				 * @throws StormByte::Exception Context cloning failed.
+				 */
+				Function& operator=(const Function& other) = default;
+				/**
+				 * @brief Transfer callback context.
+				 * @param other Source callback.
+				 */
 				Function(Function&& other) noexcept:
 					m_owner(std::move(other.m_owner)), m_invoke(std::exchange(other.m_invoke, nullptr)) {}
-				/** @brief Release current context and transfer. @param other Source. @return This callback. */
+				/**
+				 * @brief Release current context and transfer.
+				 * @param other Source callback.
+				 * @return This callback.
+				 */
 				Function& operator=(Function&& other) noexcept {
 					if (this != &other) {
 						m_owner = std::move(other.m_owner);
@@ -248,7 +283,9 @@ namespace StormByte {
 					}
 					return *this;
 				}
-				/** @brief Release context through its provider callback. */
+				/**
+				 * @brief Release context through its provider callback.
+				 */
 				~Function() noexcept = default;
 
 				/**
