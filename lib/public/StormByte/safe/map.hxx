@@ -295,8 +295,8 @@ namespace StormByte {
 						BasicIterator& operator--() {
 							if (!m_owner || m_owner->empty())
 								Detail::ThrowSafeConversionFailure("Safe map iterator decrement is invalid");
-						std::size_t index = m_atEnd ? m_owner->size() - 1 : m_owner->FindIndex(m_key);
-						if (index == 0 || index >= m_owner->size())
+						std::size_t index = m_atEnd ? m_owner->size() : m_owner->FindIndex(m_key);
+						if (index == 0 || (!m_atEnd && index >= m_owner->size()))
 							Detail::ThrowSafeConversionFailure("Safe map iterator decrement is invalid");
 						--index;
 						V value{};
@@ -336,15 +336,30 @@ namespace StormByte {
 						 * @brief Bind an iterator to a map owner and entry index.
 						 * @param owner Map owner.
 						 * @param index Ordered entry index.
+						 * @return Iterator retaining the selected entry's key or the end sentinel.
 						 */
-						BasicIterator(Owner& owner, difference_type index)
-							requires std::default_initializable<K>:
-							m_owner(&owner), m_index(index), m_key(), m_atEnd(index >= static_cast<difference_type>(owner.size())) {
-							if (!m_atEnd) {
+						static BasicIterator FromIndex(Owner& owner, difference_type index)
+							requires std::default_initializable<K> {
+							BasicIterator result(owner, K{}, true);
+							result.m_index = index;
+							result.m_atEnd = index >= static_cast<difference_type>(owner.size());
+							if (!result.m_atEnd) {
 								V value{};
-								if (owner.ReadEntry(static_cast<size_type>(index), m_key, value) != Status::Success)
+								if (owner.ReadEntry(static_cast<size_type>(index), result.m_key, value) != Status::Success)
 									Detail::ThrowSafeConversionFailure("Safe map iterator construction failed");
 							}
+							return result;
+						}
+
+						/**
+						 * @brief Create an iterator retaining a stable key identity.
+						 * @param owner Map being traversed.
+						 * @param key Key identity copied into the iterator.
+						 * @param atEnd Whether to construct the end sentinel.
+						 * @return Iterator to the key or the end sentinel.
+						 */
+						static BasicIterator FromKey(Owner& owner, const K& key, bool atEnd = false) {
+							return BasicIterator(owner, key, atEnd);
 						}
 
 						/**
@@ -469,25 +484,25 @@ namespace StormByte {
 				 * @brief Return the first mutable iterator.
 				 * @return Iterator to the first key-ordered entry.
 				 */
-				iterator begin() { return iterator(*this, 0); }
+				iterator begin() { return iterator::FromIndex(*this, 0); }
 
 				/**
 				 * @brief Return the end mutable iterator.
 				 * @return End iterator.
 				 */
-				iterator end() { return iterator(*this, static_cast<difference_type>(size())); }
+				iterator end() { return iterator::FromIndex(*this, static_cast<difference_type>(size())); }
 
 				/**
 				 * @brief Return the first read-only iterator.
 				 * @return Iterator to the first key-ordered entry.
 				 */
-				const_iterator begin() const { return const_iterator(*this, 0); }
+				const_iterator begin() const { return const_iterator::FromIndex(*this, 0); }
 
 				/**
 				 * @brief Return the end read-only iterator.
 				 * @return End iterator.
 				 */
-				const_iterator end() const { return const_iterator(*this, static_cast<difference_type>(size())); }
+				const_iterator end() const { return const_iterator::FromIndex(*this, static_cast<difference_type>(size())); }
 
 				/**
 				 * @brief Return the first read-only iterator.
@@ -732,7 +747,7 @@ namespace StormByte {
 					const auto index = FindIndex(position.m_key);
 					if (index == size())
 						Detail::ThrowSafeConversionFailure("Safe map erase iterator is invalid");
-					iterator next(*this, static_cast<difference_type>(index + 1));
+					auto next = iterator::FromIndex(*this, static_cast<difference_type>(index + 1));
 					if (EraseKey(position.m_key) != Status::Success)
 						Detail::ThrowSafeConversionFailure("Safe map erase iterator failed");
 					return next;
@@ -745,7 +760,7 @@ namespace StormByte {
 				 * @return Iterator following the erased range.
 				 */
 				iterator erase(const_iterator first, const_iterator last) {
-					iterator current(*this, first.m_key, first.m_atEnd);
+					auto current = iterator::FromKey(*this, first.m_key, first.m_atEnd);
 					while (current != last)
 						current = erase(current);
 					return current;

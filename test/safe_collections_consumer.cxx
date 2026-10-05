@@ -420,5 +420,5 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	}
 	if (LiveMaybeValues() != 0)
 		return false;
-		return DestroyedContexts() == destroyedBefore + 512;
+	return DestroyedContexts() == destroyedBefore + 512;
 }

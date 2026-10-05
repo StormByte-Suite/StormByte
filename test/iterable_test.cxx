@@ -37,6 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/exception.hxx>
 #include <StormByte/safe/iterable.hxx>
 #include <StormByte/safe/map.hxx>
 #include <StormByte/safe/pair.hxx>
@@ -44,8 +45,10 @@
 #include <StormByte/test_handlers.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <map>
 #include <ranges>
+#include <utility>
 #include <vector>
 
 using namespace StormByte;
@@ -126,6 +129,87 @@ int test_safe_iterable_map_algorithms() {
 }
 
 // -------------------
+// Integral-key map operations
+// -------------------
+
+template<typename Key>
+int test_safe_iterable_integral_map_operations() {
+	int result = 0;
+	Safe::Map<Key, int> values;
+	const auto& view = std::as_const(values);
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.lower_bound(Key(7)) == values.end());
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.upper_bound(Key(7)) == values.end());
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", view.lower_bound(Key(7)) == view.end());
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", view.upper_bound(Key(7)) == view.end());
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.erase(values.cend(), values.cend()) == values.end());
+	ASSERT_EQUAL("test_safe_iterable_integral_map_operations", 0u, values.count(Key(7)));
+	ASSERT_THROWS("test_safe_iterable_integral_map_operations", values.at(Key(7)), Exception);
+
+	auto inserted = values.try_emplace(Key(7), 70);
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", inserted.second && inserted.first->first == Key(7));
+	auto last = values.end();
+	--last;
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", last == values.begin());
+	auto constLast = view.cend();
+	--constLast;
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", constLast == view.cbegin());
+	ASSERT_THROWS("test_safe_iterable_integral_map_operations", --last, Exception);
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", !values.try_emplace(Key(7), 999).second);
+	ASSERT_EQUAL("test_safe_iterable_integral_map_operations", 70, view.at(Key(7)));
+	values.emplace(Key(3), 30);
+	const std::pair<Key, int> entry{Key(11), 110};
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.insert(entry).second);
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", !values.insert(std::pair{Key(11), 999}).second);
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", !values.insert_or_assign(Key(7), 71).second);
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.insert_or_assign(Key(15), 150).second);
+	values[Key(19)] = 190;
+	values.at(Key(7)) = 72;
+	ASSERT_EQUAL("test_safe_iterable_integral_map_operations", 72, view.at(Key(7)));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.find(Key(7)) == view.find(Key(7)));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.find(Key(99)) == values.end());
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", view.find(Key(99)) == view.end());
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", view.contains(Key(7)) && !view.contains(Key(99)));
+	ASSERT_EQUAL("test_safe_iterable_integral_map_operations", 1u, view.count(Key(7)));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.lower_bound(Key(4))->first == Key(7));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.upper_bound(Key(7))->first == Key(11));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", view.lower_bound(Key(4))->first == Key(7));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", view.upper_bound(Key(7))->first == Key(11));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", view.upper_bound(Key(19)) == view.end());
+	auto [equalFirst, equalLast] = values.equal_range(Key(7));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", equalFirst->first == Key(7) && equalLast->first == Key(11));
+	auto [constFirst, constEnd] = view.equal_range(Key(7));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", constFirst == equalFirst && constEnd == equalLast);
+	auto [missingFirst, missingLast] = view.equal_range(Key(8));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", missingFirst == missingLast && missingFirst->first == Key(11));
+
+	auto stable = values.find(Key(7));
+	typename Safe::Map<Key, int>::const_iterator constStable = stable;
+	auto stableEnd = values.end();
+	values.emplace(Key(1), 10);
+	values.erase(Key(3));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", stable == values.find(Key(7)) && constStable == stable);
+	stable->second = 73;
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", constStable->second == 73);
+	++stable;
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", stable->first == Key(11));
+	--stable;
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", stable == constStable);
+	--stableEnd;
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", stableEnd->first == Key(19));
+	std::ranges::for_each(values, [](auto current) { current.second = static_cast<int>(current.first); });
+	ASSERT_EQUAL("test_safe_iterable_integral_map_operations", 7, view.at(Key(7)));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.erase(constStable)->first == Key(11));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", !values.contains(Key(7)));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.erase(values.find(Key(19))) == values.end());
+	auto rangeEnd = values.find(Key(15));
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.erase(values.cbegin(), rangeEnd) == rangeEnd);
+	ASSERT_EQUAL("test_safe_iterable_integral_map_operations", 1u, values.size());
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.erase(values.cbegin(), values.cend()) == values.end());
+	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.begin() == values.end());
+	RETURN_TEST("test_safe_iterable_integral_map_operations", result);
+}
+
+// -------------------
 // Pair bindings
 // -------------------
 
@@ -155,6 +239,13 @@ int main() {
 	// Map algorithms
 	// -------------------
 	result += test_safe_iterable_map_algorithms();
+
+	// -------------------
+	// Integral-key map operations
+	// -------------------
+	result += test_safe_iterable_integral_map_operations<int>();
+	result += test_safe_iterable_integral_map_operations<unsigned int>();
+	result += test_safe_iterable_integral_map_operations<std::ptrdiff_t>();
 
 	// -------------------
 	// Pair bindings

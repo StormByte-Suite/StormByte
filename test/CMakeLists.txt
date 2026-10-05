@@ -48,6 +48,16 @@ if(ENABLE_TEST)
 	target_link_libraries(SafeIterableTests StormByte)
 	add_test(NAME SafeIterableTests COMMAND SafeIterableTests)
 
+	add_executable(SafeMapIteratorTests safe_map_iterator_test.cxx)
+	target_link_libraries(SafeMapIteratorTests StormByte)
+	add_test(NAME SafeMapIteratorTests COMMAND SafeMapIteratorTests)
+	set_tests_properties(SafeMapIteratorTests PROPERTIES TIMEOUT 10)
+
+	add_executable(SafeMapDifferenceTypeTests safe_map_difference_type_test.cxx)
+	target_link_libraries(SafeMapDifferenceTypeTests StormByte)
+	add_test(NAME SafeMapDifferenceTypeTests COMMAND SafeMapDifferenceTypeTests)
+	set_tests_properties(SafeMapDifferenceTypeTests PROPERTIES TIMEOUT 10)
+
 	add_executable(SafePointersTests safe_pointers_test.cxx)
 	target_link_libraries(SafePointersTests StormByte)
 	add_test(NAME SafePointersTests COMMAND SafePointersTests)
