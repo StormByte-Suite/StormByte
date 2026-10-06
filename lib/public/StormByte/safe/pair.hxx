@@ -39,11 +39,10 @@
 
 #pragma once
 
-#include <StormByte/type_traits/safe.hxx>
+#include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
 
 #include <compare>
-#include <concepts>
 #include <cstddef>
 #include <tuple>
 #include <type_traits>
@@ -56,18 +55,16 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Types safe to pass across a DLL boundary.
+	 * @brief Owned values that cross a DLL without the caller's CRT.
 	 */
 	namespace Safe {
 		/**
 		 * @class Pair
-		 * @brief Two Safe values with an STL-shaped public interface.
-		 * @tparam First Safe type stored in @ref first.
-		 * @tparam Second Safe type stored in @ref second.
+		 * @brief `std::pair` whose members keep their own Safe storage.
+		 * @tparam First Safe value stored in @ref first.
+		 * @tparam Second Safe value stored in @ref second.
 		 *
-		 * The pair owns no allocation. Its members retain their own Safe
-		 * ownership rules, so the pair object may be copied or destroyed in a
-		 * consumer module while creator-owned member storage remains opaque.
+		 * The pair allocates nothing. Copy, move and destruction of each member run through that member's Safe operations, so the pair may be created or destroyed in a consumer module.
 		 */
 		template<Type::SafeValue First, Type::SafeValue Second>
 		class STORMBYTE_PUBLIC_TYPE Pair final {
@@ -79,7 +76,7 @@ namespace StormByte {
 				Second second; ///< Second value.
 
 				/**
-				 * @brief Construct a pair from default-initialized values.
+				 * @brief Value-initialize both members.
 				 */
 				Pair() = default;
 
@@ -88,20 +85,7 @@ namespace StormByte {
 				 * @param firstValue Initial first value.
 				 * @param secondValue Initial second value.
 				 */
-				Pair(const First& firstValue, const Second& secondValue):
-					first(firstValue), second(secondValue) {}
-
-				/**
-				 * @brief Copy values from a caller-owned std::pair.
-				 * @tparam OtherFirst Source first component type.
-				 * @tparam OtherSecond Source second component type.
-				 * @param other Source pair.
-				 */
-				template<class OtherFirst, class OtherSecond>
-				requires std::constructible_from<First, const OtherFirst&> &&
-					std::constructible_from<Second, const OtherSecond&>
-				Pair(const std::pair<OtherFirst, OtherSecond>& other):
-					first(other.first), second(other.second) {}
+				Pair(const First& firstValue, const Second& secondValue);
 
 				/**
 				 * @brief Move two values into the pair.
@@ -110,8 +94,78 @@ namespace StormByte {
 				 */
 				Pair(First&& firstValue, Second&& secondValue) noexcept(
 					std::is_nothrow_move_constructible_v<First> &&
-					std::is_nothrow_move_constructible_v<Second>):
-					first(std::move(firstValue)), second(std::move(secondValue)) {}
+					std::is_nothrow_move_constructible_v<Second>);
+
+				/**
+				 * @brief Construct both members from convertible values.
+				 * @tparam U First source type.
+				 * @tparam V Second source type.
+				 * @param firstValue Initial first value.
+				 * @param secondValue Initial second value.
+				 */
+				template<class U, class V>
+				requires Type::ConstructibleFrom<First, U> && Type::ConstructibleFrom<Second, V>
+				explicit(!Type::ConvertibleTo<U, First> || !Type::ConvertibleTo<V, Second>)
+				Pair(U&& firstValue, V&& secondValue);
+
+				/**
+				 * @brief Construct both members from argument tuples.
+				 * @tparam FirstArgs First constructor argument types.
+				 * @tparam SecondArgs Second constructor argument types.
+				 * @param tag Piecewise construction tag.
+				 * @param firstArgs Arguments for the first member.
+				 * @param secondArgs Arguments for the second member.
+				 */
+				template<class... FirstArgs, class... SecondArgs>
+				Pair(std::piecewise_construct_t tag, std::tuple<FirstArgs...> firstArgs, std::tuple<SecondArgs...> secondArgs);
+
+				/**
+				 * @brief Copy a caller-owned STL pair. Its state is unchanged.
+				 * @tparam OtherFirst Source first type.
+				 * @tparam OtherSecond Source second type.
+				 * @param other Source pair.
+				 */
+				template<class OtherFirst, class OtherSecond>
+				requires Type::ConstructibleFrom<First, const OtherFirst&> &&
+					Type::ConstructibleFrom<Second, const OtherSecond&>
+				explicit(!Type::ConvertibleTo<const OtherFirst&, First> || !Type::ConvertibleTo<const OtherSecond&, Second>)
+				Pair(const std::pair<OtherFirst, OtherSecond>& other);
+
+				/**
+				 * @brief Move a caller-owned STL pair. The source members are moved-from.
+				 * @tparam OtherFirst Source first type.
+				 * @tparam OtherSecond Source second type.
+				 * @param other Source pair.
+				 */
+				template<class OtherFirst, class OtherSecond>
+				requires Type::ConstructibleFrom<First, OtherFirst> &&
+					Type::ConstructibleFrom<Second, OtherSecond>
+				explicit(!Type::ConvertibleTo<OtherFirst, First> || !Type::ConvertibleTo<OtherSecond, Second>)
+				Pair(std::pair<OtherFirst, OtherSecond>&& other);
+
+				/**
+				 * @brief Copy a compatible Safe pair.
+				 * @tparam OtherFirst Source first type.
+				 * @tparam OtherSecond Source second type.
+				 * @param other Source pair.
+				 */
+				template<class OtherFirst, class OtherSecond>
+				requires Type::ConstructibleFrom<First, const OtherFirst&> &&
+					Type::ConstructibleFrom<Second, const OtherSecond&>
+				explicit(!Type::ConvertibleTo<const OtherFirst&, First> || !Type::ConvertibleTo<const OtherSecond&, Second>)
+				Pair(const Pair<OtherFirst, OtherSecond>& other);
+
+				/**
+				 * @brief Move a compatible Safe pair.
+				 * @tparam OtherFirst Source first type.
+				 * @tparam OtherSecond Source second type.
+				 * @param other Source pair.
+				 */
+				template<class OtherFirst, class OtherSecond>
+				requires Type::ConstructibleFrom<First, OtherFirst> &&
+					Type::ConstructibleFrom<Second, OtherSecond>
+				explicit(!Type::ConvertibleTo<OtherFirst, First> || !Type::ConvertibleTo<OtherSecond, Second>)
+				Pair(Pair<OtherFirst, OtherSecond>&& other);
 
 				/**
 				 * @brief Copy a pair.
@@ -125,6 +179,11 @@ namespace StormByte {
 				 */
 				Pair(Pair&& other) noexcept(std::is_nothrow_move_constructible_v<First> &&
 					std::is_nothrow_move_constructible_v<Second>) = default;
+
+				/**
+				 * @brief Destroy both members through their own Safe operations.
+				 */
+				~Pair() = default;
 
 				/**
 				 * @brief Copy-assign a pair.
@@ -142,54 +201,61 @@ namespace StormByte {
 					std::is_nothrow_move_assignable_v<Second>) = default;
 
 				/**
-				 * @brief Copy-assign from a compatible caller-owned std::pair.
-				 * @tparam OtherFirst Source first component type.
-				 * @tparam OtherSecond Source second component type.
+				 * @brief Copy-assign a compatible Safe pair.
+				 * @tparam OtherFirst Source first type.
+				 * @tparam OtherSecond Source second type.
 				 * @param other Source pair.
 				 * @return This pair.
 				 */
 				template<class OtherFirst, class OtherSecond>
-				requires std::assignable_from<First&, const OtherFirst&> &&
-					std::assignable_from<Second&, const OtherSecond&>
-				Pair& operator=(const std::pair<OtherFirst, OtherSecond>& other) {
-					First firstValue(other.first);
-					Second secondValue(other.second);
-					first = std::move(firstValue);
-					second = std::move(secondValue);
-					return *this;
-				}
+				requires Type::AssignableFrom<First&, const OtherFirst&> &&
+					Type::AssignableFrom<Second&, const OtherSecond&>
+				Pair& operator=(const Pair<OtherFirst, OtherSecond>& other);
 
 				/**
-				 * @brief Move-assign from a compatible caller-owned std::pair.
-				 * @tparam OtherFirst Source first component type.
-				 * @tparam OtherSecond Source second component type.
-				 * @param other Source pair, components moved after conversion.
+				 * @brief Move-assign a compatible Safe pair.
+				 * @tparam OtherFirst Source first type.
+				 * @tparam OtherSecond Source second type.
+				 * @param other Source pair.
 				 * @return This pair.
 				 */
 				template<class OtherFirst, class OtherSecond>
-				requires std::assignable_from<First&, OtherFirst&&> &&
-					std::assignable_from<Second&, OtherSecond&&>
-				Pair& operator=(std::pair<OtherFirst, OtherSecond>&& other) {
-					First firstValue(std::move(other.first));
-					Second secondValue(std::move(other.second));
-					first = std::move(firstValue);
-					second = std::move(secondValue);
-					return *this;
-				}
+				requires Type::AssignableFrom<First&, OtherFirst> &&
+					Type::AssignableFrom<Second&, OtherSecond>
+				Pair& operator=(Pair<OtherFirst, OtherSecond>&& other);
 
 				/**
-				 * @brief Exchange both components with another Safe pair.
+				 * @brief Copy-assign a caller-owned STL pair. Its state is unchanged.
+				 * @tparam OtherFirst Source first type.
+				 * @tparam OtherSecond Source second type.
+				 * @param other Source pair.
+				 * @return This pair.
+				 */
+				template<class OtherFirst, class OtherSecond>
+				requires Type::AssignableFrom<First&, const OtherFirst&> &&
+					Type::AssignableFrom<Second&, const OtherSecond&>
+				Pair& operator=(const std::pair<OtherFirst, OtherSecond>& other);
+
+				/**
+				 * @brief Move-assign a caller-owned STL pair.
+				 * @tparam OtherFirst Source first type.
+				 * @tparam OtherSecond Source second type.
+				 * @param other Source pair.
+				 * @return This pair.
+				 */
+				template<class OtherFirst, class OtherSecond>
+				requires Type::AssignableFrom<First&, OtherFirst> &&
+					Type::AssignableFrom<Second&, OtherSecond>
+				Pair& operator=(std::pair<OtherFirst, OtherSecond>&& other);
+
+				/**
+				 * @brief Exchange both members.
 				 * @param other Pair to exchange with.
 				 */
-				void swap(Pair& other) noexcept(
-					std::is_nothrow_swappable_v<First> && std::is_nothrow_swappable_v<Second>) {
-					using std::swap;
-					swap(first, other.first);
-					swap(second, other.second);
-				}
+				void swap(Pair& other) noexcept(Type::Swappable<First> && Type::Swappable<Second>);
 
 				/**
-				 * @brief Exchange two Safe pairs.
+				 * @brief Exchange two pairs.
 				 * @param left First pair.
 				 * @param right Second pair.
 				 */
@@ -198,154 +264,158 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Copy the components into caller-owned std::pair storage.
-				 * @return std::pair value copy.
+				 * @brief Compare both members.
+				 * @param other Pair to compare.
+				 * @return Whether both members compare equal.
 				 */
-				explicit operator std::pair<First, Second>() const {
+				bool operator==(const Pair& other) const requires Type::EqualityComparable<First> && Type::EqualityComparable<Second>;
+
+				/**
+				 * @brief Order by the first member, then the second.
+				 * @param other Pair to compare.
+				 * @return Lexicographical order.
+				 */
+				auto operator<=>(const Pair& other) const requires Type::ThreeWayComparable<First> && Type::ThreeWayComparable<Second>;
+
+				/**
+				 * @brief Copy the members into caller-owned STL storage.
+				 * @return A `std::pair` owned by the caller.
+				 */
+				STORMBYTE_FORCE_INLINE explicit operator std::pair<First, Second>() const {
 					return {first, second};
 				}
 
+			private:
 				/**
-				 * @brief Construct from a pair of compatible values.
-				 * @tparam OtherFirst Source first type.
-				 * @tparam OtherSecond Source second type.
+				 * @brief Construct both members from unpacked tuples.
+				 * @tparam FirstArgs First constructor argument types.
+				 * @tparam SecondArgs Second constructor argument types.
+				 * @tparam FirstIndexes Indexes of the first tuple.
+				 * @tparam SecondIndexes Indexes of the second tuple.
+				 * @param firstArgs Arguments for the first member.
+				 * @param secondArgs Arguments for the second member.
 				 */
-				template<class OtherFirst, class OtherSecond>
-				requires std::constructible_from<First, const OtherFirst&> &&
-					std::constructible_from<Second, const OtherSecond&>
-				explicit(!std::convertible_to<const OtherFirst&, First> ||
-					!std::convertible_to<const OtherSecond&, Second>)
-				Pair(const Pair<OtherFirst, OtherSecond>& other):
-					first(other.first), second(other.second) {}
-
-				/**
-				 * @brief Compare two pairs lexicographically.
-				 * @param other Pair to compare.
-				 * @return Lexicographical ordering.
-				 */
-				auto operator<=>(const Pair& other) const = default;
+				template<class... FirstArgs, class... SecondArgs, std::size_t... FirstIndexes, std::size_t... SecondIndexes>
+				Pair(std::piecewise_construct_t tag, std::tuple<FirstArgs...>& firstArgs, std::tuple<SecondArgs...>& secondArgs,
+					std::index_sequence<FirstIndexes...>, std::index_sequence<SecondIndexes...>);
 		};
 
-			/**
-			 * @class PairReference
-			 * @brief Tuple-like proxy for an immutable first value and callback-backed second value.
-			 * @tparam First First value type.
-			 * @tparam Second Second value type.
-			 * @tparam SecondReference Mutable reference proxy for the second value.
-			 */
-			template<Type::SafeValue First, Type::SafeValue Second, class SecondReference>
-			class PairReference final {
-				public:
-					using value_type = Pair<First, Second>; ///< Copied entry value type.
+		/**
+		 * @class PairReference
+		 * @brief Tuple-like proxy for an immutable first value and callback-backed second value.
+		 * @tparam First First value type.
+		 * @tparam Second Second value type.
+		 * @tparam SecondReference Mutable reference proxy for the second value.
+		 */
+		template<Type::SafeValue First, Type::SafeValue Second, class SecondReference>
+		class PairReference final {
+			public:
+				using value_type = Pair<First, Second>; ///< Copied entry value type.
 
-					const First first; ///< Immutable first value copy.
-					SecondReference second; ///< Callback-backed second value proxy.
+				const First first; ///< Immutable first value copy.
+				SecondReference second; ///< Callback-backed second value proxy.
 
-					/**
-					 * @brief Bind the proxy to copied values and a mutable second-value proxy.
-					 * @param firstValue First value copy.
-					 * @param secondValue Initial second value copy.
-					 * @param secondReference Callback-backed second-value proxy.
-					 */
-					PairReference(const First& firstValue, const Second& secondValue, SecondReference secondReference):
-						first(firstValue), second(std::move(secondReference)), m_snapshot(firstValue, secondValue) {}
+				/**
+				 * @brief Bind the proxy to copied values and a mutable second-value proxy.
+				 * @param firstValue First value copy.
+				 * @param secondValue Initial second value copy.
+				 * @param secondReference Callback-backed second-value proxy.
+				 */
+				PairReference(const First& firstValue, const Second& secondValue, SecondReference secondReference);
 
-					/**
-					 * @brief Convert to a refreshed caller-module Safe pair snapshot.
-					 * @return Pair snapshot.
-					 */
-					operator const value_type&() const {
-						m_snapshot.second = static_cast<Second>(second);
-						return m_snapshot;
-					}
+				/**
+				 * @brief Convert to a refreshed caller-module Safe pair snapshot.
+				 * @return Pair snapshot.
+				 */
+				operator const value_type&() const;
 
-					/**
-					 * @brief Copy a pair-reference proxy.
-					 * @param other Source proxy.
-					 */
-					PairReference(const PairReference& other) = default;
+				/**
+				 * @brief Copy a pair-reference proxy.
+				 * @param other Source proxy.
+				 */
+				PairReference(const PairReference& other) = default;
 
-					/**
-					 * @brief Move a pair-reference proxy.
-					 * @param other Source proxy.
-					 */
-					PairReference(PairReference&& other) = default;
+				/**
+				 * @brief Move a pair-reference proxy.
+				 * @param other Source proxy.
+				 */
+				PairReference(PairReference&& other) = default;
 
-					/**
-					 * @brief Access the first component for structured bindings.
-					 * @tparam Index Component index, which must be zero.
-					 * @param reference Pair-reference proxy.
-					 * @return First component.
-					 */
-					template<std::size_t Index>
-					requires (Index == 0)
-					friend const First& get(const PairReference& reference) noexcept {
-						return reference.first;
-					}
+				/**
+				 * @brief Access the first component for structured bindings.
+				 * @tparam Index Component index, which must be zero.
+				 * @param reference Pair-reference proxy.
+				 * @return First component.
+				 */
+				template<std::size_t Index>
+				requires (Index == 0)
+				friend const First& get(const PairReference& reference) noexcept {
+					return reference.first;
+				}
 
-					/**
-					 * @brief Access the second component for structured bindings.
-					 * @tparam Index Component index, which must be one.
-					 * @param reference Pair-reference proxy.
-					 * @return Second-value proxy.
-					 */
-					template<std::size_t Index>
-					requires (Index == 1)
-					friend SecondReference& get(PairReference& reference) noexcept {
-						return reference.second;
-					}
+				/**
+				 * @brief Access the second component for structured bindings.
+				 * @tparam Index Component index, which must be one.
+				 * @param reference Pair-reference proxy.
+				 * @return Second-value proxy.
+				 */
+				template<std::size_t Index>
+				requires (Index == 1)
+				friend SecondReference& get(PairReference& reference) noexcept {
+					return reference.second;
+				}
 
-					/**
-					 * @brief Move-access the first component of a temporary proxy.
-					 * @tparam Index Component index, which must be zero.
-					 * @param reference Pair-reference proxy.
-					 * @return Rvalue reference to the immutable first value.
-					 */
-					template<std::size_t Index>
-					requires (Index == 0)
-					friend const First&& get(PairReference&& reference) noexcept {
-						return std::move(reference.first);
-					}
+				/**
+				 * @brief Move-access the first component of a temporary proxy.
+				 * @tparam Index Component index, which must be zero.
+				 * @param reference Pair-reference proxy.
+				 * @return Rvalue reference to the immutable first value.
+				 */
+				template<std::size_t Index>
+				requires (Index == 0)
+				friend const First&& get(PairReference&& reference) noexcept {
+					return std::move(reference.first);
+				}
 
-					/**
-					 * @brief Move-access the second component of a temporary proxy.
-					 * @tparam Index Component index, which must be one.
-					 * @param reference Pair-reference proxy.
-					 * @return Mapped-value proxy.
-					 */
-					template<std::size_t Index>
-					requires (Index == 1)
-					friend SecondReference get(PairReference&& reference) noexcept {
-						return std::move(reference.second);
-					}
+				/**
+				 * @brief Move-access the second component of a temporary proxy.
+				 * @tparam Index Component index, which must be one.
+				 * @param reference Pair-reference proxy.
+				 * @return Mapped-value proxy.
+				 */
+				template<std::size_t Index>
+				requires (Index == 1)
+				friend SecondReference get(PairReference&& reference) noexcept {
+					return std::move(reference.second);
+				}
 
-					/**
-					 * @brief Read the first component of a const temporary proxy.
-					 * @tparam Index Component index, which must be zero.
-					 * @param reference Pair-reference proxy.
-					 * @return Const rvalue reference to the first value.
-					 */
-					template<std::size_t Index>
-					requires (Index == 0)
-					friend const First&& get(const PairReference&& reference) noexcept {
-						return std::move(reference.first);
-					}
+				/**
+				 * @brief Read the first component of a const temporary proxy.
+				 * @tparam Index Component index, which must be zero.
+				 * @param reference Pair-reference proxy.
+				 * @return Const rvalue reference to the first value.
+				 */
+				template<std::size_t Index>
+				requires (Index == 0)
+				friend const First&& get(const PairReference&& reference) noexcept {
+					return std::move(reference.first);
+				}
 
-					/**
-					 * @brief Read the second component of a const temporary proxy.
-					 * @tparam Index Component index, which must be one.
-					 * @param reference Pair-reference proxy.
-					 * @return Mapped-value proxy copy.
-					 */
-					template<std::size_t Index>
-					requires (Index == 1)
-					friend SecondReference get(const PairReference&& reference) {
-						return reference.second;
-					}
+				/**
+				 * @brief Read the second component of a const temporary proxy.
+				 * @tparam Index Component index, which must be one.
+				 * @param reference Pair-reference proxy.
+				 * @return Mapped-value proxy copy.
+				 */
+				template<std::size_t Index>
+				requires (Index == 1)
+				friend SecondReference get(const PairReference&& reference) {
+					return reference.second;
+				}
 
-				private:
-					mutable value_type m_snapshot; ///< Caller-module pair snapshot.
-			};
+			private:
+				mutable value_type m_snapshot; ///< Caller-module pair snapshot.
+		};
 
 		/**
 		 * @brief Access the first pair member.
@@ -354,10 +424,8 @@ namespace StormByte {
 		 * @return First member reference.
 		 */
 		template<std::size_t Index, Type::SafeValue First, Type::SafeValue Second>
-			requires (Index == 0)
-		constexpr First& get(Pair<First, Second>& pair) noexcept {
-			return pair.first;
-		}
+		requires (Index == 0)
+		constexpr First& get(Pair<First, Second>& pair) noexcept;
 
 		/**
 		 * @brief Access the second pair member.
@@ -366,10 +434,8 @@ namespace StormByte {
 		 * @return Second member reference.
 		 */
 		template<std::size_t Index, Type::SafeValue First, Type::SafeValue Second>
-			requires (Index == 1)
-		constexpr Second& get(Pair<First, Second>& pair) noexcept {
-			return pair.second;
-		}
+		requires (Index == 1)
+		constexpr Second& get(Pair<First, Second>& pair) noexcept;
 
 		/**
 		 * @brief Access the first pair member through a const pair.
@@ -378,10 +444,8 @@ namespace StormByte {
 		 * @return Const first member reference.
 		 */
 		template<std::size_t Index, Type::SafeValue First, Type::SafeValue Second>
-			requires (Index == 0)
-		constexpr const First& get(const Pair<First, Second>& pair) noexcept {
-			return pair.first;
-		}
+		requires (Index == 0)
+		constexpr const First& get(const Pair<First, Second>& pair) noexcept;
 
 		/**
 		 * @brief Access the second pair member through a const pair.
@@ -390,10 +454,8 @@ namespace StormByte {
 		 * @return Const second member reference.
 		 */
 		template<std::size_t Index, Type::SafeValue First, Type::SafeValue Second>
-			requires (Index == 1)
-		constexpr const Second& get(const Pair<First, Second>& pair) noexcept {
-			return pair.second;
-		}
+		requires (Index == 1)
+		constexpr const Second& get(const Pair<First, Second>& pair) noexcept;
 
 		/**
 		 * @brief Move-access the first pair member.
@@ -402,10 +464,8 @@ namespace StormByte {
 		 * @return Rvalue reference to the first member.
 		 */
 		template<std::size_t Index, Type::SafeValue First, Type::SafeValue Second>
-			requires (Index == 0)
-		constexpr First&& get(Pair<First, Second>&& pair) noexcept {
-			return std::move(pair.first);
-		}
+		requires (Index == 0)
+		constexpr First&& get(Pair<First, Second>&& pair) noexcept;
 
 		/**
 		 * @brief Move-access the second pair member.
@@ -414,10 +474,8 @@ namespace StormByte {
 		 * @return Rvalue reference to the second member.
 		 */
 		template<std::size_t Index, Type::SafeValue First, Type::SafeValue Second>
-			requires (Index == 1)
-		constexpr Second&& get(Pair<First, Second>&& pair) noexcept {
-			return std::move(pair.second);
-		}
+		requires (Index == 1)
+		constexpr Second&& get(Pair<First, Second>&& pair) noexcept;
 
 		/**
 		 * @brief Read the first member from a const rvalue pair.
@@ -426,10 +484,8 @@ namespace StormByte {
 		 * @return Const rvalue reference to the first member.
 		 */
 		template<std::size_t Index, Type::SafeValue First, Type::SafeValue Second>
-			requires (Index == 0)
-		constexpr const First&& get(const Pair<First, Second>&& pair) noexcept {
-			return std::move(pair.first);
-		}
+		requires (Index == 0)
+		constexpr const First&& get(const Pair<First, Second>&& pair) noexcept;
 
 		/**
 		 * @brief Read the second member from a const rvalue pair.
@@ -438,10 +494,8 @@ namespace StormByte {
 		 * @return Const rvalue reference to the second member.
 		 */
 		template<std::size_t Index, Type::SafeValue First, Type::SafeValue Second>
-			requires (Index == 1)
-		constexpr const Second&& get(const Pair<First, Second>&& pair) noexcept {
-			return std::move(pair.second);
-		}
+		requires (Index == 1)
+		constexpr const Second&& get(const Pair<First, Second>&& pair) noexcept;
 	}
 
 	/**
@@ -450,27 +504,27 @@ namespace StormByte {
 	 */
 	namespace Type {
 		/**
-		 * @brief Recognizes Safe pairs.
-		 * @tparam First First Safe type.
-		 * @tparam Second Second Safe type.
+		 * @brief Recognizes a pair of already safe values.
+		 * @tparam First First Safe value.
+		 * @tparam Second Second Safe value.
 		 */
 		template<SafeValue First, SafeValue Second>
 		requires IsSafe<First>::value && IsSafe<Second>::value
 		struct IsSafe<Safe::Pair<First, Second>>: std::true_type {};
 
 		/**
-		 * @brief Propagates conditional safety when either pair component is MaybeSafe.
-		 * @tparam First First Safe value type.
-		 * @tparam Second Second Safe value type.
+		 * @brief Propagates conditional safety when either member is conditionally safe.
+		 * @tparam First First Safe value.
+		 * @tparam Second Second Safe value.
 		 */
 		template<SafeValue First, SafeValue Second>
 		requires (MaybeSafe<First> || MaybeSafe<Second>)
 		struct IsMaybeSafe<Safe::Pair<First, Second>>: std::true_type {};
 
 		/**
-		 * @brief Admits Safe pairs as collection values.
-		 * @tparam First First Safe type.
-		 * @tparam Second Second Safe type.
+		 * @brief Admits a pair of safe values as a collection value.
+		 * @tparam First First Safe value.
+		 * @tparam Second Second Safe value.
 		 */
 		template<SafeValue First, SafeValue Second>
 		struct IsSafeValue<Safe::Pair<First, Second>>: std::true_type {};
@@ -479,8 +533,8 @@ namespace StormByte {
 
 /**
  * @brief Tuple arity of a Safe pair.
- * @tparam First First Safe type.
- * @tparam Second Second Safe type.
+ * @tparam First First Safe value.
+ * @tparam Second Second Safe value.
  */
 template<StormByte::Type::SafeValue First, StormByte::Type::SafeValue Second>
 struct std::tuple_size<StormByte::Safe::Pair<First, Second>>: std::integral_constant<std::size_t, 2> {};
@@ -498,8 +552,8 @@ struct std::tuple_size<StormByte::Safe::PairReference<First, Second, SecondRefer
 /**
  * @brief Tuple element type of a Safe pair.
  * @tparam Index Member index.
- * @tparam First First Safe type.
- * @tparam Second Second Safe type.
+ * @tparam First First Safe value.
+ * @tparam Second Second Safe value.
  */
 template<std::size_t Index, StormByte::Type::SafeValue First, StormByte::Type::SafeValue Second>
 requires (Index < 2)
@@ -519,3 +573,5 @@ requires (Index < 2)
 struct std::tuple_element<Index, StormByte::Safe::PairReference<First, Second, SecondReference>> {
 	using type = std::conditional_t<Index == 0, const First, SecondReference>;
 };
+
+#include <StormByte/safe/pair.txx>
