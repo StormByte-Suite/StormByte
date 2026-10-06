@@ -44,58 +44,94 @@
 #include <StormByte/safe/utf8.hxx>
 #include <StormByte/safe/wstring.hxx>
 
+#include <cstring>
 #include <string>
 #include <utility>
+
+extern "C" {
+	typedef char* sds;
+	sds sdsnewlen(const void* init, size_t initlen);
+	void sdsfree(sds s);
+	sds sdsMakeRoomFor(sds s, size_t addlen);
+	sds sdscatlen(sds s, const void* t, size_t len);
+	void sdsIncrLen(sds s, ptrdiff_t incr);
+	size_t stormbyte_sdslen(const sds s);
+	size_t stormbyte_sdsavail(const sds s);
+}
 
 using namespace StormByte;
 using namespace StormByte::Safe;
 namespace Text = StormByte::Safe::Text;
 
-struct String::TextStorage {
-	std::string value;
-};
+namespace {
+	constexpr unsigned char kLongBit = 0x80;
+	constexpr unsigned char kSizeMask = 0x7f;
+}
 
-String::String() noexcept = default;
+void String::SetEmpty() noexcept {
+	m_storage.data[0] = '\0';
+	m_storage.m_tag = 0;
+}
+
+void String::SetShort(const char* text, std::size_t count) noexcept {
+	if (count != 0)
+		std::memcpy(m_storage.data, text, count);
+	m_storage.data[count] = '\0';
+	m_storage.m_tag = static_cast<std::uint8_t>(count);
+}
+
+String::String() noexcept {
+	SetEmpty();
+}
 
 String::String(const char* str) noexcept {
-	if (str)
-		EnsureStorage().value.assign(str);
+	if (!str) {
+		SetEmpty();
+		return;
+	}
+	SetEmpty();
+	assign(std::string_view{str});
 }
 
 String::String(std::string_view str) noexcept {
-	EnsureStorage().value.assign(str);
+	SetEmpty();
+	assign(str);
 }
 
 String::String(const WString& other) noexcept {
+	SetEmpty();
 	if (other)
-		EnsureStorage().value = Utf8::FromWide(static_cast<std::wstring_view>(other));
+		assign(Utf8::FromWide(static_cast<std::wstring_view>(other)));
 }
 
 String::String(const String& other) noexcept {
-	if (other.m_text) {
-		auto& value = EnsureStorage().value;
-		value.reserve(other.m_text->value.capacity());
-		value.assign(other.m_text->value);
-	}
+	SetEmpty();
+	assign(static_cast<std::string_view>(other));
+	if (other.IsLong())
+		reserve(other.capacity());
 }
 
-String::String(String&& other) noexcept: m_text(std::move(other.m_text)) {}
+String::String(String&& other) noexcept {
+	m_storage = other.m_storage;
+	other.SetEmpty();
+}
 
-String::~String() noexcept = default;
+String::~String() noexcept {
+	ReleaseLong();
+}
 
 String& String::operator=(const String& other) noexcept {
-	if (this != &other) {
-		if (other.m_text)
-			EnsureStorage().value.assign(other.m_text->value);
-		else
-			m_text.reset();
-	}
+	if (this != &other)
+		assign(static_cast<std::string_view>(other));
 	return *this;
 }
 
 String& String::operator=(String&& other) noexcept {
-	if (this != &other)
-		m_text = std::move(other.m_text);
+	if (this != &other) {
+		ReleaseLong();
+		m_storage = other.m_storage;
+		other.SetEmpty();
+	}
 	return *this;
 }
 
@@ -103,46 +139,86 @@ String& String::operator=(std::string_view text) {
 	return assign(text);
 }
 
-String::TextStorage& String::EnsureStorage() {
-	if (!m_text)
-		m_text = Heap::MakeUnique<TextStorage>();
-	return *m_text;
+bool String::IsLong() const noexcept {
+	return (m_storage.m_tag & kLongBit) != 0;
 }
 
 char* String::data() noexcept {
-	return m_text ? m_text->value.data() : nullptr;
+	return IsLong() ? m_storage.long_ : m_storage.data;
 }
 
 const char* String::data() const noexcept {
-	return m_text ? m_text->value.data() : nullptr;
+	return IsLong() ? m_storage.long_ : m_storage.data;
 }
 
 Size String::size() const noexcept {
-	return m_text ? Size{m_text->value.size()} : Size{};
+	if (IsLong())
+		return Size{stormbyte_sdslen(m_storage.long_)};
+	return Size{static_cast<std::size_t>(m_storage.m_tag & kSizeMask)};
 }
 
 Size String::capacity() const noexcept {
-	return m_text ? Size{m_text->value.capacity()} : Size{};
+	if (IsLong())
+		return Size{stormbyte_sdslen(m_storage.long_) + stormbyte_sdsavail(m_storage.long_)};
+	return Size{SSO_CAPACITY};
 }
 
 String& String::append(std::string_view text) {
-	EnsureStorage().value.append(text);
+	if (text.empty())
+		return *this;
+	reserve(size() + Size{text.size()});
+	if (IsLong()) {
+		m_storage.long_ = sdscatlen(m_storage.long_, text.data(), text.size());
+		if (!m_storage.long_)
+			throw AllocationError();
+		return *this;
+	}
+	const std::size_t n = static_cast<std::size_t>(size());
+	std::memcpy(m_storage.data + n, text.data(), text.size());
+	SetShort(m_storage.data, n + text.size());
 	return *this;
 }
 
 String& String::append(size_type count, char character) {
-	EnsureStorage().value.append(static_cast<std::size_t>(count), character);
+	if (count == 0)
+		return *this;
+	reserve(size() + count);
+	if (IsLong()) {
+		const std::string block(static_cast<std::size_t>(count), character);
+		m_storage.long_ = sdscatlen(m_storage.long_, block.data(), block.size());
+		if (!m_storage.long_)
+			throw AllocationError();
+		return *this;
+	}
+	const std::size_t n = static_cast<std::size_t>(size());
+	std::memset(m_storage.data + n, static_cast<unsigned char>(character), static_cast<std::size_t>(count));
+	SetShort(m_storage.data, n + static_cast<std::size_t>(count));
 	return *this;
 }
 
 String& String::assign(std::string_view text) {
-	EnsureStorage().value.assign(text);
+	ReleaseLong();
+	if (text.size() <= SSO_CAPACITY) {
+		SetShort(text.data(), text.size());
+		return *this;
+	}
+	m_storage.long_ = sdsnewlen(text.data(), text.size());
+	if (!m_storage.long_)
+		throw AllocationError();
+	m_storage.m_tag = kLongBit;
 	return *this;
 }
 
 String& String::assign(size_type count, char character) {
-	EnsureStorage().value.assign(static_cast<std::size_t>(count), character);
-	return *this;
+	if (count <= Size{SSO_CAPACITY}) {
+		ReleaseLong();
+		if (static_cast<std::size_t>(count) != 0)
+			std::memset(m_storage.data, static_cast<unsigned char>(character), static_cast<std::size_t>(count));
+		SetShort(m_storage.data, static_cast<std::size_t>(count));
+		return *this;
+	}
+	const std::string block(static_cast<std::size_t>(count), character);
+	return assign(std::string_view{block});
 }
 
 String& String::operator+=(std::string_view text) {
@@ -154,50 +230,105 @@ String& String::operator+=(char character) {
 }
 
 void String::push_back(char character) {
-	EnsureStorage().value.push_back(character);
+	append(Size{1}, character);
 }
 
 void String::pop_back() {
-	EnsureStorage().value.pop_back();
+	if (size() == 0)
+		return;
+	resize(size() - Size{1});
 }
 
 void String::clear() {
-	EnsureStorage().value.clear();
+	if (!IsLong()) {
+		SetEmpty();
+		return;
+	}
+	const int drop = -static_cast<int>(stormbyte_sdslen(m_storage.long_));
+	sdsIncrLen(m_storage.long_, drop);
 }
 
 void String::reserve(size_type new_capacity) {
 	if (new_capacity <= capacity())
 		return;
-	try {
-		EnsureStorage().value.reserve(static_cast<std::size_t>(new_capacity));
-	} catch (const std::length_error&) {
+	const std::size_t requested = static_cast<std::size_t>(new_capacity);
+	if (requested > std::numeric_limits<std::size_t>::max() - 1)
 		throw OutOfBoundsError("Safe::String reserve capacity is too large");
-	} catch (const std::bad_alloc&) {
-		throw AllocationError();
+	if (!IsLong()) {
+		const std::size_t n = static_cast<std::size_t>(size());
+		sds created = sdsnewlen(m_storage.data, n);
+		if (!created)
+			throw AllocationError();
+		sds grown = sdsMakeRoomFor(created, requested - n);
+		if (!grown)
+			throw AllocationError();
+		m_storage.long_ = grown;
+		m_storage.m_tag = kLongBit;
+		return;
 	}
+	const std::size_t n = static_cast<std::size_t>(size());
+	if (requested < n)
+		throw OutOfBoundsError("Safe::String reserve capacity is too large");
+	sds grown = sdsMakeRoomFor(m_storage.long_, requested - n);
+	if (!grown)
+		throw AllocationError();
+	m_storage.long_ = grown;
 }
 
 void String::resize(size_type count, char character) {
-	EnsureStorage().value.resize(static_cast<std::size_t>(count), character);
+	if (count == size())
+		return;
+	if (count > size()) {
+		append(count - size(), character);
+		return;
+	}
+	if (!IsLong()) {
+		SetShort(m_storage.data, static_cast<std::size_t>(count));
+		return;
+	}
+	const int delta = static_cast<int>(static_cast<std::size_t>(count)) - static_cast<int>(stormbyte_sdslen(m_storage.long_));
+	sdsIncrLen(m_storage.long_, delta);
+	m_storage.long_[static_cast<std::size_t>(count)] = '\0';
 }
 
 String& String::insert(size_type position, std::string_view text) {
-	EnsureStorage().value.insert(static_cast<std::size_t>(position), text);
-	return *this;
+	const std::string_view view = *this;
+	if (static_cast<std::size_t>(position) > view.size())
+		throw OutOfBoundsError("Safe::String insert position is past size");
+	std::string merged;
+	merged.reserve(view.size() + text.size());
+	merged.append(view.substr(0, static_cast<std::size_t>(position)));
+	merged.append(text);
+	merged.append(view.substr(static_cast<std::size_t>(position)));
+	return assign(std::string_view{merged});
 }
 
 String& String::erase(size_type position, size_type count) {
-	EnsureStorage().value.erase(static_cast<std::size_t>(position), static_cast<std::size_t>(count));
-	return *this;
+	const std::string_view view = *this;
+	if (static_cast<std::size_t>(position) > view.size())
+		throw OutOfBoundsError("Safe::String erase position is past size");
+	const std::size_t start = static_cast<std::size_t>(position);
+	const std::size_t n = count == npos ? view.size() - start : std::min(static_cast<std::size_t>(count), view.size() - start);
+	std::string merged;
+	merged.append(view.substr(0, start));
+	merged.append(view.substr(start + n));
+	return assign(std::string_view{merged});
 }
 
 String& String::replace(size_type position, size_type count, std::string_view text) {
-	EnsureStorage().value.replace(static_cast<std::size_t>(position), static_cast<std::size_t>(count), text);
-	return *this;
+	erase(position, count);
+	return insert(position, text);
 }
 
 void String::swap(String& other) noexcept {
-	m_text.swap(other.m_text);
+	std::swap(m_storage, other.m_storage);
+}
+
+void String::ReleaseLong() noexcept {
+	if (!IsLong())
+		return;
+	sdsfree(m_storage.long_);
+	SetEmpty();
 }
 
 String::operator WString() const noexcept {
@@ -206,25 +337,25 @@ String::operator WString() const noexcept {
 
 String String::ToLower(std::string_view str) noexcept {
 	String result;
-	result.EnsureStorage().value = Utf8::ToLower(str);
+	result.assign(Utf8::ToLower(str));
 	return result;
 }
 
 String String::ToUpper(std::string_view str) noexcept {
 	String result;
-	result.EnsureStorage().value = Utf8::ToUpper(str);
+	result.assign(Utf8::ToUpper(str));
 	return result;
 }
 
 String String::SanitizeNewlines(std::string_view str) noexcept {
 	String result;
-	result.EnsureStorage().value = Text::SanitizeNewlines(str);
+	result.assign(Text::SanitizeNewlines(str));
 	return result;
 }
 
 String String::RemoveWhitespace(std::string_view str) noexcept {
 	String result;
-	result.EnsureStorage().value = Text::RemoveWhitespace(str);
+	result.assign(Text::RemoveWhitespace(str));
 	return result;
 }
 

@@ -50,6 +50,7 @@
 #include <cassert>
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <ostream>
@@ -66,7 +67,7 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Owned UTF-8 and wide text with module-owned storage.
+	 * @brief Owned UTF-8 and wide text. Short UTF-8 lives in the object; the long path is Base-owned SDS.
 	 */
 	namespace Safe {
 		/**
@@ -77,34 +78,29 @@ namespace StormByte {
 
 		/**
 		 * @class String
-		 * @brief Owned UTF-8 text with private module-owned storage.
+		 * @brief Owned UTF-8 text.
 		 *
-		 * Not a `std::string`, but its code units are contiguous and mutable.
-		 * Classic and ranges algorithms can read or modify existing bytes;
-		 * they cannot change the owned buffer's size.
+		 * Not a `std::string`. Up to 22 bytes live in the object, NUL-terminated, with an explicit size.
+		 * Longer text is an SDS buffer freed in Base. There is no null state: a moved-from string is empty.
+		 * `data()` and `c_str()` are never null.
 		 *
-		 * `operator std::string_view` is implicit and inline. `operator
-		 * std::string` is explicit and `STORMBYTE_FORCE_INLINE` (caller heap).
+		 * Classic and ranges algorithms can read or modify existing bytes; they cannot change the owned size.
+		 * `operator std::string_view` is implicit and inline. `operator std::string` is explicit and
+		 * `STORMBYTE_FORCE_INLINE` (caller heap).
 		 *
-		 * Conversion to @ref WString is explicit and runs in the module
-		 * (UTF-8 → wide). Conversion from @ref WString copies UTF-8 in
-		 * the module.
+		 * Conversion to @ref WString is explicit and runs in the module (UTF-8 to wide). Conversion from
+		 * @ref WString copies UTF-8 in the module.
 		 *
-		 * `ToUpper` / `ToLower` map only ASCII `A–Z` / `a–z`. Other
-		 * well-formed UTF-8 code points are copied. Ill-formed bytes are
-		 * copied one-by-one so a sequence is never split in the middle
-		 * of a valid character.
+		 * `ToUpper` / `ToLower` map only ASCII `A–Z` / `a–z`. Other well-formed UTF-8 code points are copied.
+		 * Ill-formed bytes are copied one-by-one so a sequence is never split in the middle of a valid character.
 		 *
-		 * Observers (`starts_with`, `ends_with`, `contains`, `find`,
-		 * `substr`, …) follow `std::string_view`. Size-changing modifiers
-		 * follow `std::string` value semantics within the Base-owned storage;
-		 * no caller-CRT string allocation is adopted. `capacity()` and `reserve(Size)`
-		 * count UTF-8 bytes excluding NUL; reserve never shrinks and modifiers retain it.
+		 * Observers follow `std::string_view`. Size-changing modifiers follow `std::string` value semantics.
+		 * `capacity()` and `reserve(Size)` count UTF-8 bytes excluding NUL; reserve never shrinks.
 		 */
 		class STORMBYTE_PUBLIC String {
 			public:
 				using value_type = char;	///< Byte type
-				using size_type = Size;	///< Code-unit count and position type
+				using size_type = Size;	///< Byte count and position type
 				using difference_type = std::ptrdiff_t;	///< Iterator distance type
 				using pointer = char*;	///< Mutable buffer pointer
 				using const_pointer = const char*;	///< Read-only buffer pointer
@@ -115,25 +111,27 @@ namespace StormByte {
 				using reverse_iterator = std::reverse_iterator<iterator>;	///< Mutable reverse observer
 				using const_reverse_iterator = std::reverse_iterator<const_iterator>;	///< Reverse observer
 
+				static constexpr std::size_t SSO_CAPACITY = 22;	///< Short-text capacity, excluding the trailing NUL
+
 				/**
 				 * @name Life
 				 * @{
 				 */
 
 				/**
-				 * @brief Null text.
+				 * @brief Empty text. Not null.
 				 */
 				String() noexcept;
 
 				/**
-				 * @brief Copies a C string.
+				 * @brief Copies a C string. A null pointer becomes empty.
 				 * @param str Source; may be null.
 				 */
 				explicit String(const char* str) noexcept;
 
 				/**
-				 * @brief Copies a view into an owned NUL-terminated buffer.
-				 * @param str Source.
+				 * @brief Copies a view into owned storage.
+				 * @param str Source. Embedded NUL counts.
 				 */
 				explicit String(std::string_view str) noexcept;
 
@@ -151,12 +149,12 @@ namespace StormByte {
 
 				/**
 				 * @brief Move constructor.
-				 * @param other Text to take. @p other becomes null.
+				 * @param other Text to take. @p other becomes empty.
 				 */
 				String(String&& other) noexcept;
 
 				/**
-				 * @brief Releases the buffer.
+				 * @brief Releases a long SDS buffer. A short string has nothing to free.
 				 */
 				~String() noexcept;
 
@@ -169,13 +167,13 @@ namespace StormByte {
 
 				/**
 				 * @brief Move assignment.
-				 * @param other Text to take. @p other becomes null.
+				 * @param other Text to take. @p other becomes empty.
 				 * @return *this.
 				 */
 				String& operator=(String&& other) noexcept;
 
 				/**
-				 * @brief Copy text from a caller-owned view into Base storage.
+				 * @brief Copy text from a caller-owned view.
 				 * @param text Source bytes.
 				 * @return This string.
 				 */
@@ -189,41 +187,39 @@ namespace StormByte {
 				 */
 
 				/**
-				 * @brief First character, or null.
-				 * @return Iterator.
+				 * @brief First character.
+				 * @return Iterator. Never null.
 				 */
 				inline iterator begin() noexcept {
 					return data();
 				}
 
 				/**
-				 * @brief First character, or null.
-				 * @return Read-only iterator.
+				 * @brief First character.
+				 * @return Read-only iterator. Never null.
 				 */
 				inline const_iterator begin() const noexcept {
 					return data();
 				}
 
 				/**
-				 * @brief One past the last character, or null.
-				 * @return Iterator.
+				 * @brief One past the last character.
+				 * @return Iterator. Never null.
 				 */
 				inline iterator end() noexcept {
-					char* text = data();
-					return text ? text + static_cast<std::size_t>(size()) : nullptr;
+					return data() + static_cast<std::size_t>(size());
 				}
 
 				/**
-				 * @brief One past the last character, or null.
-				 * @return Read-only iterator.
+				 * @brief One past the last character.
+				 * @return Read-only iterator. Never null.
 				 */
 				inline const_iterator end() const noexcept {
-					const char* text = data();
-					return text ? text + size() : nullptr;
+					return data() + static_cast<std::size_t>(size());
 				}
 
 				/**
-				 * @brief First character, or null.
+				 * @brief First character.
 				 * @return Iterator.
 				 */
 				inline const_iterator cbegin() const noexcept {
@@ -231,7 +227,7 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief One past the last character, or null.
+				 * @brief One past the last character.
 				 * @return Iterator.
 				 */
 				inline const_iterator cend() const noexcept {
@@ -287,26 +283,34 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Contiguous pointer; null when the buffer is null.
-				 * @return Pointer to the first character.
+				 * @brief Contiguous pointer to the first byte, or to the trailing NUL when empty.
+				 * @return Never null.
 				 */
 				char* data() noexcept;
 
 				/**
-				 * @brief Read-only contiguous pointer; null when the buffer is null.
-				 * @return Pointer to the first character.
+				 * @brief Read-only contiguous pointer to the first byte, or to the trailing NUL when empty.
+				 * @return Never null.
 				 */
 				const char* data() const noexcept;
 
 				/**
-				 * @brief Character count; `0` when null or empty.
-				 * @return Length as @ref StormByte::Size (code units, not bytes).
+				 * @brief Same pointer as @ref data. The byte at `size()` is NUL and is not part of the length.
+				 * @return Never null.
+				 */
+				inline const char* c_str() const noexcept {
+					return data();
+				}
+
+				/**
+				 * @brief Byte count, excluding the trailing NUL.
+				 * @return Length as @ref StormByte::Size.
 				 */
 				Size size() const noexcept;
 
 				/**
-				 * @brief Return allocated byte capacity, excluding the trailing NUL.
-				 * @return Capacity in UTF-8 bytes.
+				 * @brief Allocated byte capacity, excluding the trailing NUL.
+				 * @return 22 for a short string; SDS capacity for a long one.
 				 */
 				Size capacity() const noexcept;
 
@@ -320,7 +324,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Whether @ref size is zero.
-				 * @return Emptiness. A null buffer is empty.
+				 * @return Emptiness. An empty string still has a pointer.
 				 */
 				inline bool empty() const noexcept {
 					return size() == 0;
@@ -377,18 +381,21 @@ namespace StormByte {
 				void push_back(char character);
 
 				/**
-				 * @brief Remove the final byte; empty-string use follows std::string preconditions.
+				 * @brief Remove the final byte. Empty use follows `std::string` preconditions.
 				 */
 				void pop_back();
 
 				/**
-				 * @brief Replace the contents with a valid empty string, retaining capacity.
+				 * @brief Replace the contents with an empty string, retaining long-path capacity.
 				 */
 				void clear();
 
 				/**
 				 * @brief Reserve storage for at least @p new_capacity UTF-8 bytes.
 				 * @param new_capacity Requested byte capacity, excluding the NUL.
+				 * @return Nothing.
+				 * @throw OutOfBoundsError The request cannot be represented, including a trailing NUL.
+				 * @throw AllocationError The size is representable but the SDS allocation failed.
 				 * @note Requests at or below capacity do not shrink or reallocate.
 				 */
 				void reserve(size_type new_capacity);
@@ -429,10 +436,10 @@ namespace StormByte {
 				 * @brief Character at @p index.
 				 * @param index Position in `[0, size()]`. `size()` is the trailing NUL.
 				 * @return Character.
-				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
+				 * @note `index > size()` is undefined and `assert`s when assertions are on.
 				 */
 				inline char& operator[](const Size& index) noexcept {
-					assert(data() && index <= size());
+					assert(index <= size());
 					return data()[static_cast<std::size_t>(index)];
 				}
 
@@ -440,19 +447,19 @@ namespace StormByte {
 				 * @brief Read-only character at @p index.
 				 * @param index Position in `[0, size()]`. `size()` is the trailing NUL.
 				 * @return Character copy.
-				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
+				 * @note `index > size()` is undefined and `assert`s when assertions are on.
 				 */
 				inline char operator[](const Size& index) const noexcept {
-					assert(data() && index <= size());
+					assert(index <= size());
 					return data()[static_cast<std::size_t>(index)];
 				}
 
 				/**
-				 * @brief Whether a buffer is held.
-				 * @return `false` only for null storage. `""` is valid and empty.
+				 * @brief Whether the text is non-empty.
+				 * @return `false` for empty text. A pointer is always held.
 				 */
 				inline explicit operator bool() const noexcept {
-					return data() != nullptr;
+					return !empty();
 				}
 
 				/** @} */
@@ -464,17 +471,16 @@ namespace StormByte {
 
 				/**
 				 * @brief Non-owning view of the text.
-				 * @return Empty view when the buffer is null.
-				 * @note Same lifetime as `std::string::c_str()`.
+				 * @return View of `size()` bytes. Embedded NUL is preserved. Never a null buffer.
+				 * @note Same lifetime as `std::string::c_str()`. Invalidated by a mutating operation that reallocates.
 				 */
 				inline operator std::string_view() const noexcept {
-					const char* text = data();
-					return text ? std::string_view(text, static_cast<std::size_t>(size())) : std::string_view{};
+					return std::string_view(data(), static_cast<std::size_t>(size()));
 				}
 
 				/**
 				 * @brief Copy of the text in the caller’s heap.
-				 * @return Empty string when the buffer is null.
+				 * @return Caller-owned `std::string`.
 				 */
 				STORMBYTE_FORCE_INLINE explicit operator std::string() const {
 					return std::string(static_cast<std::string_view>(*this));
@@ -482,11 +488,11 @@ namespace StormByte {
 
 				/**
 				 * @brief View of the owned buffer.
-				 * @return Buffer, or null.
+				 * @return `c_str()`. Never null.
 				 * @note Same lifetime as `std::string::c_str()`.
 				 */
 				inline explicit operator const char*() const noexcept {
-					return data();
+					return c_str();
 				}
 
 				/**
@@ -497,7 +503,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Non-owning view of the owned bytes.
-				 * @return Buffer, or null.
+				 * @return `data()`. Never null.
 				 */
 				inline const char* Bytes() const noexcept {
 					return data();
@@ -569,7 +575,7 @@ namespace StormByte {
 				/**
 				 * @brief First occurrence of @p text at or after @p pos.
 				 * @param text Needle.
-				 * @param pos Start, in code units.
+				 * @param pos Start, in bytes.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size find(std::string_view text, Size pos = {}) const noexcept {
@@ -579,7 +585,7 @@ namespace StormByte {
 				/**
 				 * @brief First occurrence of @p ch at or after @p pos.
 				 * @param ch Byte.
-				 * @param pos Start, in code units.
+				 * @param pos Start, in bytes.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size find(char ch, Size pos = {}) const noexcept {
@@ -589,7 +595,7 @@ namespace StormByte {
 				/**
 				 * @brief First occurrence of @p count bytes of @p text.
 				 * @param text Needle. May be null when @p count is zero.
-				 * @param pos Start, in code units.
+				 * @param pos Start, in bytes.
 				 * @param count Bytes of @p text to use.
 				 * @return Index, or @ref npos.
 				 */
@@ -600,7 +606,7 @@ namespace StormByte {
 				/**
 				 * @brief Last occurrence of @p text at or before @p pos.
 				 * @param text Needle.
-				 * @param pos Highest start, in code units. Default is the end.
+				 * @param pos Highest start, in bytes. Default is the end.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size rfind(std::string_view text, Size pos = npos) const noexcept {
@@ -610,7 +616,7 @@ namespace StormByte {
 				/**
 				 * @brief Last occurrence of @p ch at or before @p pos.
 				 * @param ch Byte.
-				 * @param pos Highest start, in code units. Default is the end.
+				 * @param pos Highest start, in bytes. Default is the end.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size rfind(char ch, Size pos = npos) const noexcept {
@@ -620,7 +626,7 @@ namespace StormByte {
 				/**
 				 * @brief Last occurrence of @p count bytes of @p text.
 				 * @param text Needle. May be null when @p count is zero.
-				 * @param pos Highest start, in code units.
+				 * @param pos Highest start, in bytes.
 				 * @param count Bytes of @p text to use.
 				 * @return Index, or @ref npos.
 				 */
@@ -631,7 +637,7 @@ namespace StormByte {
 				/**
 				 * @brief First byte that is in @p text, at or after @p pos.
 				 * @param text Set of bytes.
-				 * @param pos Start, in code units.
+				 * @param pos Start, in bytes.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size find_first_of(std::string_view text, Size pos = {}) const noexcept {
@@ -644,7 +650,7 @@ namespace StormByte {
 				/**
 				 * @brief First @p ch at or after @p pos.
 				 * @param ch Byte.
-				 * @param pos Start, in code units.
+				 * @param pos Start, in bytes.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size find_first_of(char ch, Size pos = {}) const noexcept {
@@ -676,7 +682,7 @@ namespace StormByte {
 				/**
 				 * @brief First byte that is not in @p text, at or after @p pos.
 				 * @param text Set of bytes.
-				 * @param pos Start, in code units.
+				 * @param pos Start, in bytes.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size find_first_not_of(std::string_view text, Size pos = {}) const noexcept {
@@ -689,7 +695,7 @@ namespace StormByte {
 				/**
 				 * @brief First byte other than @p ch, at or after @p pos.
 				 * @param ch Byte.
-				 * @param pos Start, in code units.
+				 * @param pos Start, in bytes.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size find_first_not_of(char ch, Size pos = {}) const noexcept {
@@ -725,7 +731,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Copy of a slice. Not a view.
-				 * @param pos Start, in code units.
+				 * @param pos Start, in bytes.
 				 * @param count Length. @ref npos means through the end.
 				 * @return Owned text. Empty when @p pos is past @ref size. Does not throw.
 				 */
@@ -971,8 +977,7 @@ namespace StormByte {
 				 * @return Whether the texts are equal.
 				 */
 				inline bool operator==(const String& other) const noexcept {
-					return static_cast<bool>(*this) == static_cast<bool>(other)
-						&& static_cast<std::string_view>(*this) == static_cast<std::string_view>(other);
+					return static_cast<std::string_view>(*this) == static_cast<std::string_view>(other);
 				}
 
 				/**
@@ -985,12 +990,12 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Content equality with a C string.
+				 * @brief Content equality with a C string. A null pointer compares equal to empty.
 				 * @param str May be null.
 				 * @return Whether the texts are equal.
 				 */
 				inline bool operator==(const char* str) const noexcept {
-					return str ? static_cast<bool>(*this) && static_cast<std::string_view>(*this) == std::string_view(str) : !*this;
+					return str ? static_cast<std::string_view>(*this) == std::string_view(str) : empty();
 				}
 
 				/**
@@ -1003,47 +1008,72 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Content order. Null is less than any text.
+				 * @brief Content order.
 				 * @param other Other text.
 				 * @return Ordering.
 				 */
 				inline std::strong_ordering operator<=>(const String& other) const noexcept {
-					if (static_cast<bool>(*this) != static_cast<bool>(other))
-						return *this ? std::strong_ordering::greater : std::strong_ordering::less;
 					return static_cast<std::string_view>(*this) <=> static_cast<std::string_view>(other);
 				}
 
 				/**
-				 * @brief Content order against a C string.
+				 * @brief Content order against a C string. A null pointer compares as empty.
 				 * @param str May be null.
 				 * @return Ordering.
 				 */
 				inline std::strong_ordering operator<=>(const char* str) const noexcept {
-					if (static_cast<bool>(*this) != (str != nullptr))
-						return *this ? std::strong_ordering::greater : std::strong_ordering::less;
-					return str ? static_cast<std::string_view>(*this) <=> std::string_view(str) : std::strong_ordering::equal;
+					return str ? static_cast<std::string_view>(*this) <=> std::string_view(str)
+						: static_cast<std::string_view>(*this) <=> std::string_view{};
 				}
 
 				/** @} */
 
 				/**
-				 * @brief Swaps buffers with @p other.
+				 * @brief Swaps storage with @p other.
 				 * @param other Other text.
 				 */
 				void swap(String& other) noexcept;
 
 			private:
 				/**
-				 * @struct TextStorage
-				 * @brief UTF-8 storage defined and destroyed only inside the module.
+				 * @brief In-object short buffer, or an SDS pointer when bit 7 of @ref m_tag is set.
+				 *
+				 * `data` holds 22 bytes plus a trailing NUL. `m_tag` bits 0–6 are the short size.
+				 * `long_` is active only while the long bit is set, and is freed in Base.
 				 */
-				struct TextStorage;
+				struct alignas(alignof(void*)) Storage {
+					union {
+						char data[SSO_CAPACITY + 1];	///< Short bytes, or overlaid by @ref long_
+						char* long_;	///< SDS pointer. Active only when the long bit is set
+					};
+					std::uint8_t m_tag;	///< Bit 7 long; bits 0–6 short size
+				};
+
+				static_assert(sizeof(Storage) == 32);
+				static_assert(alignof(Storage) == alignof(void*));
 
 				/**
-				 * @brief Lazily create owned empty storage for null or moved-from text.
-				 * @return Module-owned storage.
+				 * @brief Whether the SDS pointer is the active member.
+				 * @return Long-path flag.
 				 */
-				TextStorage& EnsureStorage();
+				bool IsLong() const noexcept;
+
+				/**
+				 * @brief Free the SDS buffer, if any, and leave an empty short string.
+				 */
+				void ReleaseLong() noexcept;
+
+				/**
+				 * @brief Leave an empty short string. Does not free.
+				 */
+				void SetEmpty() noexcept;
+
+				/**
+				 * @brief Store a short sequence and its explicit size. `count` must be at most @ref SSO_CAPACITY.
+				 * @param text Source bytes. May contain embedded NUL.
+				 * @param count Byte count, excluding the trailing NUL written at `data[count]`.
+				 */
+				void SetShort(const char* text, std::size_t count) noexcept;
 
 				/**
 				 * @brief Convert a standard view index into the public position type.
@@ -1083,10 +1113,7 @@ namespace StormByte {
 					return FromIndex(self.rfind(needle, start));
 				}
 
-				/**
-				 * @brief Exclusive module-owned storage; absent for null text.
-				 */
-				Unique<TextStorage> m_text;
+				Storage m_storage{};	///< Short buffer or SDS pointer
 		};
 
 		/**
@@ -1131,7 +1158,7 @@ namespace StormByte {
 }
 
 /**
- * @brief Hash of the text (`0` when the view is empty and the buffer is null).
+ * @brief Hash of the text. An empty string hashes as an empty view.
  */
 template<>
 struct std::hash<StormByte::Safe::String> {

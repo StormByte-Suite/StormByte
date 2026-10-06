@@ -8,6 +8,7 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" _sb_ver)
 string(STRIP "${_sb_ver}" _sb_ver)
 
 project("StormByte C++ Library"
+	LANGUAGES C CXX
 	VERSION ${_sb_ver}
 	DESCRIPTION "StormByte is a comprehensive, cross-platform C++ library aimed at easing system programming, configuration management, logging, and database handling tasks. This library provides a unified API that abstracts away the complexities and inconsistencies of different platforms (Windows, Linux)."
 	HOMEPAGE_URL "https://dev.stormbyte.org/StormByte"

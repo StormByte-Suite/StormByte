@@ -174,8 +174,8 @@ int test_string_size_modifiers() {
 	std::string imported("assigned from STL");
 	text = imported;
 	ASSERT_TRUE("test_string_size_modifiers", text == "assigned from STL");
-	ASSERT_TRUE("test_string_size_modifiers", text.capacity() >= reservedCapacity);
 	text.assign("ab");
+	ASSERT_TRUE("test_string_size_modifiers", text.capacity() == Size{String::SSO_CAPACITY});
 	text.append("cd").append(2, '!');
 	text += "ef";
 	text.insert(Size{1}, "XY");
@@ -189,8 +189,8 @@ int test_string_size_modifiers() {
 	text.pop_back();
 	ASSERT_TRUE("test_string_size_modifiers", text == "a-c");
 	text.clear();
-	ASSERT_TRUE("test_string_size_modifiers", text.empty() && static_cast<bool>(text));
-	ASSERT_TRUE("test_string_size_modifiers", text.capacity() >= reservedCapacity);
+	ASSERT_TRUE("test_string_size_modifiers", text.empty() && !static_cast<bool>(text));
+	ASSERT_TRUE("test_string_size_modifiers", text.data() != nullptr);
 	text.assign(3, 'x');
 	ASSERT_TRUE("test_string_size_modifiers", text == "xxx");
 	RETURN_TEST("test_string_size_modifiers", 0);
@@ -222,7 +222,7 @@ int test_equal_and_order() {
 	ASSERT_TRUE("test_equal_and_order", (a <=> b) == std::strong_ordering::equal);
 	ASSERT_TRUE("test_equal_and_order", (a <=> c) == std::strong_ordering::less);
 	ASSERT_TRUE("test_equal_and_order", (missing <=> a) == std::strong_ordering::less);
-	ASSERT_TRUE("test_equal_and_order", missing != "");
+	ASSERT_TRUE("test_equal_and_order", missing == "");
 	RETURN_TEST("test_equal_and_order", result);
 }
 
@@ -249,7 +249,7 @@ int test_construct_from_owned_string() {
 int test_construct_from_empty() {
 	int result = 0;
 	String text("");
-	ASSERT_TRUE("test_construct_from_empty", static_cast<bool>(text));
+	ASSERT_FALSE("test_construct_from_empty", static_cast<bool>(text));
 	ASSERT_EQUAL("test_construct_from_empty", Size{0}, text.size());
 	ASSERT_TRUE("test_construct_from_empty", text.data() != nullptr);
 	RETURN_TEST("test_construct_from_empty", result);
@@ -273,14 +273,15 @@ int test_construct_from_view() {
 	RETURN_TEST("test_construct_from_view", result);
 }
 
-int test_default_is_null() {
+int test_default_is_empty() {
 	int result = 0;
 	String text;
-	ASSERT_FALSE("test_default_is_null", static_cast<bool>(text));
-	ASSERT_TRUE("test_default_is_null", text.empty());
-	ASSERT_EQUAL("test_default_is_null", Size{0}, text.size());
-	ASSERT_TRUE("test_default_is_null", text.data() == nullptr);
-	RETURN_TEST("test_default_is_null", result);
+	ASSERT_FALSE("test_default_is_empty", static_cast<bool>(text));
+	ASSERT_TRUE("test_default_is_empty", text.empty());
+	ASSERT_EQUAL("test_default_is_empty", Size{0}, text.size());
+	ASSERT_TRUE("test_default_is_empty", text.data() != nullptr);
+	ASSERT_EQUAL("test_default_is_empty", '\0', text.data()[0]);
+	RETURN_TEST("test_default_is_empty", result);
 }
 
 // -------------------
@@ -488,12 +489,12 @@ int test_range_iterators() {
 	RETURN_TEST("test_range_iterators", result);
 }
 
-int test_range_null() {
+int test_range_empty() {
 	int result = 0;
 	String text;
-	ASSERT_TRUE("test_range_null", text.begin() == nullptr);
-	ASSERT_TRUE("test_range_null", text.end() == nullptr);
-	RETURN_TEST("test_range_null", result);
+	ASSERT_TRUE("test_range_empty", text.begin() != nullptr);
+	ASSERT_TRUE("test_range_empty", text.begin() == text.end());
+	RETURN_TEST("test_range_empty", result);
 }
 
 // -------------------
@@ -555,7 +556,7 @@ int main() {
 	result += test_construct_from_empty();
 	result += test_construct_from_ptr();
 	result += test_construct_from_view();
-	result += test_default_is_null();
+	result += test_default_is_empty();
 
 	// -------------------
 	// Conversions / streams
@@ -588,7 +589,7 @@ int main() {
 	// Range
 	// -------------------
 	result += test_range_iterators();
-	result += test_range_null();
+	result += test_range_empty();
 
 	// -------------------
 	// Wide

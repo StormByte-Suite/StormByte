@@ -996,7 +996,8 @@ int test_serialize_safe_string_empty() {
 		RETURN_TEST("test_serialize_safe_string_empty", 1);
 	}
 	ASSERT_TRUE("test_serialize_safe_string_empty", expected.value() == "");
-	ASSERT_TRUE("test_serialize_safe_string_empty", static_cast<bool>(expected.value()));
+	ASSERT_FALSE("test_serialize_safe_string_empty", static_cast<bool>(expected.value()));
+	ASSERT_TRUE("test_serialize_safe_string_empty", expected.value().data() != nullptr);
 	RETURN_TEST("test_serialize_safe_string_empty", 0);
 }
 
