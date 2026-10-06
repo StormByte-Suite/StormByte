@@ -75,7 +75,9 @@ struct TraitUnrelated {};
 struct MoveOnlyValue {
 	MoveOnlyValue() = default;
 	MoveOnlyValue(const MoveOnlyValue&) = delete;
+	MoveOnlyValue& operator=(const MoveOnlyValue&) = delete;
 	MoveOnlyValue(MoveOnlyValue&&) = default;
+	MoveOnlyValue& operator=(MoveOnlyValue&&) = default;
 };
 
 struct UnorderedValue {};
@@ -92,6 +94,7 @@ struct SizeCounted {
 
 bool returns_bool() { return true; }
 int returns_int() { return 1; }
+void returns_void() {}
 
 enum UnscopedEnum { UE_A = 1 };
 enum class ScopedEnum : std::uint16_t { A = 2 };
@@ -414,7 +417,8 @@ int test_relations() {
 	ASSERT_TRUE(test, (Type::InvocableR<int, decltype(returns_int)>));
 	ASSERT_FALSE(test, (Type::InvocableR<Safe::String, decltype(returns_int)>));
 	ASSERT_TRUE(test, (Type::Predicate<decltype(returns_bool)>));
-	ASSERT_FALSE(test, (Type::Predicate<decltype(returns_int)>));
+	ASSERT_TRUE(test, (Type::Predicate<decltype(returns_int)>));
+	ASSERT_FALSE(test, (Type::Predicate<decltype(returns_void)>));
 	ASSERT_TRUE(test, (Type::SameAs<int, int>));
 	ASSERT_TRUE(test, (Type::SameAs<int, const int&>));
 	ASSERT_FALSE(test, (Type::SameAs<int, long>));

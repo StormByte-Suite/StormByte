@@ -106,3 +106,19 @@ OutOfBoundsError::~OutOfBoundsError() noexcept = default;
 OutOfBoundsError& OutOfBoundsError::operator=(const OutOfBoundsError& other) = default;
 
 OutOfBoundsError& OutOfBoundsError::operator=(OutOfBoundsError&& other) noexcept = default;
+
+BadOptionalAccess::BadOptionalAccess() noexcept = default;
+
+BadOptionalAccess::BadOptionalAccess(const BadOptionalAccess& other) noexcept = default;
+
+BadOptionalAccess::BadOptionalAccess(BadOptionalAccess&& other) noexcept = default;
+
+BadOptionalAccess::~BadOptionalAccess() noexcept = default;
+
+BadOptionalAccess& BadOptionalAccess::operator=(const BadOptionalAccess& other) noexcept = default;
+
+BadOptionalAccess& BadOptionalAccess::operator=(BadOptionalAccess&& other) noexcept = default;
+
+const char* BadOptionalAccess::what() const noexcept {
+	return "StormByte.Safe: Optional has no value";
+}

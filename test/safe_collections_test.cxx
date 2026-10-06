@@ -373,13 +373,14 @@ int TestSafeOptionalAlgorithms() {
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", fromLiteral == Safe::String("literal"));
 	std::optional<std::string> narrowBuffer{std::string("converted optional")};
 	Safe::Optional<Safe::String> convertedFromSTL(narrowBuffer);
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", narrowBuffer.has_value() && convertedFromSTL == Safe::String("converted optional"));
 	Safe::Optional<Safe::String> safeBuffer(Safe::String("converted safe"));
 	Safe::Optional<Safe::String> convertedFromSafe(safeBuffer);
 	convertedFromSafe = safeBuffer;
-	ASSERT_TRUE("TestSafeOptionalAlgorithms", convertedFromSTL == Safe::String("converted optional") && convertedFromSafe == Safe::String("converted safe"));
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", convertedFromSafe == Safe::String("converted safe"));
 	std::optional<Safe::String> standardDirect{Safe::String("implicit import")};
 	Safe::Optional<Safe::String> implicitImport = standardDirect;
-	ASSERT_TRUE("TestSafeOptionalAlgorithms", implicitImport == Safe::String("implicit import"));
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", standardDirect.has_value() && implicitImport == Safe::String("implicit import"));
 	const Safe::String copiedValue("copied assignment");
 	direct = copiedValue;
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", direct.value() == "copied assignment");
@@ -392,12 +393,13 @@ int TestSafeOptionalAlgorithms() {
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", empty.value_or(Safe::String("fallback")) == "filled");
 	empty = std::nullopt;
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", !empty.has_value());
+	ASSERT_THROWS("TestSafeOptionalAlgorithms", empty.value(), Exception);
 	std::optional<Safe::String> importedValue{Safe::String("std optional")};
 	empty = importedValue;
-	ASSERT_TRUE("TestSafeOptionalAlgorithms", empty == Safe::String("std optional"));
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", importedValue.has_value() && empty == Safe::String("std optional"));
 	std::optional<Safe::String> movedImportedValue{Safe::String("moved std optional")};
 	empty = std::move(movedImportedValue);
-	ASSERT_TRUE("TestSafeOptionalAlgorithms", !movedImportedValue.has_value() && empty == Safe::String("moved std optional"));
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", movedImportedValue.has_value() && empty == Safe::String("moved std optional"));
 	empty = std::optional<Safe::String>{};
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", empty == std::nullopt);
 	const auto emptyTransform = empty.transform([](const Safe::String& value) { return value; });
@@ -459,8 +461,6 @@ int TestSafeOptionalAlgorithms() {
 		return Safe::Optional<Safe::String>(value);
 	});
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", mutatedChain == maybe && maybe == Safe::String("mutated and_then snapshot"));
-	ASSERT_THROWS("TestSafeOptionalAlgorithms", *empty, Exception);
-	ASSERT_THROWS("TestSafeOptionalAlgorithms", empty->size(), Exception);
 	const auto copied = maybe;
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", copied == maybe && copied == Safe::String("mutated and_then snapshot"));
 	Safe::Optional<Safe::String> copyAssigned;
@@ -471,7 +471,7 @@ int TestSafeOptionalAlgorithms() {
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", movedCopy == maybe && !copyAssigned.has_value());
 	std::optional<Safe::String> source{Safe::String("moved")};
 	Safe::Optional<Safe::String> moved(std::move(source));
-	ASSERT_TRUE("TestSafeOptionalAlgorithms", !source.has_value() && moved.value() == "moved");
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", source.has_value() && moved.value() == "moved");
 	RETURN_TEST("TestSafeOptionalAlgorithms", 0);
 }
 

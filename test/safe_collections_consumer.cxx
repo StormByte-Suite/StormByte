@@ -39,7 +39,7 @@
 
 #include "safe_collections_plugin.hxx"
 
-#include <StormByte/exception.hxx>
+#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/wstring.hxx>
 
 #include <algorithm>
@@ -62,7 +62,7 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	bool caughtProducerException = false;
 	try {
 		ThrowProducerException();
-	} catch (const Exception& exception) {
+	} catch (const StormByte::Exception& exception) {
 		caughtProducerException = std::string_view(exception.what()) == "StormByte: exception from producer DLL";
 	} catch (...) {
 		return false;
@@ -86,7 +86,7 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	bool boundsThrown = false;
 	try {
 		(void)emptySequence.at(0);
-	} catch (const Exception&) {
+	} catch (const StormByte::Exception&) {
 		boundsThrown = true;
 	}
 	if (!boundsThrown)
@@ -102,7 +102,7 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	bool missingKeyThrown = false;
 	try {
 		(void)emptyDictionary.at(Text("absent"));
-	} catch (const Exception&) {
+	} catch (const StormByte::Exception&) {
 		missingKeyThrown = true;
 	}
 	if (!missingKeyThrown)

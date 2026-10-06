@@ -39,60 +39,192 @@
 
 #pragma once
 
-#include <StormByte/exception.hxx>
-
+#include <new>
 #include <utility>
 
 namespace StormByte {
 	namespace Safe {
-		template<Type::SafeValue T>
-		STORMBYTE_FORCE_INLINE Optional<T>::Optional(): m_value() {}
+		template<Type::SafeComponent T>
+		Optional<T>::Optional() noexcept: m_value(nullptr) {}
 
-		template<Type::SafeValue T>
-		STORMBYTE_FORCE_INLINE Optional<T>::Optional(std::nullopt_t): Optional() {}
+		template<Type::SafeComponent T>
+		Optional<T>::Optional(std::nullopt_t) noexcept: Optional() {}
 
-		template<Type::SafeValue T>
-		Optional<T>::Optional(const T& value): Optional() {
-			emplace(value);
+		template<Type::SafeComponent T>
+		Optional<T>::Optional(const T& value): m_value(nullptr) {
+			m_value = Make(value);
 		}
 
-		template<Type::SafeValue T>
-		Optional<T>::Optional(T&& value): Optional() {
-			emplace(std::move(value));
+		template<Type::SafeComponent T>
+		Optional<T>::Optional(T&& value): m_value(nullptr) {
+			m_value = Make(std::move(value));
 		}
 
-		template<Type::SafeValue T>
+		template<Type::SafeComponent T>
+		Optional<T>::Optional(const std::optional<T>& value): m_value(nullptr) {
+			if (value)
+				m_value = Make(*value);
+		}
+
+		template<Type::SafeComponent T>
+		Optional<T>::Optional(std::optional<T>&& value): m_value(nullptr) {
+			if (value)
+				m_value = Make(std::move(*value));
+		}
+
+		template<Type::SafeComponent T>
+		Optional<T>::Optional(const Optional& other): m_value(nullptr) {
+			if (other.m_value != nullptr)
+				m_value = Make(*other.m_value);
+		}
+
+		template<Type::SafeComponent T>
+		Optional<T>::Optional(Optional&& other) noexcept: m_value(other.m_value) {
+			other.m_value = nullptr;
+		}
+
+		template<Type::SafeComponent T>
+		Optional<T>::~Optional() noexcept {
+			Release();
+		}
+
+		template<Type::SafeComponent T>
+		Optional<T>& Optional<T>::operator=(const Optional& other) {
+			if (this == &other)
+				return *this;
+			T* created = other.m_value == nullptr ? nullptr : Make(*other.m_value);
+			Release();
+			m_value = created;
+			return *this;
+		}
+
+		template<Type::SafeComponent T>
+		Optional<T>& Optional<T>::operator=(Optional&& other) noexcept {
+			if (this == &other)
+				return *this;
+			Release();
+			m_value = other.m_value;
+			other.m_value = nullptr;
+			return *this;
+		}
+
+		template<Type::SafeComponent T>
 		Optional<T>& Optional<T>::operator=(const T& value) {
-			Optional replacement(value);
-			*this = std::move(replacement);
+			T* created = Make(value);
+			Release();
+			m_value = created;
 			return *this;
 		}
 
-		template<Type::SafeValue T>
+		template<Type::SafeComponent T>
 		Optional<T>& Optional<T>::operator=(T&& value) {
-			Optional replacement(std::move(value));
-			*this = std::move(replacement);
+			T* created = Make(std::move(value));
+			Release();
+			m_value = created;
 			return *this;
 		}
 
-		template<Type::SafeValue T>
-		Optional<T>::Optional(const std::optional<T>& value): m_value() {
-			if (value)
-				emplace(*value);
+		template<Type::SafeComponent T>
+		Optional<T>& Optional<T>::operator=(std::nullopt_t) noexcept {
+			reset();
+			return *this;
 		}
 
-		template<Type::SafeValue T>
-		Optional<T>::Optional(std::optional<T>&& value): Optional() {
-			if (value)
-				emplace(std::move(*value));
-			value.reset();
+		template<Type::SafeComponent T>
+		Optional<T>& Optional<T>::operator=(const std::optional<T>& value) {
+			if (!value) {
+				reset();
+				return *this;
+			}
+			return *this = *value;
 		}
 
-		template<Type::SafeValue T>
-		STORMBYTE_FORCE_INLINE Optional<T>::operator std::optional<T>() const {
-			if (!has_value())
-				return std::nullopt;
-			return std::optional<T>(value());
+		template<Type::SafeComponent T>
+		Optional<T>& Optional<T>::operator=(std::optional<T>&& value) {
+			if (!value) {
+				reset();
+				return *this;
+			}
+			return *this = std::move(*value);
+		}
+
+		template<Type::SafeComponent T>
+		void Optional<T>::swap(Optional& other) noexcept {
+			T* temporary = m_value;
+			m_value = other.m_value;
+			other.m_value = temporary;
+		}
+
+		template<Type::SafeComponent T>
+		T& Optional<T>::value() & {
+			if (m_value == nullptr)
+				throw BadOptionalAccess();
+			return *m_value;
+		}
+
+		template<Type::SafeComponent T>
+		const T& Optional<T>::value() const & {
+			if (m_value == nullptr)
+				throw BadOptionalAccess();
+			return *m_value;
+		}
+
+		template<Type::SafeComponent T>
+		T&& Optional<T>::value() && {
+			if (m_value == nullptr)
+				throw BadOptionalAccess();
+			return std::move(*m_value);
+		}
+
+		template<Type::SafeComponent T>
+		const T&& Optional<T>::value() const && {
+			if (m_value == nullptr)
+				throw BadOptionalAccess();
+			return std::move(*m_value);
+		}
+
+		template<Type::SafeComponent T>
+		T& Optional<T>::operator*() & {
+			return *m_value;
+		}
+
+		template<Type::SafeComponent T>
+		const T& Optional<T>::operator*() const & {
+			return *m_value;
+		}
+
+		template<Type::SafeComponent T>
+		T&& Optional<T>::operator*() && {
+			return std::move(*m_value);
+		}
+
+		template<Type::SafeComponent T>
+		const T&& Optional<T>::operator*() const && {
+			return std::move(*m_value);
+		}
+
+		template<Type::SafeComponent T>
+		T* Optional<T>::operator->() {
+			return m_value;
+		}
+
+		template<Type::SafeComponent T>
+		const T* Optional<T>::operator->() const {
+			return m_value;
+		}
+
+		template<Type::SafeComponent T>
+		void Optional<T>::reset() noexcept {
+			Release();
+		}
+
+		template<Type::SafeComponent T>
+		void Optional<T>::Release() noexcept {
+			if (m_value == nullptr)
+				return;
+			m_value->~T();
+			Heap::Free(m_value);
+			m_value = nullptr;
 		}
 	}
 }

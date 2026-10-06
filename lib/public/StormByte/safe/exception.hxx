@@ -301,5 +301,56 @@ namespace StormByte {
 				 */
 				OutOfBoundsError& operator=(OutOfBoundsError&& other) noexcept;
 		};
+
+		/**
+		 * @class BadOptionalAccess
+		 * @brief An empty Optional was dereferenced.
+		 *
+		 * Constructing this exception does not allocate. `what()` returns static text. The path is part of that literal because this leaf does not fill the owned message.
+		 */
+		class STORMBYTE_PUBLIC BadOptionalAccess: public Exception {
+			public:
+				/**
+				 * @brief Construct an empty-optional failure. No message storage.
+				 */
+				BadOptionalAccess() noexcept;
+
+				/**
+				 * @brief Copy constructor. Defined in the Base DLL.
+				 * @param other Exception to copy.
+				 */
+				BadOptionalAccess(const BadOptionalAccess& other) noexcept;
+
+				/**
+				 * @brief Move constructor. Defined in the Base DLL.
+				 * @param other Exception to take.
+				 */
+				BadOptionalAccess(BadOptionalAccess&& other) noexcept;
+
+				/**
+				 * @brief Destructor. Defined in the Base DLL so `catch` matches across modules.
+				 */
+				~BadOptionalAccess() noexcept override;
+
+				/**
+				 * @brief Copy assignment. Defined in the Base DLL.
+				 * @param other Exception to copy.
+				 * @return This exception.
+				 */
+				BadOptionalAccess& operator=(const BadOptionalAccess& other) noexcept;
+
+				/**
+				 * @brief Move assignment. Defined in the Base DLL.
+				 * @param other Exception to take.
+				 * @return This exception.
+				 */
+				BadOptionalAccess& operator=(BadOptionalAccess&& other) noexcept;
+
+				/**
+				 * @brief Return the static message.
+				 * @return `StormByte.Safe: Optional has no value`.
+				 */
+				const char* what() const noexcept override;
+		};
 	}
 }

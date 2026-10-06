@@ -39,15 +39,15 @@
 
 #pragma once
 
-#include <StormByte/safe/vector.hxx>
-#include <StormByte/type_traits/comparison.hxx>
+#include <StormByte/safe/exception.hxx>
+#include <StormByte/safe/heap.hxx>
+#include <StormByte/type_traits.hxx>
+#include <StormByte/visibility.h>
 
 #include <compare>
-#include <concepts>
 #include <functional>
 #include <initializer_list>
 #include <optional>
-#include <type_traits>
 #include <utility>
 
 /**
@@ -57,7 +57,7 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Types safe to pass across a DLL boundary.
+	 * @brief Owned values that cross a DLL without the caller's CRT.
 	 */
 	namespace Safe {
 		/**
@@ -66,167 +66,51 @@ namespace StormByte {
 		 */
 		namespace Detail {
 			/**
-			 * @brief Recognizes callback-safe optional results with an empty-state observer.
-			 * @tparam R Candidate monadic result.
+			 * @brief Recognizes a monadic result that can report an empty state.
+			 * @tparam R Candidate result.
 			 */
 			template<class R>
 			concept SafeOptionalResult = Type::SafeComponent<R> && requires(const R& result) {
-				{ result.has_value() } -> std::convertible_to<bool>;
+				{ result.has_value() } -> Type::ConvertibleTo<bool>;
 			};
 		}
 
 		/**
 		 * @class Optional
-		 * @brief Zero or one Safe-owned value, reusing opaque sequence ownership.
-		 * @tparam T Safe value.
-		 * @note No std::optional layout. Vector's ABI, ownership and failure rules apply.
-		 * @note Mutable dereference is a callback-backed proxy that reads by value and
-		 *       writes through the owner callback. Const dereference returns a value copy.
-		 * @note Arrow access uses a read-only snapshot proxy valid for the full expression;
-		 *       mutations of T are not written back and its pointer must not be retained.
+		 * @brief `std::optional` stored on Base's heap.
+		 * @tparam T Safe component.
+		 *
+		 * The observable contract matches `std::optional`. The contained value is constructed in a block from @ref Heap::Allocate and released with @ref Heap::Free. A move of this optional leaves the source empty. A move from `std::optional` does not change its `has_value()`. `value()` throws @ref BadOptionalAccess when empty. `operator*` and `operator->` require a contained value and do not check.
 		 */
-		template<Type::SafeValue T>
+		template<Type::SafeComponent T>
 		class STORMBYTE_PUBLIC_TYPE Optional final {
 			public:
 				using value_type = T; ///< Contained type.
-				using iterator = typename Vector<T>::iterator; ///< Mutable 0/1-element iterator.
-				using const_iterator = typename Vector<T>::const_iterator; ///< Read-only 0/1-element iterator.
+				using iterator = T*; ///< Mutable iterator over the single value, or end when empty.
+				using const_iterator = const T*; ///< Read-only iterator over the single value, or end when empty.
+				using reference = T&; ///< Mutable contained value.
+				using const_reference = const T&; ///< Read-only contained value.
 
 				/**
-				 * @class Reference
-				 * @brief Mutable Optional proxy with value-copy reads and callback writes.
-				 * @note Valid only while the owning Optional remains alive and is not moved.
+				 * @brief Construct an empty optional.
 				 */
-				class Reference final {
-					public:
-						/**
-						 * @brief Bind to a callback-backed element proxy.
-						 * @param value Callback-backed element proxy.
-						 */
-						explicit Reference(typename iterator::reference value): m_value(std::move(value)) {}
-
-						/**
-						 * @brief Copy the current value into caller-owned storage.
-						 * @return Value copy.
-						 */
-						operator T() const { return static_cast<T>(m_value); }
-
-						/**
-						 * @brief Assign a value through the creator callback.
-						 * @param value Replacement value.
-						 * @return This proxy.
-						 */
-						Reference& operator=(const T& value) {
-							m_value = value;
-							return *this;
-						}
-
-						/**
-						 * @brief Move-assign a value through the creator callback.
-						 * @param value Replacement value.
-						 * @return This proxy.
-						 */
-						Reference& operator=(T&& value) {
-							m_value = value;
-							return *this;
-						}
-
-						/**
-						 * @brief Assign a value through a const proxy.
-						 * @param value Replacement value.
-						 * @return This proxy.
-						 */
-						const Reference& operator=(const T& value) const {
-							m_value = value;
-							return *this;
-						}
-
-						/**
-						 * @brief Move-assign through a const proxy.
-						 * @param value Replacement value.
-						 * @return This proxy.
-						 */
-						const Reference& operator=(T&& value) const {
-							m_value = value;
-							return *this;
-						}
-
-						/**
-						 * @brief Assign from another proxy.
-						 * @param other Source proxy.
-						 * @return This proxy.
-						 */
-						Reference& operator=(const Reference& other) { return *this = static_cast<T>(other); }
-
-						/**
-						 * @brief Compare the copied value with another T.
-						 * @param left Proxy operand.
-						 * @param right Value operand.
-						 * @return Whether the values compare equal.
-						 */
-						friend bool operator==(const Reference& left, const T& right) requires Type::EqualityComparable<T> {
-							return static_cast<T>(left) == right;
-						}
-
-						/**
-						 * @brief Compare T with the copied value.
-						 * @param left Value operand.
-						 * @param right Proxy operand.
-						 * @return Whether the values compare equal.
-						 */
-						friend bool operator==(const T& left, const Reference& right) requires Type::EqualityComparable<T> {
-							return left == static_cast<T>(right);
-						}
-
-					private:
-						typename iterator::reference m_value; ///< Callback-backed element proxy.
-				};
-
-				/**
-				 * @class ArrowProxy
-				 * @brief Owns a read-only value snapshot for one arrow-access expression.
-				 * @note Pointers obtained from this proxy expire with the proxy at the end of
-				 *       the full expression; the snapshot is never written back.
-				 */
-				class ArrowProxy final {
-					public:
-						/**
-						 * @brief Take ownership of an access snapshot.
-						 * @param value Snapshot to retain.
-						 */
-						explicit ArrowProxy(T value): m_value(std::move(value)) {}
-
-						/**
-						 * @brief Return a read-only pointer to this snapshot.
-						 * @return Pointer valid only while this proxy lives.
-						 */
-						const T* operator->() const noexcept { return &m_value; }
-
-					private:
-						T m_value; ///< Caller-owned snapshot, never creator storage.
-				};
-
-				using reference = Reference; ///< Mutable callback-backed value proxy.
-				using const_reference = typename const_iterator::reference; ///< Read-only value copy.
-
-				/**
-				 * @brief Construct an empty optional in the calling module.
-				 */
-				STORMBYTE_FORCE_INLINE Optional();
+				Optional() noexcept;
 
 				/**
 				 * @brief Construct an empty optional.
 				 * @param value Empty-state tag.
 				 */
-				STORMBYTE_FORCE_INLINE Optional(std::nullopt_t value);
+				Optional(std::nullopt_t value) noexcept;
 
 				/**
-				 * @brief Construct the contained value in Safe-owned storage.
+				 * @brief Construct the contained value in Base storage.
 				 * @tparam Args Constructor argument types.
 				 * @param tag In-place construction tag.
 				 * @param args Arguments forwarded to T.
+				 * @throws AllocationError The block could not be allocated.
 				 */
 				template<class... Args>
+				requires Type::ConstructibleFrom<T, Args...>
 				explicit Optional(std::in_place_t tag, Args&&... args): Optional() {
 					(void)tag;
 					emplace(std::forward<Args>(args)...);
@@ -239,277 +123,177 @@ namespace StormByte {
 				 * @param tag In-place construction tag.
 				 * @param values Initializer-list elements.
 				 * @param args Trailing arguments forwarded to T.
+				 * @throws AllocationError The block could not be allocated.
 				 */
 				template<class U, class... Args>
+				requires Type::ConstructibleFrom<T, std::initializer_list<U>&, Args...>
 				explicit Optional(std::in_place_t tag, std::initializer_list<U> values, Args&&... args): Optional() {
 					(void)tag;
 					emplace(values, std::forward<Args>(args)...);
 				}
 
 				/**
-				 * @brief Copy a value into Safe-owned storage.
+				 * @brief Copy a value into Base storage.
 				 * @param value Value to store.
+				 * @throws AllocationError The block could not be allocated.
 				 */
 				Optional(const T& value);
 
 				/**
-				 * @brief Move a value into Safe-owned storage.
+				 * @brief Move a value into Base storage.
 				 * @param value Value to store.
+				 * @throws AllocationError The block could not be allocated.
 				 */
 				Optional(T&& value);
 
 				/**
-				 * @brief Convert a caller-owned STL optional when U constructs T.
-				 * @tparam U Source value type.
+				 * @brief Construct T from a value that can construct it.
+				 * @tparam U Source type.
+				 * @param value Source value.
+				 * @throws AllocationError The block could not be allocated.
 				 */
 				template<class U>
-				requires (!std::same_as<U, T>) && std::constructible_from<T, const U&>
-				explicit(!std::convertible_to<const U&, T>) Optional(const std::optional<U>& value): Optional() {
+				requires (!Type::SameAs<U, Optional>) &&
+					(!Type::SameAs<U, std::nullopt_t>) &&
+					(!Type::SameAs<U, std::in_place_t>) &&
+					Type::ConstructibleFrom<T, U>
+				explicit(!Type::ConvertibleTo<U, T>) Optional(U&& value): Optional() {
+					emplace(std::forward<U>(value));
+				}
+
+				/**
+				 * @brief Copy a caller-owned STL optional into Base storage.
+				 * @param value Source. Its state is unchanged.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				Optional(const std::optional<T>& value);
+
+				/**
+				 * @brief Move a caller-owned STL optional into Base storage.
+				 * @param value Source. `has_value()` is unchanged; a held value is moved-from.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				Optional(std::optional<T>&& value);
+
+				/**
+				 * @brief Copy a caller-owned STL optional of a convertible value.
+				 * @tparam U Source value type.
+				 * @param value Source. Its state is unchanged.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<class U>
+				requires (!Type::SameAs<U, T>) && Type::ConstructibleFrom<T, const U&>
+				explicit(!Type::ConvertibleTo<const U&, T>) Optional(const std::optional<U>& value): Optional() {
 					if (value)
 						emplace(T(*value));
 				}
 
 				/**
-				 * @brief Convert a moved STL optional when U constructs T, resetting it after successful transfer.
+				 * @brief Move a caller-owned STL optional of a convertible value.
 				 * @tparam U Source value type.
+				 * @param value Source. `has_value()` is unchanged; a held value is moved-from.
+				 * @throws AllocationError The block could not be allocated.
 				 */
 				template<class U>
-				requires (!std::same_as<U, T>) && std::constructible_from<T, U&&>
-				explicit(!std::convertible_to<U&&, T>) Optional(std::optional<U>&& value): Optional() {
-					if (value) {
+				requires (!Type::SameAs<U, T>) && Type::ConstructibleFrom<T, U>
+				explicit(!Type::ConvertibleTo<U, T>) Optional(std::optional<U>&& value): Optional() {
+					if (value)
 						emplace(T(std::move(*value)));
-						value.reset();
-					}
 				}
 
 				/**
-				 * @brief Construct from a value that can construct T.
-				 * @tparam U Source value type.
+				 * @brief Copy the contained value into a new Base block.
+				 * @param other Source.
+				 * @throws AllocationError The block could not be allocated.
 				 */
-				template<class U>
-				requires (!std::same_as<std::remove_cvref_t<U>, T>) && std::constructible_from<T, U>
-				explicit(!std::convertible_to<U, T>) Optional(U&& value): Optional() {
-					emplace(std::forward<U>(value));
-				}
+				Optional(const Optional& other);
 
 				/**
-				 * @brief Convert another Safe optional when its value constructs T.
-				 * @tparam U Source Safe value type.
-				 */
-				template<Type::SafeValue U>
-				requires (!std::same_as<U, T>) && std::constructible_from<T, const U&>
-				explicit(!std::convertible_to<const U&, T>) Optional(const Optional<U>& other): Optional() {
-					if (other.has_value())
-					emplace(other.value());
-				}
-
-				/**
-				 * @brief Convert a moved Safe optional when its value constructs T, resetting it after successful transfer.
-				 * @tparam U Source Safe value type.
-				 */
-				template<Type::SafeValue U>
-				requires (!std::same_as<U, T>) && std::constructible_from<T, U&&>
-				explicit(!std::convertible_to<U&&, T>) Optional(Optional<U>&& other): Optional() {
-					if (other.has_value()) {
-						emplace(std::move(other.value()));
-						other.reset();
-					}
-				}
-
-				/**
-				 * @brief Copy a caller-owned STL optional.
-				 * @param value Source value; its ownership remains with its owner.
-				 */
-				Optional(const std::optional<T>& value);
-
-				/**
-				 * @brief Move an STL rvalue's value into local Safe storage.
-				 * @param value Source optional; it is reset after transfer.
-				 */
-				Optional(std::optional<T>&& value);
-
-				/**
-				 * @brief Deep copy in the original creator module.
+				 * @brief Take the contained block. @p other is left empty.
 				 * @param other Source.
 				 */
-				Optional(const Optional& other) = default;
+				Optional(Optional&& other) noexcept;
 
 				/**
-				 * @brief Transfer state, leaving source empty.
+				 * @brief Destroy a held value and release its Base block.
+				 */
+				~Optional() noexcept;
+
+				/**
+				 * @brief Copy-assign. The previous value is released only after the copy exists.
 				 * @param other Source.
+				 * @return This optional.
+				 * @throws AllocationError The replacement block could not be allocated.
 				 */
-				Optional(Optional&& other) noexcept = default;
+				Optional& operator=(const Optional& other);
 
 				/**
-				 * @brief Release through creator-module callbacks.
-				 */
-				~Optional() noexcept = default;
-
-				/**
-				 * @brief Deep copy with strong guarantee.
+				 * @brief Move-assign. @p other is left empty.
 				 * @param other Source.
 				 * @return This optional.
 				 */
-				Optional& operator=(const Optional& other) = default;
+				Optional& operator=(Optional&& other) noexcept;
 
 				/**
-				 * @brief Release old state and transfer.
-				 * @param other Source.
-				 * @return This optional.
-				 */
-				Optional& operator=(Optional&& other) noexcept = default;
-
-				/**
-				 * @brief Copy-assign a value, preserving this optional if preparation fails.
+				 * @brief Copy-assign a value.
 				 * @param value Value to store.
 				 * @return This optional.
+				 * @throws AllocationError The replacement block could not be allocated.
 				 */
 				Optional& operator=(const T& value);
 
 				/**
-				 * @brief Move-assign a value, preserving this optional if preparation fails.
+				 * @brief Move-assign a value.
 				 * @param value Value to store.
 				 * @return This optional.
+				 * @throws AllocationError The replacement block could not be allocated.
 				 */
 				Optional& operator=(T&& value);
 
 				/**
-				 * @brief Assign from a value that can construct T.
-				 * @tparam U Source value type.
+				 * @brief Assign a value that can construct T.
+				 * @tparam U Source type.
 				 * @param value Source value.
 				 * @return This optional.
+				 * @throws AllocationError The replacement block could not be allocated.
 				 */
 				template<class U>
-				requires (!std::same_as<std::remove_cvref_t<U>, T>) && std::constructible_from<T, U>
+				requires (!Type::SameAs<U, Optional>) &&
+					(!Type::SameAs<U, std::nullopt_t>) &&
+					Type::ConstructibleFrom<T, U>
 				Optional& operator=(U&& value) {
-					T converted(std::forward<U>(value));
-					return *this = std::move(converted);
+					emplace(std::forward<U>(value));
+					return *this;
 				}
 
 				/**
-				 * @brief Reset this optional through the empty-state tag.
+				 * @brief Reset this optional.
 				 * @param value Empty-state tag.
 				 * @return This optional.
 				 */
-				Optional& operator=(std::nullopt_t value) {
-					(void)value;
-					reset();
-					return *this;
-				}
+				Optional& operator=(std::nullopt_t value) noexcept;
 
 				/**
-				 * @brief Copy from caller-owned STL optional storage.
-				 * @param value Source optional.
+				 * @brief Copy-assign a caller-owned STL optional. Its state is unchanged.
+				 * @param value Source.
 				 * @return This optional.
+				 * @throws AllocationError The replacement block could not be allocated.
 				 */
-				Optional& operator=(const std::optional<T>& value) {
-					if (!value) {
-						reset();
-						return *this;
-					}
-					return *this = *value;
-				}
+				Optional& operator=(const std::optional<T>& value);
 
 				/**
-				 * @brief Move a value from caller-owned STL optional storage.
-				 * @param value Source optional, reset after transfer.
+				 * @brief Move-assign a caller-owned STL optional. `has_value()` is unchanged.
+				 * @param value Source.
 				 * @return This optional.
+				 * @throws AllocationError The replacement block could not be allocated.
 				 */
-				Optional& operator=(std::optional<T>&& value) {
-					if (!value) {
-						reset();
-						return *this;
-					}
-					*this = std::move(*value);
-					value.reset();
-					return *this;
-				}
+				Optional& operator=(std::optional<T>&& value);
 
 				/**
-				 * @brief Convert and copy from another Safe optional.
-				 * @tparam U Source Safe value type.
-				 * @param other Source optional.
-				 * @return This optional.
-				 */
-				template<Type::SafeValue U>
-				requires (!std::same_as<U, T>) && std::constructible_from<T, const U&>
-				Optional& operator=(const Optional<U>& other) {
-					if (!other.has_value()) {
-						reset();
-						return *this;
-					}
-					Optional replacement(other.value());
-					*this = std::move(replacement);
-					return *this;
-				}
-
-				/**
-				 * @brief Convert and move from another Safe optional.
-				 * @tparam U Source Safe value type.
-				 * @param other Source optional, reset after successful conversion.
-				 * @return This optional.
-				 */
-				template<Type::SafeValue U>
-				requires (!std::same_as<U, T>) && std::constructible_from<T, U&&>
-				Optional& operator=(Optional<U>&& other) {
-					if (!other.has_value()) {
-						reset();
-						return *this;
-					}
-					T converted(std::move(other.value()));
-					*this = std::move(converted);
-					other.reset();
-					return *this;
-				}
-
-				/**
-				 * @brief Convert and copy from a caller-owned STL optional.
-				 * @tparam U Source value type.
-				 * @param value Source optional.
-				 * @return This optional.
-				 */
-				template<class U>
-				requires (!std::same_as<U, T>) && std::constructible_from<T, const U&>
-				Optional& operator=(const std::optional<U>& value) {
-					if (!value) {
-						reset();
-						return *this;
-					}
-					Optional replacement{T(*value)};
-					*this = std::move(replacement);
-					return *this;
-				}
-
-				/**
-				 * @brief Convert and move from a caller-owned STL optional.
-				 * @tparam U Source value type.
-				 * @param value Source optional, reset after successful conversion.
-				 * @return This optional.
-				 */
-				template<class U>
-				requires (!std::same_as<U, T>) && std::constructible_from<T, U&&>
-				Optional& operator=(std::optional<U>&& value) {
-					if (!value) {
-						reset();
-						return *this;
-					}
-					Optional replacement(T(std::move(*value)));
-					*this = std::move(replacement);
-					value.reset();
-					return *this;
-				}
-
-				/**
-				 * @brief Exchange Safe storage and its creator callbacks with another optional.
+				 * @brief Exchange contained blocks. Does not allocate.
 				 * @param other Optional to exchange with.
 				 */
-				void swap(Optional& other) noexcept {
-					if (this == &other)
-						return;
-					Optional temporary(std::move(*this));
-					*this = std::move(other);
-					other = std::move(temporary);
-				}
+				void swap(Optional& other) noexcept;
 
 				/**
 				 * @brief Exchange two optionals.
@@ -522,7 +306,7 @@ namespace StormByte {
 				 * @brief Test whether a value is held.
 				 * @return Whether the optional contains a value.
 				 */
-				bool has_value() const noexcept { return !m_value.empty(); }
+				bool has_value() const noexcept { return m_value != nullptr; }
 
 				/**
 				 * @brief Test whether a value is held.
@@ -531,31 +315,31 @@ namespace StormByte {
 				explicit operator bool() const noexcept { return has_value(); }
 
 				/**
-				 * @brief Return the first mutable iterator, or end when empty.
+				 * @brief Return the mutable iterator, or end when empty.
 				 * @return Mutable iterator.
 				 */
-				iterator begin() noexcept { return m_value.begin(); }
+				iterator begin() noexcept { return m_value; }
 
 				/**
 				 * @brief Return the end mutable iterator.
-				 * @return Mutable iterator.
+				 * @return One past the value, or equal to @ref begin when empty.
 				 */
-				iterator end() noexcept { return m_value.end(); }
+				iterator end() noexcept { return m_value == nullptr ? nullptr : m_value + 1; }
 
 				/**
-				 * @brief Return the first read-only iterator, or end when empty.
+				 * @brief Return the read-only iterator, or end when empty.
 				 * @return Read-only iterator.
 				 */
-				const_iterator begin() const noexcept { return m_value.begin(); }
+				const_iterator begin() const noexcept { return m_value; }
 
 				/**
 				 * @brief Return the end read-only iterator.
-				 * @return Read-only iterator.
+				 * @return One past the value, or equal to @ref begin when empty.
 				 */
-				const_iterator end() const noexcept { return m_value.end(); }
+				const_iterator end() const noexcept { return m_value == nullptr ? nullptr : m_value + 1; }
 
 				/**
-				 * @brief Return the first read-only iterator.
+				 * @brief Return the read-only iterator.
 				 * @return Read-only iterator.
 				 */
 				const_iterator cbegin() const noexcept { return begin(); }
@@ -567,93 +351,110 @@ namespace StormByte {
 				const_iterator cend() const noexcept { return end(); }
 
 				/**
-				 * @brief Return a copy of the value.
+				 * @brief Return the contained value.
+				 * @return Contained value. Valid until `reset` or a move.
+				 * @throws BadOptionalAccess The optional is empty.
+				 */
+				T& value() &;
+
+				/**
+				 * @brief Return the contained value.
+				 * @return Contained value. Valid until `reset` or a move.
+				 * @throws BadOptionalAccess The optional is empty.
+				 */
+				const T& value() const &;
+
+				/**
+				 * @brief Return the contained value from an rvalue.
 				 * @return Contained value.
-				 * @throws StormByte::Exception The optional is empty or copying failed.
+				 * @throws BadOptionalAccess The optional is empty.
 				 */
-				T value() const {
-					if (!has_value())
-						Detail::ThrowSafeConversionFailure("Safe optional value is missing");
-					return m_value.front();
-				}
+				T&& value() &&;
 
 				/**
-				 * @brief Return the contained value or a fallback, by value.
+				 * @brief Return the contained value from a const rvalue.
+				 * @return Contained value.
+				 * @throws BadOptionalAccess The optional is empty.
+				 */
+				const T&& value() const &&;
+
+				/**
+				 * @brief Return the contained value or a fallback.
+				 * @tparam U Fallback type convertible to T.
 				 * @param fallback Value returned when empty.
-				 * @return A copy of the contained value or the moved fallback.
+				 * @return A copy of the contained value, or the forwarded fallback.
 				 */
 				template<class U>
-				requires std::convertible_to<U&&, T>
+				requires Type::ConvertibleTo<U, T>
 				T value_or(U&& fallback) const & {
-					return has_value() ? value() : T(std::forward<U>(fallback));
+					return has_value() ? *m_value : T(std::forward<U>(fallback));
 				}
 
 				/**
-				 * @brief Return the contained value or a fallback, by value, on an rvalue.
-				 * @tparam U Fallback type implicitly convertible to T.
+				 * @brief Return the contained value or a fallback from an rvalue.
+				 * @tparam U Fallback type convertible to T.
 				 * @param fallback Value returned when empty.
-				 * @return A copy of the contained value or the forwarded fallback.
+				 * @return The moved contained value, or the forwarded fallback.
 				 */
 				template<class U>
-				requires std::convertible_to<U&&, T>
+				requires Type::ConvertibleTo<U, T>
 				T value_or(U&& fallback) && {
-					return has_value() ? value() : T(std::forward<U>(fallback));
+					return has_value() ? T(std::move(*m_value)) : T(std::forward<U>(fallback));
 				}
 
 				/**
-				 * @brief Access the mutable value through a callback-backed proxy.
-				 * @return Proxy; reads copy T and writes use the creator callback. The Optional
-				 *         must outlive the proxy, which is invalidated by moving the Optional.
-				 * @throws StormByte::Exception The optional is empty or access failed.
+				 * @brief Access the contained value.
+				 * @return Contained value. Valid until `reset` or a move.
+				 * @pre The optional contains a value.
 				 */
-				reference operator*() & { return reference(m_value.front()); }
+				T& operator*() &;
 
 				/**
-				 * @brief Copy the value from a read-only optional.
-				 * @return Contained value copy.
-				 * @throws StormByte::Exception The optional is empty or copying failed.
+				 * @brief Access the contained value.
+				 * @return Contained value. Valid until `reset` or a move.
+				 * @pre The optional contains a value.
 				 */
-				const_reference operator*() const & { return m_value.front(); }
+				const T& operator*() const &;
 
 				/**
-				 * @brief Read an rvalue optional by value to avoid returning a dangling proxy.
-				 * @return Contained value copy.
-				 * @throws StormByte::Exception The optional is empty or copying failed.
+				 * @brief Access the contained value from an rvalue.
+				 * @return Contained value.
+				 * @pre The optional contains a value.
 				 */
-				T operator*() && { return value(); }
+				T&& operator*() &&;
 
 				/**
-				 * @brief Read a const rvalue optional by value.
-				 * @return Contained value copy.
-				 * @throws StormByte::Exception The optional is empty or copying failed.
+				 * @brief Access the contained value from a const rvalue.
+				 * @return Contained value.
+				 * @pre The optional contains a value.
 				 */
-				T operator*() const && { return value(); }
+				const T&& operator*() const &&;
 
 				/**
-				 * @brief Access const members through a caller-owned value snapshot.
-				 * @return Arrow proxy whose pointer is valid through the full expression only.
-				 * @throws StormByte::Exception The optional is empty or copying failed.
+				 * @brief Access a member of the contained value.
+				 * @return Pointer to the contained value.
+				 * @pre The optional contains a value.
 				 */
-				ArrowProxy operator->() const & { return ArrowProxy(value()); }
+				T* operator->();
 
 				/**
-				 * @brief Access const members of an rvalue through an owned snapshot.
-				 * @return Arrow proxy valid through the full expression only.
-				 * @throws StormByte::Exception The optional is empty or copying failed.
+				 * @brief Access a member of the contained value.
+				 * @return Pointer to the contained value.
+				 * @pre The optional contains a value.
 				 */
-				ArrowProxy operator->() const && { return ArrowProxy(value()); }
+				const T* operator->() const;
 
 				/**
-				 * @brief Compare optional states and, when present, their values.
+				 * @brief Compare states and, when present, values.
 				 * @param other Optional to compare.
 				 * @return Whether both are empty or contain equal values.
 				 */
 				bool operator==(const Optional& other) const requires Type::EqualityComparable<T> {
-					return has_value() == other.has_value() && (!has_value() || value() == other.value());
+					return has_value() == other.has_value() && (!has_value() || *m_value == *other.m_value);
 				}
 
 				/**
-				 * @brief Compare optional states and, when present, their values.
+				 * @brief Compare states and, when present, values.
 				 * @param other Optional to compare.
 				 * @return Whether the optionals differ.
 				 */
@@ -662,32 +463,78 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Compare optionals with different Safe value types.
-				 * @tparam U Other Safe value type.
-				 * @param other Optional to compare.
-				 * @return Whether both are empty or their values compare equal.
+				 * @brief Compare with the empty tag.
+				 * @return Whether this optional is empty.
 				 */
-				template<Type::SafeValue U>
-				requires (!std::same_as<T, U>) && requires(const T& left, const U& right) {
-					{ left == right } -> std::convertible_to<bool>;
-				}
-				bool operator==(const Optional<U>& other) const {
-					return has_value() == other.has_value() && (!has_value() || value() == other.value());
+				bool operator==(std::nullopt_t) const noexcept { return !has_value(); }
+
+				/**
+				 * @brief Compare the empty tag with this optional.
+				 * @param self Optional to compare.
+				 * @return Whether this optional is empty.
+				 */
+				friend bool operator==(std::nullopt_t, const Optional& self) noexcept { return !self.has_value(); }
+
+				/**
+				 * @brief Order empty before engaged.
+				 * @return Equivalent when empty, greater when engaged.
+				 */
+				std::strong_ordering operator<=>(std::nullopt_t) const noexcept {
+					return has_value() ? std::strong_ordering::greater : std::strong_ordering::equivalent;
 				}
 
 				/**
-				 * @brief Compare optionals with different Safe value types for ordering.
-				 * @tparam U Other Safe value type.
-				 * @param other Optional to compare.
-				 * @return Three-way comparison result, with empty before engaged.
+				 * @brief Compare the contained value with @p value. Empty is not equal.
+				 * @tparam U Value type comparable with T.
+				 * @param value Value to compare.
+				 * @return Whether a value is held and compares equal.
 				 */
-				template<Type::SafeValue U>
-				requires (!std::same_as<T, U>) && requires(const T& left, const U& right) { left <=> right; } &&
-					(!std::same_as<std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const U&>())>, void>)
-				auto operator<=>(const Optional<U>& other) const {
+				template<class U>
+				requires (!Type::SameAs<U, Optional>) &&
+					requires(const T& left, const U& right) { { left == right } -> Type::ConvertibleTo<bool>; }
+				bool operator==(const U& value) const {
+					return has_value() && *m_value == value;
+				}
+
+				/**
+				 * @brief Compare a value with this optional.
+				 * @tparam U Value type comparable with T.
+				 * @param value Value to compare.
+				 * @param self Optional to compare.
+				 * @return Whether a value is held and compares equal.
+				 */
+				template<class U>
+				requires (!Type::SameAs<U, Optional>) &&
+					requires(const U& left, const T& right) { { left == right } -> Type::ConvertibleTo<bool>; }
+				friend bool operator==(const U& value, const Optional& self) {
+					return self.has_value() && value == *self.m_value;
+				}
+
+				/**
+				 * @brief Order against a value. Empty is less than any value.
+				 * @tparam U Value type orderable against T.
+				 * @param value Value to compare.
+				 * @return Three-way comparison result.
+				 */
+				template<class U>
+				requires (!Type::SameAs<U, Optional>) &&
+					requires(const T& left, const U& right) { left <=> right; }
+				auto operator<=>(const U& value) const {
 					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const U&>())>;
+					if (!has_value())
+						return Result::less;
+					return static_cast<Result>(*m_value <=> value);
+				}
+
+				/**
+				 * @brief Order empty before engaged, then order the values.
+				 * @param other Optional to compare.
+				 * @return Three-way comparison result.
+				 */
+				auto operator<=>(const Optional& other) const requires Type::ThreeWayComparable<T> {
+					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const T&>())>;
 					if (has_value() && other.has_value())
-						return static_cast<Result>(value() <=> other.value());
+						return static_cast<Result>(*m_value <=> *other.m_value);
 					if (has_value())
 						return Result::greater;
 					if (other.has_value())
@@ -696,30 +543,42 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Compare this optional with a caller-owned STL optional.
+				 * @brief Compare with a caller-owned STL optional.
 				 * @tparam U Other value type.
 				 * @param other Optional to compare.
 				 * @return Whether both are empty or their values compare equal.
 				 */
 				template<class U>
-				requires requires(const T& left, const U& right) { { left == right } -> std::convertible_to<bool>; }
+				requires requires(const T& left, const U& right) { { left == right } -> Type::ConvertibleTo<bool>; }
 				bool operator==(const std::optional<U>& other) const {
-					return has_value() == other.has_value() && (!has_value() || value() == *other);
+					return has_value() == other.has_value() && (!has_value() || *m_value == *other);
 				}
 
 				/**
-				 * @brief Compare this optional with a caller-owned STL optional for ordering.
+				 * @brief Compare a caller-owned STL optional with this optional.
 				 * @tparam U Other value type.
-				 * @param other Optional to compare.
-				 * @return Three-way comparison result, with empty before engaged.
+				 * @param other STL optional.
+				 * @param self Optional to compare.
+				 * @return Whether both are empty or their values compare equal.
 				 */
 				template<class U>
-				requires requires(const T& left, const U& right) { left <=> right; } &&
-					(!std::same_as<std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const U&>())>, void>)
+				requires requires(const U& left, const T& right) { { left == right } -> Type::ConvertibleTo<bool>; }
+				friend bool operator==(const std::optional<U>& other, const Optional& self) {
+					return self == other;
+				}
+
+				/**
+				 * @brief Order against a caller-owned STL optional. Empty is less than engaged.
+				 * @tparam U Other value type.
+				 * @param other Optional to compare.
+				 * @return Three-way comparison result.
+				 */
+				template<class U>
+				requires requires(const T& left, const U& right) { left <=> right; }
 				auto operator<=>(const std::optional<U>& other) const {
 					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const U&>())>;
 					if (has_value() && other.has_value())
-						return static_cast<Result>(value() <=> *other);
+						return static_cast<Result>(*m_value <=> *other);
 					if (has_value())
 						return Result::greater;
 					if (other.has_value())
@@ -728,342 +587,103 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Compare a caller-owned STL optional with this Safe optional.
-				 * @tparam U Other value type.
-				 * @param left STL optional.
-				 * @param right Safe optional.
-				 * @return Whether both are empty or their values compare equal.
-				 */
-				template<class U>
-				requires requires(const U& left, const T& right) { { left == right } -> std::convertible_to<bool>; }
-				friend bool operator==(const std::optional<U>& left, const Optional& right) {
-					return left.has_value() == right.has_value() && (!left.has_value() || *left == right.value());
-				}
-
-				/**
-				 * @brief Order a caller-owned STL optional against this Safe optional.
-				 * @tparam U Other value type.
-				 * @param left STL optional.
-				 * @param right Safe optional.
-				 * @return Three-way comparison result, with empty before engaged.
-				 */
-				template<class U>
-				requires requires(const U& left, const T& right) { left <=> right; } &&
-					(!std::same_as<std::common_comparison_category_t<decltype(std::declval<const U&>() <=> std::declval<const T&>())>, void>)
-				friend auto operator<=>(const std::optional<U>& left, const Optional& right) {
-					using Result = std::common_comparison_category_t<decltype(std::declval<const U&>() <=> std::declval<const T&>())>;
-					if (left.has_value() && right.has_value())
-						return static_cast<Result>(*left <=> right.value());
-					if (left.has_value())
-						return Result::greater;
-					if (right.has_value())
-						return Result::less;
-					return Result::equivalent;
-				}
-
-				/**
-				 * @brief Order two optionals, with an empty optional ordered before a value.
-				 * @param other Optional to compare.
-				 * @return Three-way comparison result.
-				 */
-				auto operator<=>(const Optional& other) const
-					requires Type::ThreeWayComparable<T> &&
-						(!std::same_as<std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const T&>())>, void>) {
-					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const T&>())>;
-					if (has_value() && other.has_value())
-						return static_cast<Result>(value() <=> other.value());
-					if (has_value())
-						return Result::greater;
-					if (other.has_value())
-						return Result::less;
-					return Result::equivalent;
-				}
-
-				/**
-				 * @brief Compare the contained value with a value of type T.
-				 * @param other Value to compare.
-				 * @return Whether this optional contains an equal value.
-				 */
-				bool operator==(const T& other) const requires Type::EqualityComparable<T> {
-					return has_value() && value() == other;
-				}
-
-				/**
-				 * @brief Compare the contained value with a value of type T.
-				 * @param other Value to compare.
-				 * @return Whether this optional is empty or contains a different value.
-				 */
-				bool operator!=(const T& other) const requires Type::EqualityComparable<T> {
-					return !(*this == other);
-				}
-
-				/**
-				 * @brief Compare the contained value with a heterogeneous value.
-				 * @tparam U Other operand type.
-				 * @param other Value to compare.
-				 * @return Whether this optional contains an equal value.
-				 */
-				template<class U>
-				requires (!std::same_as<std::remove_cvref_t<U>, T>) && requires(const T& left, const U& right) {
-					{ left == right } -> std::convertible_to<bool>;
-				}
-				bool operator==(const U& other) const {
-					return has_value() && value() == other;
-				}
-
-				/**
-				 * @brief Order the optional against a heterogeneous value.
-				 * @tparam U Other operand type.
-				 * @param other Value to compare.
-				 * @return Three-way comparison result; an empty optional is less.
-				 */
-				template<class U>
-				requires (!std::same_as<std::remove_cvref_t<U>, T>) && requires(const T& left, const U& right) { left <=> right; } &&
-					(!std::same_as<std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const U&>())>, void>)
-				auto operator<=>(const U& other) const {
-					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const U&>())>;
-					if (!has_value())
-						return Result::less;
-					return static_cast<Result>(value() <=> other);
-				}
-
-				/**
-				 * @brief Compare an optional with the empty-state tag.
-				 * @param other Empty-state tag.
-				 * @return Whether this optional is empty.
-				 */
-				bool operator==(std::nullopt_t other) const noexcept {
-					(void)other;
-					return !has_value();
-				}
-
-				/**
-				 * @brief Compare an optional with the empty-state tag.
-				 * @param other Empty-state tag.
-				 * @return Whether this optional contains a value.
-				 */
-				bool operator!=(std::nullopt_t other) const noexcept { return !(*this == other); }
-
-				/**
-				 * @brief Order an optional relative to the empty-state tag.
-				 * @param other Empty-state tag.
-				 * @return Equivalent when empty; greater when engaged.
-				 */
-				std::strong_ordering operator<=>(std::nullopt_t other) const noexcept {
-					(void)other;
-					return has_value() ? std::strong_ordering::greater : std::strong_ordering::equal;
-				}
-
-				/**
-				 * @brief Compare the empty-state tag with an optional.
-				 * @param left Empty-state tag.
-				 * @param right Optional to compare.
-				 * @return Whether the optional is empty.
-				 */
-				friend bool operator==(std::nullopt_t left, const Optional& right) noexcept { return right == left; }
-
-				/**
-				 * @brief Order the empty-state tag relative to an optional.
-				 * @param left Empty-state tag.
-				 * @param right Optional to compare.
-				 * @return Equivalent when empty; less when the optional contains a value.
-				 */
-				friend std::strong_ordering operator<=>(std::nullopt_t left, const Optional& right) noexcept {
-					return 0 <=> (right == left ? 0 : 1);
-				}
-
-				/**
-				 * @brief Order an optional and a value of type T.
-				 * @param other Value to compare.
-				 * @return Three-way comparison result.
-				 */
-				auto operator<=>(const T& other) const
-					requires Type::ThreeWayComparable<T> &&
-						(!std::same_as<std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const T&>())>, void>) {
-					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const T&>())>;
-					if (!has_value())
-						return Result::less;
-					return static_cast<Result>(value() <=> other);
-				}
-
-				/**
-				 * @brief Compare a value of type T with an optional.
-				 * @param left Value to compare.
-				 * @param right Optional to compare.
-				 * @return Whether the optional contains an equal value.
-				 */
-				friend bool operator==(const T& left, const Optional& right) requires Type::EqualityComparable<T> {
-					return right == left;
-				}
-
-				/**
-				 * @brief Compare a value of type T with an optional.
-				 * @param left Value to compare.
-				 * @param right Optional to compare.
-				 * @return Whether the optional is empty or contains a different value.
-				 */
-				friend bool operator!=(const T& left, const Optional& right) requires Type::EqualityComparable<T> {
-					return !(right == left);
-				}
-
-				/**
-				 * @brief Order a value of type T and an optional.
-				 * @param left Value to compare.
-				 * @param right Optional to compare.
-				 * @return Three-way comparison result.
-				 */
-				friend auto operator<=>(const T& left, const Optional& right)
-					requires Type::ThreeWayComparable<T> &&
-						(!std::same_as<std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const T&>())>, void>) {
-					using Result = std::common_comparison_category_t<decltype(left <=> left)>;
-					if (!right.has_value())
-						return Result::greater;
-					return static_cast<Result>(left <=> right.value());
-				}
-
-				/**
-				 * @brief Apply a callable to a mutable value snapshot when present.
-				 * @tparam F Callable accepting T& and returning a Safe optional.
-				 * @param function Callable to invoke.
-				 * @return The callable's result, or an empty result. Snapshot mutations are
-				 *         written back only after the callable returns successfully.
+				 * @brief Invoke a function on the value and return its optional result.
+				 * @tparam F Callable returning a Safe optional.
+				 * @param function Function invoked with the contained value.
+				 * @return An empty optional of the result type, or the function result.
 				 */
 				template<class F>
-				requires std::invocable<F, T&> && Detail::SafeOptionalResult<std::remove_cvref_t<std::invoke_result_t<F, T&>>>
+				requires Type::Invocable<F, T&> && Detail::SafeOptionalResult<std::remove_cvref_t<std::invoke_result_t<F, T&>>>
 				auto and_then(F&& function) & {
 					using Result = std::remove_cvref_t<std::invoke_result_t<F, T&>>;
 					if (!has_value())
 						return Result{};
-					T snapshot = value();
-					Result result = std::invoke(std::forward<F>(function), snapshot);
-					*this = std::move(snapshot);
-					return result;
+					return std::invoke(std::forward<F>(function), *m_value);
 				}
 
 				/**
-				 * @brief Apply a callable to a const value copy when present.
-				 * @tparam F Callable accepting const T& and returning a Safe optional.
-				 * @param function Callable to invoke.
-				 * @return Callable result, or an empty result.
+				 * @brief Invoke a function on the value and return its optional result.
+				 * @tparam F Callable returning a Safe optional.
+				 * @param function Function invoked with the contained value.
+				 * @return An empty optional of the result type, or the function result.
 				 */
 				template<class F>
-				requires std::invocable<F, const T&> && Detail::SafeOptionalResult<std::remove_cvref_t<std::invoke_result_t<F, const T&>>>
+				requires Type::Invocable<F, const T&> && Detail::SafeOptionalResult<std::remove_cvref_t<std::invoke_result_t<F, const T&>>>
 				auto and_then(F&& function) const & {
 					using Result = std::remove_cvref_t<std::invoke_result_t<F, const T&>>;
 					if (!has_value())
 						return Result{};
-					const T snapshot = value();
-					return std::invoke(std::forward<F>(function), snapshot);
+					return std::invoke(std::forward<F>(function), static_cast<const T&>(*m_value));
 				}
 
 				/**
-				 * @brief Apply a callable to a moved value copy when present.
-				 * @tparam F Callable accepting T&& and returning a Safe optional.
-				 * @param function Callable to invoke.
-				 * @return Callable result, or an empty result.
+				 * @brief Invoke a function on an rvalue value and return its optional result.
+				 * @tparam F Callable returning a Safe optional.
+				 * @param function Function invoked with the contained value.
+				 * @return An empty optional of the result type, or the function result.
 				 */
 				template<class F>
-				requires std::invocable<F, T&&> && Detail::SafeOptionalResult<std::remove_cvref_t<std::invoke_result_t<F, T&&>>>
+				requires Type::Invocable<F, T&&> && Detail::SafeOptionalResult<std::remove_cvref_t<std::invoke_result_t<F, T&&>>>
 				auto and_then(F&& function) && {
 					using Result = std::remove_cvref_t<std::invoke_result_t<F, T&&>>;
 					if (!has_value())
 						return Result{};
-					T snapshot = value();
-					return std::invoke(std::forward<F>(function), std::move(snapshot));
+					return std::invoke(std::forward<F>(function), std::move(*m_value));
 				}
 
 				/**
-				 * @brief Apply a callable to a const value copy from a const rvalue.
-				 * @tparam F Callable accepting const T&& and returning a Safe optional.
-				 * @param function Callable to invoke.
-				 * @return Callable result, or an empty result.
+				 * @brief Map the contained value to another Safe component.
+				 * @tparam F Callable returning a Safe component.
+				 * @param function Function invoked with the contained value.
+				 * @return An empty optional, or an optional holding the mapped value.
 				 */
 				template<class F>
-				requires std::invocable<F, const T&&> && Detail::SafeOptionalResult<std::remove_cvref_t<std::invoke_result_t<F, const T&&>>>
-				auto and_then(F&& function) const && {
-					using Result = std::remove_cvref_t<std::invoke_result_t<F, const T&&>>;
-					if (!has_value())
-						return Result{};
-					const T snapshot = value();
-					return std::invoke(std::forward<F>(function), std::move(snapshot));
-				}
-
-				/**
-				 * @brief Apply a callable to a mutable value snapshot and wrap its Safe result.
-				 * @tparam F Callable accepting T& and returning a SafeValue.
-				 * @param function Callable to invoke.
-				 * @return Optional containing the result, or empty. Snapshot mutations are
-				 *         written back only after the callable returns successfully.
-				 */
-				template<class F>
-				requires std::invocable<F, T&> && Type::SafeValue<std::remove_cvref_t<std::invoke_result_t<F, T&>>>
+				requires Type::Invocable<F, T&> && Type::SafeComponent<std::remove_cvref_t<std::invoke_result_t<F, T&>>>
 				auto transform(F&& function) & {
 					using Result = std::remove_cvref_t<std::invoke_result_t<F, T&>>;
 					if (!has_value())
 						return Optional<Result>{};
-					T snapshot = value();
-					Result result = std::invoke(std::forward<F>(function), snapshot);
-					*this = std::move(snapshot);
-					return Optional<Result>(std::move(result));
+					return Optional<Result>(std::invoke(std::forward<F>(function), *m_value));
 				}
 
 				/**
-				 * @brief Apply a callable to a const value copy and wrap its Safe result.
-				 * @tparam F Callable accepting const T& and returning a SafeValue.
-				 * @param function Callable to invoke.
-				 * @return Optional containing the result, or empty.
+				 * @brief Map the contained value to another Safe component.
+				 * @tparam F Callable returning a Safe component.
+				 * @param function Function invoked with the contained value.
+				 * @return An empty optional, or an optional holding the mapped value.
 				 */
 				template<class F>
-				requires std::invocable<F, const T&> && Type::SafeValue<std::remove_cvref_t<std::invoke_result_t<F, const T&>>>
+				requires Type::Invocable<F, const T&> && Type::SafeComponent<std::remove_cvref_t<std::invoke_result_t<F, const T&>>>
 				auto transform(F&& function) const & {
 					using Result = std::remove_cvref_t<std::invoke_result_t<F, const T&>>;
-					static_assert(Type::SafeValue<Result>, "Safe::Optional::transform requires a SafeValue result");
 					if (!has_value())
 						return Optional<Result>{};
-					const T snapshot = value();
-					return Optional<Result>(std::invoke(std::forward<F>(function), snapshot));
+					return Optional<Result>(std::invoke(std::forward<F>(function), static_cast<const T&>(*m_value)));
 				}
 
 				/**
-				 * @brief Apply a callable to a moved value copy and wrap its Safe result.
-				 * @tparam F Callable accepting T&& and returning a SafeValue.
-				 * @param function Callable to invoke.
-				 * @return Optional containing the result, or empty.
+				 * @brief Map an rvalue contained value to another Safe component.
+				 * @tparam F Callable returning a Safe component.
+				 * @param function Function invoked with the contained value.
+				 * @return An empty optional, or an optional holding the mapped value.
 				 */
 				template<class F>
-				requires std::invocable<F, T&&> && Type::SafeValue<std::remove_cvref_t<std::invoke_result_t<F, T&&>>>
+				requires Type::Invocable<F, T&&> && Type::SafeComponent<std::remove_cvref_t<std::invoke_result_t<F, T&&>>>
 				auto transform(F&& function) && {
 					using Result = std::remove_cvref_t<std::invoke_result_t<F, T&&>>;
 					if (!has_value())
 						return Optional<Result>{};
-					T snapshot = value();
-					return Optional<Result>(std::invoke(std::forward<F>(function), std::move(snapshot)));
+					return Optional<Result>(std::invoke(std::forward<F>(function), std::move(*m_value)));
 				}
 
 				/**
-				 * @brief Apply a callable to a const value copy from a const rvalue.
-				 * @tparam F Callable accepting const T&& and returning a SafeValue.
-				 * @param function Callable to invoke.
-				 * @return Optional containing the result, or empty.
-				 */
-				template<class F>
-				requires std::invocable<F, const T&&> && Type::SafeValue<std::remove_cvref_t<std::invoke_result_t<F, const T&&>>>
-				auto transform(F&& function) const && {
-					using Result = std::remove_cvref_t<std::invoke_result_t<F, const T&&>>;
-					if (!has_value())
-						return Optional<Result>{};
-					const T snapshot = value();
-					return Optional<Result>(std::invoke(std::forward<F>(function), std::move(snapshot)));
-				}
-
-				/**
-				 * @brief Return this const optional when engaged, otherwise invoke a fallback callable.
-				 * @tparam F Callable returning a Safe optional.
+				 * @brief Return this optional when engaged, otherwise invoke a fallback.
+				 * @tparam F Callable returning Optional.
 				 * @param function Fallback callable.
-				 * @return This optional's copy or the callable's result.
+				 * @return A copy of this optional, or the callable result.
 				 */
 				template<class F>
-				requires std::invocable<F> && std::same_as<std::remove_cvref_t<std::invoke_result_t<F>>, Optional>
+				requires Type::Invocable<F> && Type::SameAs<std::invoke_result_t<F>, Optional>
 				Optional or_else(F&& function) const & {
 					if (has_value())
 						return *this;
@@ -1071,13 +691,13 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Return this rvalue optional or invoke a fallback callable.
+				 * @brief Return this rvalue optional, or invoke a fallback.
 				 * @tparam F Callable returning Optional.
 				 * @param function Fallback callable.
-				 * @return This optional moved by value or the fallback result.
+				 * @return This optional moved, or the callable result.
 				 */
 				template<class F>
-				requires std::invocable<F> && std::same_as<std::remove_cvref_t<std::invoke_result_t<F>>, Optional>
+				requires Type::Invocable<F> && Type::SameAs<std::invoke_result_t<F>, Optional>
 				Optional or_else(F&& function) && {
 					if (has_value())
 						return std::move(*this);
@@ -1085,66 +705,77 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Return this const rvalue optional or invoke a fallback callable.
-				 * @tparam F Callable returning Optional.
-				 * @param function Fallback callable.
-				 * @return A copy of this optional or the fallback result.
-				 */
-				template<class F>
-				requires std::invocable<F> && std::same_as<std::remove_cvref_t<std::invoke_result_t<F>>, Optional>
-				Optional or_else(F&& function) const && {
-					if (has_value())
-						return *this;
-					return std::invoke(std::forward<F>(function));
-				}
-
-				/**
 				 * @brief Construct or replace the contained value.
 				 * @tparam Args Constructor argument types.
-				 * @param args Arguments forwarded to @p T.
-				 * @return Mutable callback-backed proxy to the stored value.
+				 * @param args Arguments forwarded to T.
+				 * @return Contained value. Valid until `reset` or a move.
+				 * @throws AllocationError The block could not be allocated. The previous value is kept.
 				 */
 				template<class... Args>
-				reference emplace(Args&&... args) {
-					T value(std::forward<Args>(args)...);
-					if (has_value())
-						*begin() = value;
-					else
-						m_value.push_back(value);
-					return reference(m_value.front());
+				T& emplace(Args&&... args) {
+					T* created = Make(std::forward<Args>(args)...);
+					Release();
+					m_value = created;
+					return *m_value;
 				}
 
 				/**
-				 * @brief Construct or replace T from initializer-list elements.
+				 * @brief Construct or replace T from an initializer list.
 				 * @tparam U Initializer-list element type.
 				 * @tparam Args Trailing constructor argument types.
 				 * @param values Initializer-list elements.
 				 * @param args Trailing arguments forwarded to T.
-				 * @return Mutable callback-backed proxy to the stored value.
+				 * @return Contained value. Valid until `reset` or a move.
+				 * @throws AllocationError The block could not be allocated. The previous value is kept.
 				 */
 				template<class U, class... Args>
-				reference emplace(std::initializer_list<U> values, Args&&... args) {
-					T value(values, std::forward<Args>(args)...);
-					if (has_value())
-						*begin() = value;
-					else
-						m_value.push_back(value);
-					return reference(m_value.front());
+				T& emplace(std::initializer_list<U> values, Args&&... args) {
+					T* created = Make(values, std::forward<Args>(args)...);
+					Release();
+					m_value = created;
+					return *m_value;
 				}
 
 				/**
-				 * @brief Remove the contained value.
+				 * @brief Destroy a held value and release its block.
 				 */
-				void reset() { m_value.clear(); }
+				void reset() noexcept;
 
 				/**
 				 * @brief Copy the value into caller-owned STL storage.
-				 * @return A std::optional owned by the caller.
+				 * @return A `std::optional` owned by the caller.
 				 */
-				STORMBYTE_FORCE_INLINE explicit operator std::optional<T>() const;
+				STORMBYTE_FORCE_INLINE explicit operator std::optional<T>() const {
+					if (!has_value())
+						return std::nullopt;
+					return std::optional<T>(*m_value);
+				}
 
 			private:
-				Vector<T> m_value;	///< Opaque sequence holding at most one value.
+				/**
+				 * @brief Allocate a Base block and construct T in it.
+				 * @tparam Args Constructor argument types.
+				 * @param args Arguments forwarded to T.
+				 * @return Pointer to the constructed value.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<class... Args>
+				static T* Make(Args&&... args) {
+					void* block = Heap::Allocate(sizeof(T));
+					try {
+						return new (block) T(std::forward<Args>(args)...);
+					} catch (...) {
+						Heap::Free(block);
+						throw;
+					}
+				}
+
+				/**
+				 * @brief Destroy a held value and release its block. Empty is a no-op.
+				 */
+				void Release() noexcept;
+
+				T* m_value;	///< Base-owned value, or null when empty.
 		};
 	}
 
@@ -1154,33 +785,34 @@ namespace StormByte {
 	 */
 	namespace Type {
 		/**
-		 * @brief Recognizes opaque Safe optional values.
-		 * @tparam T Safe value.
+		 * @brief Recognizes an optional of an already safe component.
+		 * @tparam T Safe component.
 		 */
-		template<SafeValue T>
+		template<SafeComponent T>
 		requires Type::IsSafe<T>::value
 		struct IsSafe<Safe::Optional<T>>: std::true_type {};
 
 		/**
 		 * @brief Propagates conditional safety from the contained value.
-		 * @tparam T Safe value type.
+		 * @tparam T Conditionally safe component.
 		 */
-		template<SafeValue T>
+		template<SafeComponent T>
 		requires Type::MaybeSafe<T>
 		struct IsMaybeSafe<Safe::Optional<T>>: std::true_type {};
 
 		/**
-		 * @brief Registers Safe optional values for optional-aware generic APIs.
-		 * @tparam T Safe value.
+		 * @brief Registers a Safe optional for optional-aware generic APIs.
+		 * @tparam T Safe component.
 		 */
-		template<SafeValue T>
+		template<SafeComponent T>
 		struct IsSafeOptional<Safe::Optional<T>>: std::true_type {};
 
 		/**
-		 * @brief Admits nested opaque optional values.
-		 * @tparam T Safe value.
+		 * @brief Admits a nested optional of an already safe component.
+		 * @tparam T Safe component.
 		 */
-		template<SafeValue T>
+		template<SafeComponent T>
+		requires Type::IsSafe<T>::value
 		struct IsSafeValue<Safe::Optional<T>>: std::true_type {};
 	}
 }
