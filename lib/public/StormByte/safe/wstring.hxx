@@ -49,6 +49,7 @@
 #include <cassert>
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <cwctype>
 #include <functional>
 #include <iterator>
@@ -66,7 +67,7 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Creator-owned storage and DLL-safe resource wrappers.
+	 * @brief Owned UTF-8 and wide text. Short text lives in the object; the long path is Base-owned.
 	 */
 	namespace Safe {
 		/**
@@ -77,30 +78,23 @@ namespace StormByte {
 
 		/**
 		 * @class WString
-		 * @brief Owned wide text stored entirely on the Base heap.
+		 * @brief Owned wide text.
 		 *
-		 * Not a `std::wstring`. Iterators are constant and contiguous so
-		 * algorithms that read a range of `wchar_t` work. In-place mutating
-		 * algorithms do not: helpers return a new @ref WString.
+		 * Not a `std::wstring`. Short text lives in the object, NUL-terminated, with an explicit size.
+		 * Longer text is a Base-owned wide buffer. There is no null state: a moved-from string is empty.
+		 * `data()` and `c_str()` are never null.
 		 *
-		 * `operator std::wstring_view` is implicit and inline. `operator
-		 * std::wstring` is explicit and `STORMBYTE_FORCE_INLINE` (caller heap).
+		 * `operator std::wstring_view` is implicit and inline. `operator std::wstring` is explicit and
+		 * `STORMBYTE_FORCE_INLINE` (caller heap).
 		 *
-		 * Conversion to @ref String is explicit and runs in the module
-		 * (wide → UTF-8). Conversion from @ref String copies wide units
-		 * in the module.
+		 * Conversion to @ref String is explicit and runs in the module (wide to UTF-8). Conversion from
+		 * @ref String copies wide units in the module, including an empty source.
 		 *
-		 * `ToUpper` / `ToLower` map ASCII and Latin-1 letters. Other valid
-		 * code points are copied; malformed Unicode becomes U+FFFD. On 16-bit
-		 * `wchar_t`, well-formed surrogate pairs are processed together.
+		 * `ToUpper` / `ToLower` map ASCII and Latin-1 letters. Other valid code points are copied;
+		 * malformed Unicode becomes U+FFFD. On 16-bit `wchar_t`, well-formed surrogate pairs are processed together.
 		 *
-		 * Code units are contiguous and mutable. Classic and ranges algorithms
-		 * can read or modify existing units; modifiers operate on Base-owned storage
-		 * inside the module and do not adopt caller-CRT storage.
-		 * `capacity()` and `reserve(Size)` count wchar_t code units excluding NUL;
-		 * reserve never shrinks and modifiers retain it.
-		 * Observers (`starts_with`, `ends_with`, `contains`, `find`, `substr`, …)
-		 * follow `std::wstring_view`.
+		 * Observers follow `std::wstring_view`. Size-changing modifiers follow `std::wstring` value semantics.
+		 * `capacity()` and `reserve(Size)` count code units excluding NUL; reserve never shrinks.
 		 */
 		class STORMBYTE_PUBLIC WString {
 			public:
@@ -116,30 +110,32 @@ namespace StormByte {
 				using reverse_iterator = std::reverse_iterator<iterator>;	///< Mutable reverse observer
 				using const_reverse_iterator = std::reverse_iterator<const_iterator>;	///< Reverse observer
 
+				static constexpr std::size_t SSO_CAPACITY = 24 / sizeof(wchar_t) - 1;	///< Short capacity, excluding the trailing NUL
+
 				/**
 				 * @name Life
 				 * @{
 				 */
 
 				/**
-				 * @brief Null text.
+				 * @brief Empty text. Not null.
 				 */
 				WString() noexcept;
 
 				/**
-				 * @brief Copies a wide C string.
+				 * @brief Copies a wide C string. A null pointer becomes empty.
 				 * @param str Source; may be null.
 				 */
 				explicit WString(const wchar_t* str) noexcept;
 
 				/**
-				 * @brief Copies a view into an owned NUL-terminated buffer.
-				 * @param str Source.
+				 * @brief Copies a view into owned storage.
+				 * @param str Source. Embedded NUL counts.
 				 */
 				explicit WString(std::wstring_view str) noexcept;
 
 				/**
-				 * @brief Wide text from UTF-8.
+				 * @brief Wide text from UTF-8, including an empty source.
 				 * @param other UTF-8 source.
 				 */
 				explicit WString(const String& other) noexcept;
@@ -152,12 +148,12 @@ namespace StormByte {
 
 				/**
 				 * @brief Move constructor.
-				 * @param other Text to take. @p other becomes null.
+				 * @param other Text to take. @p other becomes empty.
 				 */
 				WString(WString&& other) noexcept;
 
 				/**
-				 * @brief Releases the buffer.
+				 * @brief Releases a long buffer. A short string has nothing to free.
 				 */
 				~WString() noexcept;
 
@@ -170,13 +166,13 @@ namespace StormByte {
 
 				/**
 				 * @brief Move assignment.
-				 * @param other Text to take. @p other becomes null.
+				 * @param other Text to take. @p other becomes empty.
 				 * @return *this.
 				 */
 				WString& operator=(WString&& other) noexcept;
 
 				/**
-				 * @brief Copy wide text from a caller-owned view into Base storage.
+				 * @brief Copy wide text from a caller-owned view.
 				 * @param text Source code units.
 				 * @return This string.
 				 */
@@ -190,41 +186,39 @@ namespace StormByte {
 				 */
 
 				/**
-				 * @brief First character, or null.
-				 * @return Iterator.
+				 * @brief First character.
+				 * @return Iterator. Never null.
 				 */
 				inline iterator begin() noexcept {
 					return data();
 				}
 
 				/**
-				 * @brief First character, or null.
-				 * @return Read-only iterator.
+				 * @brief First character.
+				 * @return Read-only iterator. Never null.
 				 */
 				inline const_iterator begin() const noexcept {
 					return data();
 				}
 
 				/**
-				 * @brief One past the last character, or null.
-				 * @return Iterator.
+				 * @brief One past the last character.
+				 * @return Iterator. Never null.
 				 */
 				inline iterator end() noexcept {
-					wchar_t* text = data();
-					return text ? text + static_cast<std::size_t>(size()) : nullptr;
+					return data() + static_cast<std::size_t>(size());
 				}
 
 				/**
-				 * @brief One past the last character, or null.
-				 * @return Read-only iterator.
+				 * @brief One past the last character.
+				 * @return Read-only iterator. Never null.
 				 */
 				inline const_iterator end() const noexcept {
-					const wchar_t* text = data();
-					return text ? text + size() : nullptr;
+					return data() + static_cast<std::size_t>(size());
 				}
 
 				/**
-				 * @brief First character, or null.
+				 * @brief First character.
 				 * @return Iterator.
 				 */
 				inline const_iterator cbegin() const noexcept {
@@ -232,7 +226,7 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief One past the last character, or null.
+				 * @brief One past the last character.
 				 * @return Iterator.
 				 */
 				inline const_iterator cend() const noexcept {
@@ -288,26 +282,34 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Contiguous pointer; null when the buffer is null.
-				 * @return Pointer to the first code unit.
+				 * @brief Contiguous pointer to the first unit, or to the trailing NUL when empty.
+				 * @return Never null.
 				 */
 				wchar_t* data() noexcept;
 
 				/**
-				 * @brief Read-only contiguous pointer; null when the buffer is null.
-				 * @return Pointer to the first code unit.
+				 * @brief Read-only contiguous pointer to the first unit, or to the trailing NUL when empty.
+				 * @return Never null.
 				 */
 				const wchar_t* data() const noexcept;
 
 				/**
-				 * @brief Code-unit count; `0` when null or empty.
-				 * @return Length as @ref StormByte::Size (code units, not bytes).
+				 * @brief Same pointer as @ref data. The unit at `size()` is NUL and is not part of the length.
+				 * @return Never null.
+				 */
+				inline const wchar_t* c_str() const noexcept {
+					return data();
+				}
+
+				/**
+				 * @brief Code-unit count, excluding the trailing NUL.
+				 * @return Length as @ref StormByte::Size.
 				 */
 				Size size() const noexcept;
 
 				/**
-				 * @brief Return allocated capacity, in wchar_t code units, excluding the NUL.
-				 * @return Capacity in wide code units.
+				 * @brief Allocated code-unit capacity, excluding the trailing NUL.
+				 * @return Short capacity, or the long buffer capacity.
 				 */
 				Size capacity() const noexcept;
 
@@ -321,7 +323,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Whether @ref size is zero.
-				 * @return Emptiness. A null buffer is empty.
+				 * @return Emptiness. An empty string still has a pointer.
 				 */
 				inline bool empty() const noexcept {
 					return size() == 0;
@@ -378,26 +380,29 @@ namespace StormByte {
 				void push_back(wchar_t character);
 
 				/**
-				 * @brief Remove the final code unit; the string must not be empty.
+				 * @brief Remove the final code unit. Empty use follows `std::wstring` preconditions.
 				 */
 				void pop_back();
 
 				/**
-				 * @brief Replace the contents with valid empty text, retaining capacity.
+				 * @brief Replace the contents with an empty string, retaining long-path capacity.
 				 */
 				void clear();
 
 				/**
 				 * @brief Reserve storage for at least @p new_capacity wide code units.
 				 * @param new_capacity Requested code-unit capacity, excluding the NUL.
+				 * @return Nothing.
+				 * @throw OutOfBoundsError The request cannot be represented, including a trailing NUL.
+				 * @throw AllocationError The size is representable but the allocation failed.
 				 * @note Requests at or below capacity do not shrink or reallocate.
 				 */
 				void reserve(size_type new_capacity);
 
 				/**
-				 * @brief Resize the code-unit sequence.
+				 * @brief Resize the code-unit sequence, filling new units with character.
 				 * @param count New code-unit count.
-				 * @param character Fill code unit, default initialized to NUL.
+				 * @param character Fill unit, default initialized to NUL.
 				 */
 				void resize(size_type count, wchar_t character = wchar_t{});
 
@@ -429,31 +434,31 @@ namespace StormByte {
 				/**
 				 * @brief Code unit at @p index.
 				 * @param index Position in `[0, size()]`. `size()` is the trailing NUL.
-				 * @return Character.
-				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
+				 * @return Code unit.
+				 * @note `index > size()` is undefined and `assert`s when assertions are on.
 				 */
 				inline wchar_t& operator[](const Size& index) noexcept {
-					assert(data() && index <= size());
+					assert(index <= size());
 					return data()[static_cast<std::size_t>(index)];
 				}
 
 				/**
 				 * @brief Read-only code unit at @p index.
 				 * @param index Position in `[0, size()]`. `size()` is the trailing NUL.
-				 * @return Character copy.
-				 * @note Null or `index > size()` is undefined and `assert`s when assertions are on.
+				 * @return Code-unit copy.
+				 * @note `index > size()` is undefined and `assert`s when assertions are on.
 				 */
 				inline wchar_t operator[](const Size& index) const noexcept {
-					assert(data() && index <= size());
+					assert(index <= size());
 					return data()[static_cast<std::size_t>(index)];
 				}
 
 				/**
-				 * @brief Whether a buffer is held.
-				 * @return False only for null storage. Owned empty text is valid.
+				 * @brief Whether the text is non-empty.
+				 * @return `false` for empty text. A pointer is always held.
 				 */
 				inline explicit operator bool() const noexcept {
-					return static_cast<bool>(m_text);
+					return !empty();
 				}
 
 				/** @} */
@@ -465,17 +470,16 @@ namespace StormByte {
 
 				/**
 				 * @brief Non-owning view of the text.
-				 * @return Empty view when the buffer is null.
+				 * @return View of `size()` units. Embedded NUL is preserved. Never a null buffer.
 				 * @note Same lifetime as `std::wstring::c_str()`.
 				 */
 				inline operator std::wstring_view() const noexcept {
-					const wchar_t* text = data();
-					return text ? std::wstring_view(text, static_cast<std::size_t>(size())) : std::wstring_view{};
+					return std::wstring_view(data(), static_cast<std::size_t>(size()));
 				}
 
 				/**
 				 * @brief Copy of the text in the caller’s heap.
-				 * @return Empty string when the buffer is null.
+				 * @return Caller-owned `std::wstring`.
 				 */
 				STORMBYTE_FORCE_INLINE explicit operator std::wstring() const {
 					return std::wstring(static_cast<std::wstring_view>(*this));
@@ -483,22 +487,22 @@ namespace StormByte {
 
 				/**
 				 * @brief View of the owned buffer.
-				 * @return Buffer, or null.
+				 * @return `c_str()`. Never null.
 				 * @note Same lifetime as `std::wstring::c_str()`.
 				 */
 				inline explicit operator const wchar_t*() const noexcept {
-					return data();
+					return c_str();
 				}
 
 				/**
-				 * @brief UTF-8 text (wide encoded in the module).
+				 * @brief UTF-8 text, decoded in the module.
 				 * @return Owned @ref String.
 				 */
 				explicit operator String() const noexcept;
 
 				/**
-				 * @brief Non-owning view of the owned code units.
-				 * @return Buffer, or null.
+				 * @brief Non-owning view of the owned units.
+				 * @return `data()`. Never null.
 				 */
 				inline const wchar_t* Bytes() const noexcept {
 					return data();
@@ -524,7 +528,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Whether the text begins with @p ch.
-				 * @param ch Prefix code unit.
+				 * @param ch Prefix unit.
 				 * @return Match.
 				 */
 				inline bool starts_with(wchar_t ch) const noexcept {
@@ -542,7 +546,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Whether the text ends with @p ch.
-				 * @param ch Suffix code unit.
+				 * @param ch Suffix unit.
 				 * @return Match.
 				 */
 				inline bool ends_with(wchar_t ch) const noexcept {
@@ -560,7 +564,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Whether @p ch occurs.
-				 * @param ch Code unit.
+				 * @param ch Unit.
 				 * @return Match.
 				 */
 				inline bool contains(wchar_t ch) const noexcept {
@@ -579,7 +583,7 @@ namespace StormByte {
 
 				/**
 				 * @brief First occurrence of @p ch at or after @p pos.
-				 * @param ch Code unit.
+				 * @param ch Unit.
 				 * @param pos Start, in code units.
 				 * @return Index, or @ref npos.
 				 */
@@ -588,20 +592,9 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief First occurrence of @p count units of @p text.
-				 * @param text Needle. May be null when @p count is zero.
-				 * @param pos Start, in code units.
-				 * @param count Units of @p text to use.
-				 * @return Index, or @ref npos.
-				 */
-				inline Size find(const wchar_t* text, Size pos, Size count) const noexcept {
-					return find(std::wstring_view(text, static_cast<std::size_t>(count)), pos);
-				}
-
-				/**
 				 * @brief Last occurrence of @p text at or before @p pos.
 				 * @param text Needle.
-				 * @param pos Highest start, in code units. Default is the end.
+				 * @param pos Highest start. Default is the end.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size rfind(std::wstring_view text, Size pos = npos) const noexcept {
@@ -610,8 +603,8 @@ namespace StormByte {
 
 				/**
 				 * @brief Last occurrence of @p ch at or before @p pos.
-				 * @param ch Code unit.
-				 * @param pos Highest start, in code units. Default is the end.
+				 * @param ch Unit.
+				 * @param pos Highest start. Default is the end.
 				 * @return Index, or @ref npos.
 				 */
 				inline Size rfind(wchar_t ch, Size pos = npos) const noexcept {
@@ -619,19 +612,8 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Last occurrence of @p count units of @p text.
-				 * @param text Needle. May be null when @p count is zero.
-				 * @param pos Highest start, in code units.
-				 * @param count Units of @p text to use.
-				 * @return Index, or @ref npos.
-				 */
-				inline Size rfind(const wchar_t* text, Size pos, Size count) const noexcept {
-					return rfind(std::wstring_view(text, static_cast<std::size_t>(count)), pos);
-				}
-
-				/**
 				 * @brief First unit that is in @p text, at or after @p pos.
-				 * @param text Set of code units.
+				 * @param text Set of units.
 				 * @param pos Start, in code units.
 				 * @return Index, or @ref npos.
 				 */
@@ -644,7 +626,7 @@ namespace StormByte {
 
 				/**
 				 * @brief First @p ch at or after @p pos.
-				 * @param ch Code unit.
+				 * @param ch Unit.
 				 * @param pos Start, in code units.
 				 * @return Index, or @ref npos.
 				 */
@@ -654,7 +636,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Last unit that is in @p text, at or before @p pos.
-				 * @param text Set of code units.
+				 * @param text Set of units.
 				 * @param pos Highest index. Default is the end.
 				 * @return Index, or @ref npos.
 				 */
@@ -666,7 +648,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Last @p ch at or before @p pos.
-				 * @param ch Code unit.
+				 * @param ch Unit.
 				 * @param pos Highest index. Default is the end.
 				 * @return Index, or @ref npos.
 				 */
@@ -676,7 +658,7 @@ namespace StormByte {
 
 				/**
 				 * @brief First unit that is not in @p text, at or after @p pos.
-				 * @param text Set of code units.
+				 * @param text Set of units.
 				 * @param pos Start, in code units.
 				 * @return Index, or @ref npos.
 				 */
@@ -689,7 +671,7 @@ namespace StormByte {
 
 				/**
 				 * @brief First unit other than @p ch, at or after @p pos.
-				 * @param ch Code unit.
+				 * @param ch Unit.
 				 * @param pos Start, in code units.
 				 * @return Index, or @ref npos.
 				 */
@@ -702,7 +684,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Last unit that is not in @p text, at or before @p pos.
-				 * @param text Set of code units.
+				 * @param text Set of units.
 				 * @param pos Highest index. Default is the end.
 				 * @return Index, or @ref npos.
 				 */
@@ -714,7 +696,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Last unit other than @p ch, at or before @p pos.
-				 * @param ch Code unit.
+				 * @param ch Unit.
 				 * @param pos Highest index. Default is the end.
 				 * @return Index, or @ref npos.
 				 */
@@ -748,7 +730,7 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief First code unit.
+				 * @brief First unit.
 				 * @return Unit.
 				 * @note Empty is undefined, same as `std::wstring::front`.
 				 */
@@ -757,8 +739,8 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Read the first code unit.
-				 * @return Code-unit copy.
+				 * @brief Read the first unit.
+				 * @return Unit copy.
 				 * @note Empty is undefined, same as `std::wstring::front`.
 				 */
 				inline wchar_t front() const noexcept {
@@ -766,7 +748,7 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Last code unit.
+				 * @brief Last unit.
 				 * @return Unit.
 				 * @note Empty is undefined, same as `std::wstring::back`.
 				 */
@@ -775,8 +757,8 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Read the last code unit.
-				 * @return Code-unit copy.
+				 * @brief Read the last unit.
+				 * @return Unit copy.
 				 * @note Empty is undefined, same as `std::wstring::back`.
 				 */
 				inline wchar_t back() const noexcept {
@@ -791,14 +773,14 @@ namespace StormByte {
 				 */
 
 				/**
-				 * @brief ASCII-letter lower case; other code points copied.
+				 * @brief ASCII and Latin-1 lower case.
 				 * @param str Source.
 				 * @return New text.
 				 */
 				static WString ToLower(std::wstring_view str) noexcept;
 
 				/**
-				 * @brief ASCII-letter upper case; other code points copied.
+				 * @brief ASCII and Latin-1 upper case.
 				 * @param str Source.
 				 * @return New text.
 				 */
@@ -812,7 +794,7 @@ namespace StormByte {
 				static WString SanitizeNewlines(std::wstring_view str) noexcept;
 
 				/**
-				 * @brief Drops `iswspace` code units.
+				 * @brief Drops `iswspace` units.
 				 * @param str Source.
 				 * @return New text.
 				 */
@@ -884,7 +866,7 @@ namespace StormByte {
 				static Status Explode(std::wstring_view str, wchar_t delimiter, Queue<WString>& out) noexcept;
 
 				/**
-				 * @brief ASCII-letter lower case of this text.
+				 * @brief ASCII and Latin-1 lower case of this text.
 				 * @return New text.
 				 */
 				inline WString ToLower() const noexcept {
@@ -892,7 +874,7 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief ASCII-letter upper case of this text.
+				 * @brief ASCII and Latin-1 upper case of this text.
 				 * @return New text.
 				 */
 				inline WString ToUpper() const noexcept {
@@ -908,7 +890,7 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Drops `iswspace` code units from this text.
+				 * @brief Drops `iswspace` units from this text.
 				 * @return New text.
 				 */
 				inline WString RemoveWhitespace() const noexcept {
@@ -972,8 +954,7 @@ namespace StormByte {
 				 * @return Whether the texts are equal.
 				 */
 				inline bool operator==(const WString& other) const noexcept {
-					return static_cast<bool>(*this) == static_cast<bool>(other)
-						&& static_cast<std::wstring_view>(*this) == static_cast<std::wstring_view>(other);
+					return static_cast<std::wstring_view>(*this) == static_cast<std::wstring_view>(other);
 				}
 
 				/**
@@ -986,16 +967,16 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Content equality with a wide C string.
+				 * @brief Content equality with a C string. A null pointer compares equal to empty.
 				 * @param str May be null.
 				 * @return Whether the texts are equal.
 				 */
 				inline bool operator==(const wchar_t* str) const noexcept {
-					return str ? static_cast<bool>(*this) && static_cast<std::wstring_view>(*this) == std::wstring_view(str) : !*this;
+					return str ? static_cast<std::wstring_view>(*this) == std::wstring_view(str) : empty();
 				}
 
 				/**
-				 * @brief Content inequality with a wide C string.
+				 * @brief Content inequality with a C string.
 				 * @param str May be null.
 				 * @return Whether the texts differ.
 				 */
@@ -1004,64 +985,89 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Content order. Null is less than any text.
+				 * @brief Content order.
 				 * @param other Other text.
 				 * @return Ordering.
 				 */
 				inline std::strong_ordering operator<=>(const WString& other) const noexcept {
-					if (static_cast<bool>(*this) != static_cast<bool>(other))
-						return static_cast<bool>(*this) <=> static_cast<bool>(other);
 					return static_cast<std::wstring_view>(*this) <=> static_cast<std::wstring_view>(other);
 				}
 
 				/**
-				 * @brief Content order against a wide C string.
+				 * @brief Content order against a C string. A null pointer compares as empty.
 				 * @param str May be null.
 				 * @return Ordering.
 				 */
 				inline std::strong_ordering operator<=>(const wchar_t* str) const noexcept {
-					if (static_cast<bool>(*this) != (str != nullptr))
-						return static_cast<bool>(*this) <=> (str != nullptr);
-					return static_cast<std::wstring_view>(*this) <=> (str ? std::wstring_view(str) : std::wstring_view{});
+					return str ? static_cast<std::wstring_view>(*this) <=> std::wstring_view(str)
+						: static_cast<std::wstring_view>(*this) <=> std::wstring_view{};
 				}
 
 				/** @} */
 
 				/**
-				 * @brief Swaps buffers with @p other.
+				 * @brief Swaps storage with @p other.
 				 * @param other Other text.
 				 */
 				void swap(WString& other) noexcept;
 
 			private:
 				/**
-				 * @struct TextStorage
-				 * @brief Module-owned wide code units and retained capacity.
+				 * @brief In-object short buffer, or a wide buffer when bit 7 of @ref m_tag is set.
+				 *
+				 * `data` holds @ref SSO_CAPACITY units plus a trailing NUL. `m_tag` bits 0–6 are the short size.
+				 * `long_` is active only while the long bit is set. It is a Base-owned buffer and is freed in Base.
 				 */
-				struct TextStorage;
+				struct alignas(alignof(void*)) Storage {
+					union {
+						wchar_t data[SSO_CAPACITY + 1];	///< Short units, or overlaid by @ref long_
+						void* long_;	///< Base-owned wide buffer. Active only when the long bit is set
+					};
+					std::uint8_t m_tag;	///< Bit 7 long; bits 0–6 short size
+				};
+
+				static_assert(sizeof(Storage) == 32);
+				static_assert(alignof(Storage) == alignof(void*));
 
 				/**
-				 * @brief Access storage, creating owned empty text when null.
-				 * @return Module-owned mutable wide string.
+				 * @brief Whether the wide buffer is the active member.
+				 * @return Long-path flag.
 				 */
-				std::wstring& EnsureText();
+				bool IsLong() const noexcept;
 
 				/**
-				 * @brief Translate a standard view position into a Safe position.
+				 * @brief Free the long buffer, if any, and leave an empty short string.
+				 */
+				void ReleaseLong() noexcept;
+
+				/**
+				 * @brief Leave an empty short string. Does not free.
+				 */
+				void SetEmpty() noexcept;
+
+				/**
+				 * @brief Store a short sequence and its explicit size. `count` must be at most @ref SSO_CAPACITY.
+				 * @param text Source units. May contain embedded NUL.
+				 * @param count Unit count, excluding the trailing NUL written at `data[count]`.
+				 */
+				void SetShort(const wchar_t* text, std::size_t count) noexcept;
+
+				/**
+				 * @brief Convert a standard view index into the public position type.
 				 * @param index Standard position or not-found sentinel.
-				 * @return Safe position or @ref npos.
+				 * @return Public position or @ref npos.
 				 */
 				static Size FromIndex(std::size_t index) noexcept {
 					return index == std::wstring_view::npos ? npos : Size{index};
 				}
 
 				/**
-				 * @brief Find a needle starting at a Safe position.
-				 * @tparam Needle View or code-unit needle type.
+				 * @brief Find a needle from a checked starting position.
+				 * @tparam Needle Unit or text view.
 				 * @param self Text to search.
-				 * @param needle Text or code unit to find.
-				 * @param pos First position to search.
-				 * @return Position or @ref npos.
+				 * @param needle Units to find.
+				 * @param pos Starting position.
+				 * @return Match position or @ref npos.
 				 */
 				template<typename Needle>
 				static Size FindAt(std::wstring_view self, Needle needle, Size pos) noexcept {
@@ -1071,12 +1077,12 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Find the last needle at or before a Safe position.
-				 * @tparam Needle View or code-unit needle type.
+				 * @brief Find the last needle at or before a position.
+				 * @tparam Needle Unit or text view.
 				 * @param self Text to search.
-				 * @param needle Text or code unit to find.
-				 * @param pos Highest position to search.
-				 * @return Position or @ref npos.
+				 * @param needle Units to find.
+				 * @param pos Highest starting position.
+				 * @return Match position or @ref npos.
 				 */
 				template<typename Needle>
 				static Size RFindAt(std::wstring_view self, Needle needle, Size pos) noexcept {
@@ -1084,10 +1090,7 @@ namespace StormByte {
 					return FromIndex(self.rfind(needle, start));
 				}
 
-				/**
-				 * @brief Creator-owned storage; null until text is supplied or modified.
-				 */
-				Unique<TextStorage> m_text;
+				Storage m_storage{};	///< Short buffer or wide buffer
 		};
 
 		/**
@@ -1102,7 +1105,7 @@ namespace StormByte {
 
 		/**
 		 * @brief Content equality.
-		 * @param str Wide C string; may be null.
+		 * @param str C string; may be null.
 		 * @param text Text.
 		 * @return Whether the texts are equal.
 		 */
@@ -1112,7 +1115,7 @@ namespace StormByte {
 
 		/**
 		 * @brief Content inequality.
-		 * @param str Wide C string; may be null.
+		 * @param str C string; may be null.
 		 * @param text Text.
 		 * @return Whether the texts differ.
 		 */
@@ -1132,7 +1135,7 @@ namespace StormByte {
 }
 
 /**
- * @brief Hash of the text (`0` when the view is empty and the buffer is null).
+ * @brief Hash of the text. An empty string hashes as an empty view.
  */
 template<>
 struct std::hash<StormByte::Safe::WString> {

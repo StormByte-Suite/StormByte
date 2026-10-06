@@ -165,8 +165,8 @@ int test_wstring_size_modifiers() {
 	std::wstring imported(L"assigned from STL");
 	text = imported;
 	ASSERT_TRUE("test_wstring_size_modifiers", text == L"assigned from STL");
-	ASSERT_TRUE("test_wstring_size_modifiers", text.capacity() >= reservedCapacity);
 	text.assign(L"ab");
+	ASSERT_TRUE("test_wstring_size_modifiers", text.capacity() == Size{WString::SSO_CAPACITY});
 	text.append(L"cd").append(Size{2}, L'!');
 	text += L"ef";
 	text.insert(Size{1}, L"XY");
@@ -180,8 +180,8 @@ int test_wstring_size_modifiers() {
 	text.pop_back();
 	ASSERT_TRUE("test_wstring_size_modifiers", text == L"a-c");
 	text.clear();
-	ASSERT_TRUE("test_wstring_size_modifiers", text.empty() && static_cast<bool>(text));
-	ASSERT_TRUE("test_wstring_size_modifiers", text.capacity() >= reservedCapacity);
+	ASSERT_TRUE("test_wstring_size_modifiers", text.empty() && !static_cast<bool>(text));
+	ASSERT_TRUE("test_wstring_size_modifiers", text.data() != nullptr);
 	text.assign(Size{3}, L'x');
 	ASSERT_TRUE("test_wstring_size_modifiers", text == L"xxx");
 	RETURN_TEST("test_wstring_size_modifiers", 0);
@@ -213,7 +213,7 @@ int test_equal_and_order() {
 	ASSERT_TRUE("test_equal_and_order", (a <=> b) == std::strong_ordering::equal);
 	ASSERT_TRUE("test_equal_and_order", (a <=> c) == std::strong_ordering::less);
 	ASSERT_TRUE("test_equal_and_order", (missing <=> a) == std::strong_ordering::less);
-	ASSERT_TRUE("test_equal_and_order", missing != L"");
+	ASSERT_TRUE("test_equal_and_order", missing == L"");
 	RETURN_TEST("test_equal_and_order", result);
 }
 
@@ -232,7 +232,7 @@ int test_hash() {
 int test_construct_from_empty() {
 	int result = 0;
 	WString text(L"");
-	ASSERT_TRUE("test_construct_from_empty", static_cast<bool>(text));
+	ASSERT_FALSE("test_construct_from_empty", static_cast<bool>(text));
 	ASSERT_EQUAL("test_construct_from_empty", Size{0}, text.size());
 	ASSERT_TRUE("test_construct_from_empty", text.data() != nullptr);
 	RETURN_TEST("test_construct_from_empty", result);
@@ -264,14 +264,15 @@ int test_construct_from_owned_wstring() {
 	RETURN_TEST("test_construct_from_owned_wstring", result);
 }
 
-int test_default_is_null() {
+int test_default_is_empty() {
 	int result = 0;
 	WString text;
-	ASSERT_FALSE("test_default_is_null", static_cast<bool>(text));
-	ASSERT_TRUE("test_default_is_null", text.empty());
-	ASSERT_EQUAL("test_default_is_null", Size{0}, text.size());
-	ASSERT_TRUE("test_default_is_null", text.data() == nullptr);
-	RETURN_TEST("test_default_is_null", result);
+	ASSERT_FALSE("test_default_is_empty", static_cast<bool>(text));
+	ASSERT_TRUE("test_default_is_empty", text.empty());
+	ASSERT_EQUAL("test_default_is_empty", Size{0}, text.size());
+	ASSERT_TRUE("test_default_is_empty", text.data() != nullptr);
+	ASSERT_EQUAL("test_default_is_empty", L'\0', text.data()[0]);
+	RETURN_TEST("test_default_is_empty", result);
 }
 
 // -------------------
@@ -448,12 +449,12 @@ int test_range_iterators() {
 	RETURN_TEST("test_range_iterators", result);
 }
 
-int test_range_null() {
+int test_range_empty() {
 	int result = 0;
 	WString text;
-	ASSERT_TRUE("test_range_null", text.begin() == nullptr);
-	ASSERT_TRUE("test_range_null", text.end() == nullptr);
-	RETURN_TEST("test_range_null", result);
+	ASSERT_TRUE("test_range_empty", text.begin() != nullptr);
+	ASSERT_TRUE("test_range_empty", text.begin() == text.end());
+	RETURN_TEST("test_range_empty", result);
 }
 
 // -------------------
@@ -515,7 +516,7 @@ int main() {
 	result += test_construct_from_ptr();
 	result += test_construct_from_view();
 	result += test_construct_from_owned_wstring();
-	result += test_default_is_null();
+	result += test_default_is_empty();
 
 	// -------------------
 	// Conversions / streams
@@ -547,7 +548,7 @@ int main() {
 	// Range
 	// -------------------
 	result += test_range_iterators();
-	result += test_range_null();
+	result += test_range_empty();
 
 	// -------------------
 	// UTF-8

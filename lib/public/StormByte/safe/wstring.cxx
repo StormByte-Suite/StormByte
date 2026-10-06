@@ -44,62 +44,100 @@
 #include <StormByte/safe/utf8.hxx>
 #include <StormByte/safe/wstring.hxx>
 
+#include <cstring>
+#include <limits>
 #include <string>
 #include <utility>
+
+extern "C" {
+	typedef struct WBuf WBuf;
+	WBuf* wbuf_new(const wchar_t* text, size_t count);
+	void wbuf_free(WBuf* buffer);
+	wchar_t* wbuf_data(WBuf* buffer);
+	size_t wbuf_size(const WBuf* buffer);
+	size_t wbuf_avail(const WBuf* buffer);
+	WBuf* wbuf_make_room(WBuf* buffer, size_t extra);
+	WBuf* wbuf_append(WBuf* buffer, const wchar_t* text, size_t count);
+	void wbuf_set_len(WBuf* buffer, size_t count);
+}
 
 using namespace StormByte;
 using namespace StormByte::Safe;
 namespace Text = StormByte::Safe::Text;
 
-/**
- * @struct WString::TextStorage
- * @brief Wide code units allocated and destroyed inside Base.
- */
-struct WString::TextStorage {
-	/**
-	 * @brief Owned code units and their retained allocation.
-	 */
-	std::wstring Text;
-};
+namespace {
+	constexpr unsigned char kLongBit = 0x80;
+	constexpr unsigned char kSizeMask = 0x7f;
 
-WString::WString() noexcept = default;
+	WBuf* Long(void* buffer) noexcept {
+		return static_cast<WBuf*>(buffer);
+	}
+
+	const WBuf* Long(const void* buffer) noexcept {
+		return static_cast<const WBuf*>(buffer);
+	}
+}
+
+void WString::SetEmpty() noexcept {
+	m_storage.data[0] = L'\0';
+	m_storage.m_tag = 0;
+}
+
+void WString::SetShort(const wchar_t* text, std::size_t count) noexcept {
+	if (count != 0)
+		std::memcpy(m_storage.data, text, count * sizeof(wchar_t));
+	m_storage.data[count] = L'\0';
+	m_storage.m_tag = static_cast<std::uint8_t>(count);
+}
+
+WString::WString() noexcept {
+	SetEmpty();
+}
 
 WString::WString(const wchar_t* str) noexcept {
+	SetEmpty();
 	if (str)
-		EnsureText().assign(str);
+		assign(std::wstring_view{str});
 }
 
 WString::WString(std::wstring_view str) noexcept {
-	EnsureText().assign(str);
+	SetEmpty();
+	assign(str);
 }
 
 WString::WString(const String& other) noexcept {
-	if (other)
-		EnsureText() = Utf8::ToWide(static_cast<std::string_view>(other));
+	SetEmpty();
+	assign(Utf8::ToWide(static_cast<std::string_view>(other)));
 }
 
 WString::WString(const WString& other) noexcept {
-	if (other)
-		EnsureText().assign(static_cast<std::wstring_view>(other));
+	SetEmpty();
+	assign(static_cast<std::wstring_view>(other));
+	if (other.IsLong())
+		reserve(other.capacity());
 }
 
-WString::WString(WString&& other) noexcept: m_text(std::move(other.m_text)) {}
+WString::WString(WString&& other) noexcept {
+	m_storage = other.m_storage;
+	other.SetEmpty();
+}
 
-WString::~WString() noexcept = default;
+WString::~WString() noexcept {
+	ReleaseLong();
+}
 
 WString& WString::operator=(const WString& other) noexcept {
-	if (this != &other) {
-		if (other)
-			EnsureText().assign(static_cast<std::wstring_view>(other));
-		else
-			m_text.reset();
-	}
+	if (this != &other)
+		assign(static_cast<std::wstring_view>(other));
 	return *this;
 }
 
 WString& WString::operator=(WString&& other) noexcept {
-	if (this != &other)
-		m_text = std::move(other.m_text);
+	if (this != &other) {
+		ReleaseLong();
+		m_storage = other.m_storage;
+		other.SetEmpty();
+	}
 	return *this;
 }
 
@@ -107,46 +145,90 @@ WString& WString::operator=(std::wstring_view text) {
 	return assign(text);
 }
 
-std::wstring& WString::EnsureText() {
-	if (!m_text)
-		m_text = Heap::MakeUnique<TextStorage>();
-	return m_text->Text;
+bool WString::IsLong() const noexcept {
+	return (m_storage.m_tag & kLongBit) != 0;
 }
 
 wchar_t* WString::data() noexcept {
-	return m_text ? m_text->Text.data() : nullptr;
+	return IsLong() ? wbuf_data(Long(m_storage.long_)) : m_storage.data;
 }
 
 const wchar_t* WString::data() const noexcept {
-	return m_text ? m_text->Text.data() : nullptr;
+	return IsLong() ? wbuf_data(Long(m_storage.long_)) : m_storage.data;
 }
 
 Size WString::size() const noexcept {
-	return m_text ? Size{m_text->Text.size()} : Size{};
+	if (IsLong())
+		return Size{wbuf_size(Long(m_storage.long_))};
+	return Size{static_cast<std::size_t>(m_storage.m_tag & kSizeMask)};
 }
 
 Size WString::capacity() const noexcept {
-	return m_text ? Size{m_text->Text.capacity()} : Size{};
+	if (IsLong())
+		return Size{wbuf_size(Long(m_storage.long_)) + wbuf_avail(Long(m_storage.long_))};
+	return Size{SSO_CAPACITY};
 }
 
 WString& WString::append(std::wstring_view text) {
-	EnsureText().append(text);
+	if (text.empty())
+		return *this;
+	reserve(size() + Size{text.size()});
+	if (IsLong()) {
+		WBuf* grown = wbuf_append(Long(m_storage.long_), text.data(), text.size());
+		if (!grown)
+			throw AllocationError();
+		m_storage.long_ = grown;
+		return *this;
+	}
+	const std::size_t n = static_cast<std::size_t>(size());
+	std::memcpy(m_storage.data + n, text.data(), text.size() * sizeof(wchar_t));
+	SetShort(m_storage.data, n + text.size());
 	return *this;
 }
 
 WString& WString::append(size_type count, wchar_t character) {
-	EnsureText().append(static_cast<std::size_t>(count), character);
+	if (count == 0)
+		return *this;
+	reserve(size() + count);
+	if (IsLong()) {
+		const std::wstring block(static_cast<std::size_t>(count), character);
+		WBuf* grown = wbuf_append(Long(m_storage.long_), block.data(), block.size());
+		if (!grown)
+			throw AllocationError();
+		m_storage.long_ = grown;
+		return *this;
+	}
+	const std::size_t n = static_cast<std::size_t>(size());
+	for (std::size_t i = 0; i < static_cast<std::size_t>(count); ++i)
+		m_storage.data[n + i] = character;
+	SetShort(m_storage.data, n + static_cast<std::size_t>(count));
 	return *this;
 }
 
 WString& WString::assign(std::wstring_view text) {
-	EnsureText().assign(text);
+	ReleaseLong();
+	if (text.size() <= SSO_CAPACITY) {
+		SetShort(text.data(), text.size());
+		return *this;
+	}
+	WBuf* created = wbuf_new(text.data(), text.size());
+	if (!created)
+		throw AllocationError();
+	m_storage.long_ = created;
+	m_storage.m_tag = kLongBit;
 	return *this;
 }
 
 WString& WString::assign(size_type count, wchar_t character) {
-	EnsureText().assign(static_cast<std::size_t>(count), character);
-	return *this;
+	if (count <= Size{SSO_CAPACITY}) {
+		ReleaseLong();
+		for (std::size_t i = 0; i < static_cast<std::size_t>(count); ++i)
+			m_storage.data[i] = character;
+		SetShort(m_storage.data, static_cast<std::size_t>(count));
+		return *this;
+	}
+	const std::wstring block(static_cast<std::size_t>(count), character);
+	return assign(std::wstring_view{block});
 }
 
 WString& WString::operator+=(std::wstring_view text) {
@@ -154,59 +236,106 @@ WString& WString::operator+=(std::wstring_view text) {
 }
 
 WString& WString::operator+=(wchar_t character) {
-	return append(1, character);
+	return append(Size{1}, character);
 }
 
 void WString::push_back(wchar_t character) {
-	EnsureText().push_back(character);
+	append(Size{1}, character);
 }
 
 void WString::pop_back() {
 	assert(!empty());
-	EnsureText().pop_back();
+	resize(size() - Size{1});
 }
 
 void WString::clear() {
-	EnsureText().clear();
+	if (!IsLong()) {
+		SetEmpty();
+		return;
+	}
+	wbuf_set_len(Long(m_storage.long_), 0);
 }
 
 void WString::reserve(size_type new_capacity) {
 	if (new_capacity <= capacity())
 		return;
-	try {
-		EnsureText().reserve(static_cast<std::size_t>(new_capacity));
-	} catch (const std::length_error&) {
+	const std::size_t requested = static_cast<std::size_t>(new_capacity);
+	if (requested > std::numeric_limits<std::size_t>::max() / sizeof(wchar_t) - 1)
 		throw OutOfBoundsError("Safe::WString reserve capacity is too large");
-	} catch (const std::bad_alloc&) {
-		throw AllocationError();
+	if (!IsLong()) {
+		const std::size_t n = static_cast<std::size_t>(size());
+		WBuf* created = wbuf_new(m_storage.data, n);
+		if (!created)
+			throw AllocationError();
+		WBuf* grown = wbuf_make_room(created, requested - n);
+		if (!grown)
+			throw AllocationError();
+		m_storage.long_ = grown;
+		m_storage.m_tag = kLongBit;
+		return;
 	}
+	WBuf* grown = wbuf_make_room(Long(m_storage.long_), requested - static_cast<std::size_t>(size()));
+	if (!grown)
+		throw AllocationError();
+	m_storage.long_ = grown;
 }
 
 void WString::resize(size_type count, wchar_t character) {
-	EnsureText().resize(static_cast<std::size_t>(count), character);
+	if (count == size())
+		return;
+	if (count > size()) {
+		append(count - size(), character);
+		return;
+	}
+	if (!IsLong()) {
+		SetShort(m_storage.data, static_cast<std::size_t>(count));
+		return;
+	}
+	wbuf_set_len(Long(m_storage.long_), static_cast<std::size_t>(count));
 }
 
 WString& WString::insert(size_type position, std::wstring_view text) {
-	EnsureText().insert(static_cast<std::size_t>(position), text);
-	return *this;
+	const std::wstring_view view = *this;
+	if (static_cast<std::size_t>(position) > view.size())
+		throw OutOfBoundsError("Safe::WString insert position is past size");
+	std::wstring merged;
+	merged.reserve(view.size() + text.size());
+	merged.append(view.substr(0, static_cast<std::size_t>(position)));
+	merged.append(text);
+	merged.append(view.substr(static_cast<std::size_t>(position)));
+	return assign(std::wstring_view{merged});
 }
 
 WString& WString::erase(size_type position, size_type count) {
-	EnsureText().erase(static_cast<std::size_t>(position), static_cast<std::size_t>(count));
-	return *this;
+	const std::wstring_view view = *this;
+	if (static_cast<std::size_t>(position) > view.size())
+		throw OutOfBoundsError("Safe::WString erase position is past size");
+	const std::size_t start = static_cast<std::size_t>(position);
+	const std::size_t n = count == npos ? view.size() - start : std::min(static_cast<std::size_t>(count), view.size() - start);
+	std::wstring merged;
+	merged.append(view.substr(0, start));
+	merged.append(view.substr(start + n));
+	return assign(std::wstring_view{merged});
 }
 
 WString& WString::replace(size_type position, size_type count, std::wstring_view text) {
-	EnsureText().replace(static_cast<std::size_t>(position), static_cast<std::size_t>(count), text);
-	return *this;
+	erase(position, count);
+	return insert(position, text);
 }
 
 void WString::swap(WString& other) noexcept {
-	m_text.swap(other.m_text);
+	std::swap(m_storage, other.m_storage);
+}
+
+void WString::ReleaseLong() noexcept {
+	if (!IsLong())
+		return;
+	wbuf_free(Long(m_storage.long_));
+	SetEmpty();
 }
 
 WString::operator String() const noexcept {
-	return *this ? String(*this) : String();
+	return String(*this);
 }
 
 WString WString::ToLower(std::wstring_view str) noexcept {
