@@ -281,10 +281,7 @@ SizeSelector SafeCollectionsFixture::MakeSizeSelector() {
 }
 
 TokenQueue SafeCollectionsFixture::MakeTokenQueue() {
-	TokenQueue tokens;
-	if (Text::Explode("producer|queue|value", '|', tokens) != Status::Success)
-		throw StormByte::Exception("Could not create queue fixture");
-	return tokens;
+	return Text::Explode("producer|queue|value", '|');
 }
 
 void SafeCollectionsFixture::ThrowProducerException() {

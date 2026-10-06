@@ -363,49 +363,39 @@ bool String::IsInteger(std::string_view str) noexcept {
 	return Text::IsInteger(str);
 }
 
-Status String::Split(std::string_view str, Vector<String>& out) noexcept {
-	try {
-		Vector<String> result;
-		std::size_t index = 0;
-		while (index < str.size()) {
-			while (index < str.size() && std::isspace(static_cast<unsigned char>(str[index])) != 0)
-				++index;
-			if (index >= str.size())
-				break;
-			std::size_t end = index;
-			while (end < str.size() && std::isspace(static_cast<unsigned char>(str[end])) == 0)
-				++end;
-			result.push_back(String(str.substr(index, end - index)));
-			index = end;
-		}
-		out = std::move(result);
-		return Status::Success;
-	} catch (...) {
-		return Status::Failure;
+Vector<String> String::Split(std::string_view str) {
+	Vector<String> result;
+	std::size_t index = 0;
+	while (index < str.size()) {
+		while (index < str.size() && std::isspace(static_cast<unsigned char>(str[index])) != 0)
+			++index;
+		if (index >= str.size())
+			break;
+		std::size_t end = index;
+		while (end < str.size() && std::isspace(static_cast<unsigned char>(str[end])) == 0)
+			++end;
+		result.push_back(String(str.substr(index, end - index)));
+		index = end;
 	}
+	return result;
 }
 
-Status String::Split(Vector<String>& out) const noexcept {
-	return Split(static_cast<std::string_view>(*this), out);
+Vector<String> String::Split() const {
+	return Split(static_cast<std::string_view>(*this));
 }
 
-Status String::Explode(std::string_view str, char delimiter, Queue<String>& out) noexcept {
-	try {
-		Queue<String> result;
-		std::size_t start = 0;
-		for (std::size_t index = 0; index <= str.size(); ++index) {
-			if (index == str.size() || str[index] == delimiter) {
-				result.push(String(str.substr(start, index - start)));
-				start = index + 1;
-			}
+Queue<String> String::Explode(std::string_view str, char delimiter) {
+	Queue<String> result;
+	std::size_t start = 0;
+	for (std::size_t index = 0; index <= str.size(); ++index) {
+		if (index == str.size() || str[index] == delimiter) {
+			result.push(String(str.substr(start, index - start)));
+			start = index + 1;
 		}
-		out = std::move(result);
-		return Status::Success;
-	} catch (...) {
-		return Status::Failure;
 	}
+	return result;
 }
 
-Status String::Explode(char delimiter, Queue<String>& out) const noexcept {
-	return Explode(static_cast<std::string_view>(*this), delimiter, out);
+Queue<String> String::Explode(char delimiter) const {
+	return Explode(static_cast<std::string_view>(*this), delimiter);
 }

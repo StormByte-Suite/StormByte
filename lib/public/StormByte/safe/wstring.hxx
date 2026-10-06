@@ -808,62 +808,46 @@ namespace StormByte {
 				static bool IsInteger(std::wstring_view str) noexcept;
 
 				/**
-				 * @brief Whitespace-separated tokens. @p out is the caller’s container.
+				 * @brief Whitespace-separated tokens. Nodes are allocated in Base.
 				 * @param str Source.
-				 * @param[out] out Tokens.
-				 * @note `STORMBYTE_FORCE_INLINE` so the container nodes are allocated in the caller.
+				 * @return Owned tokens.
 				 */
-				static STORMBYTE_FORCE_INLINE void Split(std::wstring_view str, std::vector<WString>& out) noexcept {
-					out.clear();
-					std::size_t i = 0;
-					while (i < str.size()) {
-						while (i < str.size() && std::iswspace(static_cast<wint_t>(str[i])) != 0)
-							++i;
-						if (i >= str.size())
-							break;
-						std::size_t j = i;
-						while (j < str.size() && std::iswspace(static_cast<wint_t>(str[j])) == 0)
-							++j;
-						out.emplace_back(str.substr(i, j - i));
-						i = j;
-					}
+				static Vector<WString> Split(std::wstring_view str);
+
+				/**
+				 * @brief Copy caller-owned tokens into Base storage.
+				 * @param parts Source. Not modified.
+				 * @return Owned tokens.
+				 */
+				static inline Vector<WString> Split(const std::vector<WString>& parts) {
+					Vector<WString> result;
+					for (const WString& part : parts)
+						result.push_back(part);
+					return result;
 				}
 
 				/**
-				 * @brief Whitespace-separated tokens into creator-owned Safe storage.
-				 * @param str Source.
-				 * @param[out] out Safe sequence, replaced only on success.
-				 * @return Success or Failure; failure leaves @p out unchanged.
-				 */
-				static Status Split(std::wstring_view str, Vector<WString>& out) noexcept;
-
-				/**
-				 * @brief Tokens on @p delimiter. @p out is the caller’s container.
+				 * @brief Tokens on @p delimiter, including empty ones. Nodes are allocated in Base.
 				 * @param str Source.
 				 * @param delimiter Separator.
-				 * @param[out] out Tokens, including empty ones.
-				 * @note `STORMBYTE_FORCE_INLINE` so the container nodes are allocated in the caller.
+				 * @return Owned tokens.
 				 */
-				static STORMBYTE_FORCE_INLINE void Explode(std::wstring_view str, wchar_t delimiter, std::queue<WString>& out) noexcept {
-					while (!out.empty())
-						out.pop();
-					std::size_t start = 0;
-					for (std::size_t i = 0; i <= str.size(); ++i) {
-						if (i == str.size() || str[i] == delimiter) {
-							out.emplace(str.substr(start, i - start));
-							start = i + 1;
-						}
+				static Queue<WString> Explode(std::wstring_view str, wchar_t delimiter);
+
+				/**
+				 * @brief Copy a caller-owned queue into Base storage.
+				 * @param parts Source. Not modified.
+				 * @return Owned tokens.
+				 */
+				static inline Queue<WString> Explode(const std::queue<WString>& parts) {
+					Queue<WString> result;
+					std::queue<WString> copy = parts;
+					while (!copy.empty()) {
+						result.push(copy.front());
+						copy.pop();
 					}
+					return result;
 				}
-
-				/**
-				 * @brief Tokens on @p delimiter into creator-owned Safe storage.
-				 * @param str Source.
-				 * @param delimiter Separator.
-				 * @param[out] out Safe queue, replaced only on success.
-				 * @return Success or Failure; failure leaves @p out unchanged.
-				 */
-				static Status Explode(std::wstring_view str, wchar_t delimiter, Queue<WString>& out) noexcept;
 
 				/**
 				 * @brief ASCII and Latin-1 lower case of this text.
@@ -906,40 +890,17 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Whitespace-separated tokens. The vector is built in the caller.
-				 * @return Tokens.
+				 * @brief Whitespace-separated tokens of this text.
+				 * @return Owned tokens.
 				 */
-				STORMBYTE_FORCE_INLINE std::vector<WString> Split() const noexcept {
-					std::vector<WString> out;
-					Split(static_cast<std::wstring_view>(*this), out);
-					return out;
-				}
+				Vector<WString> Split() const;
 
 				/**
-				 * @brief Whitespace-separated tokens into caller-provided Safe storage.
-				 * @param[out] out Destination sequence.
-				 * @return Success or Failure; failure leaves @p out unchanged.
-				 */
-				Status Split(Vector<WString>& out) const noexcept;
-
-				/**
-				 * @brief Tokens on @p delimiter. The queue is built in the caller.
+				 * @brief Tokens of this text on @p delimiter, including empty ones.
 				 * @param delimiter Separator.
-				 * @return Tokens, including empty ones.
+				 * @return Owned tokens.
 				 */
-				STORMBYTE_FORCE_INLINE std::queue<WString> Explode(wchar_t delimiter) const noexcept {
-					std::queue<WString> out;
-					Explode(static_cast<std::wstring_view>(*this), delimiter, out);
-					return out;
-				}
-
-				/**
-				 * @brief Tokens on @p delimiter into caller-provided Safe storage.
-				 * @param delimiter Separator.
-				 * @param[out] out Destination queue.
-				 * @return Success or Failure; failure leaves @p out unchanged.
-				 */
-				Status Explode(wchar_t delimiter, Queue<WString>& out) const noexcept;
+				Queue<WString> Explode(wchar_t delimiter) const;
 
 				/** @} */
 

@@ -831,62 +831,46 @@ namespace StormByte {
 				static bool IsInteger(std::string_view str) noexcept;
 
 				/**
-				 * @brief Whitespace-separated tokens. @p out is the caller’s container.
+				 * @brief Whitespace-separated tokens. Nodes are allocated in Base.
 				 * @param str Source.
-				 * @param[out] out Tokens.
-				 * @note `STORMBYTE_FORCE_INLINE` so the container nodes are allocated in the caller.
+				 * @return Owned tokens.
 				 */
-				static STORMBYTE_FORCE_INLINE void Split(std::string_view str, std::vector<String>& out) noexcept {
-					out.clear();
-					std::size_t i = 0;
-					while (i < str.size()) {
-						while (i < str.size() && std::isspace(static_cast<unsigned char>(str[i])) != 0)
-							++i;
-						if (i >= str.size())
-							break;
-						std::size_t j = i;
-						while (j < str.size() && std::isspace(static_cast<unsigned char>(str[j])) == 0)
-							++j;
-						out.emplace_back(str.substr(i, j - i));
-						i = j;
-					}
+				static Vector<String> Split(std::string_view str);
+
+				/**
+				 * @brief Copy caller-owned tokens into Base storage.
+				 * @param parts Source. Not modified.
+				 * @return Owned tokens.
+				 */
+				static inline Vector<String> Split(const std::vector<String>& parts) {
+					Vector<String> result;
+					for (const String& part : parts)
+						result.push_back(part);
+					return result;
 				}
 
 				/**
-				 * @brief Whitespace-separated tokens into creator-owned Safe storage.
-				 * @param str Source.
-				 * @param[out] out Safe sequence, replaced only on success.
-				 * @return Success or Failure; failure leaves @p out unchanged.
-				 */
-				static Status Split(std::string_view str, Vector<String>& out) noexcept;
-
-				/**
-				 * @brief Tokens on @p delimiter. @p out is the caller’s container.
+				 * @brief Tokens on @p delimiter, including empty ones. Nodes are allocated in Base.
 				 * @param str Source.
 				 * @param delimiter Separator.
-				 * @param[out] out Tokens, including empty ones.
-				 * @note `STORMBYTE_FORCE_INLINE` so the container nodes are allocated in the caller.
+				 * @return Owned tokens.
 				 */
-				static STORMBYTE_FORCE_INLINE void Explode(std::string_view str, char delimiter, std::queue<String>& out) noexcept {
-					while (!out.empty())
-						out.pop();
-					std::size_t start = 0;
-					for (std::size_t i = 0; i <= str.size(); ++i) {
-						if (i == str.size() || str[i] == delimiter) {
-							out.emplace(str.substr(start, i - start));
-							start = i + 1;
-						}
+				static Queue<String> Explode(std::string_view str, char delimiter);
+
+				/**
+				 * @brief Copy a caller-owned queue into Base storage.
+				 * @param parts Source. Not modified.
+				 * @return Owned tokens.
+				 */
+				static inline Queue<String> Explode(const std::queue<String>& parts) {
+					Queue<String> result;
+					std::queue<String> copy = parts;
+					while (!copy.empty()) {
+						result.push(copy.front());
+						copy.pop();
 					}
+					return result;
 				}
-
-				/**
-				 * @brief Tokens on @p delimiter into creator-owned Safe storage.
-				 * @param str Source.
-				 * @param delimiter Separator.
-				 * @param[out] out Safe queue, replaced only on success.
-				 * @return Success or Failure; failure leaves @p out unchanged.
-				 */
-				static Status Explode(std::string_view str, char delimiter, Queue<String>& out) noexcept;
 
 				/**
 				 * @brief ASCII-letter lower case of this text.
@@ -929,40 +913,17 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Whitespace-separated tokens. The vector is built in the caller.
-				 * @return Tokens.
+				 * @brief Whitespace-separated tokens of this text.
+				 * @return Owned tokens.
 				 */
-				STORMBYTE_FORCE_INLINE std::vector<String> Split() const noexcept {
-					std::vector<String> out;
-					Split(static_cast<std::string_view>(*this), out);
-					return out;
-				}
+				Vector<String> Split() const;
 
 				/**
-				 * @brief Whitespace-separated tokens into caller-provided Safe storage.
-				 * @param[out] out Destination sequence.
-				 * @return Success or Failure; failure leaves @p out unchanged.
-				 */
-				Status Split(Vector<String>& out) const noexcept;
-
-				/**
-				 * @brief Tokens on @p delimiter. The queue is built in the caller.
+				 * @brief Tokens of this text on @p delimiter, including empty ones.
 				 * @param delimiter Separator.
-				 * @return Tokens, including empty ones.
+				 * @return Owned tokens.
 				 */
-				STORMBYTE_FORCE_INLINE std::queue<String> Explode(char delimiter) const noexcept {
-					std::queue<String> out;
-					Explode(static_cast<std::string_view>(*this), delimiter, out);
-					return out;
-				}
-
-				/**
-				 * @brief Tokens on @p delimiter into caller-provided Safe storage.
-				 * @param delimiter Separator.
-				 * @param[out] out Destination queue.
-				 * @return Success or Failure; failure leaves @p out unchanged.
-				 */
-				Status Explode(char delimiter, Queue<String>& out) const noexcept;
+				Queue<String> Explode(char delimiter) const;
 
 				/** @} */
 

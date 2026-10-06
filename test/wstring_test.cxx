@@ -58,6 +58,8 @@
 using StormByte::Size;
 using StormByte::Safe::String;
 using StormByte::Safe::WString;
+using StormByte::Safe::Queue;
+using StormByte::Safe::Vector;
 
 // -------------------
 // Algorithm
@@ -384,8 +386,7 @@ int test_case_latin1() {
 
 int test_explode() {
 	int result = 0;
-	std::queue<WString> parts;
-	WString::Explode(L"a,,b", L',', parts);
+	Queue<WString> parts = WString::Explode(L"a,,b", L',');
 	ASSERT_EQUAL("test_explode", 3u, parts.size());
 	ASSERT_TRUE("test_explode", parts.front() == L"a");
 	parts.pop();
@@ -420,8 +421,7 @@ int test_newlines_and_space() {
 
 int test_split() {
 	int result = 0;
-	std::vector<WString> tokens;
-	WString::Split(L"  a  bb\tc ", tokens);
+	Vector<WString> tokens = WString::Split(L"  a  bb\tc ");
 	ASSERT_EQUAL("test_split", 3u, tokens.size());
 	ASSERT_TRUE("test_split", tokens[0] == L"a");
 	ASSERT_TRUE("test_split", tokens[2] == L"c");

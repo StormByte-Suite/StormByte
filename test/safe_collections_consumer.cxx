@@ -172,8 +172,8 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	if (producerLevel != OptionalTestLevel::Info || movedLevel != OptionalTestLevel::Warning)
 		return false;
 
-	TokenQueue exploded;
-	if (Text("left||right|").Explode('|', exploded) != Status::Success || exploded.size() != 4)
+	TokenQueue exploded = Text("left||right|").Explode('|');
+	if (exploded.size() != 4)
 		return false;
 	if (exploded.front() != "left")
 		return false;
@@ -189,20 +189,20 @@ bool SafeCollectionsFixture::ExerciseCollections() {
 	exploded.pop();
 	if (!exploded.empty())
 		return false;
-	Safe::Queue<WString> wideTokens;
+	Safe::Queue<WString> wideTokens = WString(L"wide|text").Explode(L'|');
 	WString wideOutput;
-	if (WString(L"wide|text").Explode(L'|', wideTokens) != Status::Success || wideTokens.size() != 2)
+	if (wideTokens.size() != 2)
 		return false;
 	if (wideTokens.front() != L"wide")
 		return false;
 
-	Safe::Vector<Text> words;
-	if (Text(" one\t two ").Split(words) != Status::Success || words.size() != 2)
+	Safe::Vector<Text> words = Text(" one\t two ").Split();
+	if (words.size() != 2)
 		return false;
 	if (static_cast<Text>(words[0]) != "one")
 		return false;
-	Safe::Vector<WString> wideWords;
-	if (WString(L" wide\t text ").Split(wideWords) != Status::Success || wideWords.size() != 2)
+	Safe::Vector<WString> wideWords = WString(L" wide\t text ").Split();
+	if (wideWords.size() != 2)
 		return false;
 	if (static_cast<WString>(wideWords[1]) != L"text")
 		return false;

@@ -358,49 +358,39 @@ bool WString::IsInteger(std::wstring_view str) noexcept {
 	return Text::IsInteger(str);
 }
 
-Status WString::Split(std::wstring_view str, Vector<WString>& out) noexcept {
-	try {
-		Vector<WString> result;
-		std::size_t index = 0;
-		while (index < str.size()) {
-			while (index < str.size() && std::iswspace(static_cast<wint_t>(str[index])) != 0)
-				++index;
-			if (index >= str.size())
-				break;
-			std::size_t end = index;
-			while (end < str.size() && std::iswspace(static_cast<wint_t>(str[end])) == 0)
-				++end;
-			result.push_back(WString(str.substr(index, end - index)));
-			index = end;
-		}
-		out = std::move(result);
-		return Status::Success;
-	} catch (...) {
-		return Status::Failure;
+Vector<WString> WString::Split(std::wstring_view str) {
+	Vector<WString> result;
+	std::size_t index = 0;
+	while (index < str.size()) {
+		while (index < str.size() && std::iswspace(static_cast<wint_t>(str[index])) != 0)
+			++index;
+		if (index >= str.size())
+			break;
+		std::size_t end = index;
+		while (end < str.size() && std::iswspace(static_cast<wint_t>(str[end])) == 0)
+			++end;
+		result.push_back(WString(str.substr(index, end - index)));
+		index = end;
 	}
+	return result;
 }
 
-Status WString::Explode(std::wstring_view str, wchar_t delimiter, Queue<WString>& out) noexcept {
-	try {
-		Queue<WString> result;
-		std::size_t start = 0;
-		for (std::size_t index = 0; index <= str.size(); ++index) {
-			if (index == str.size() || str[index] == delimiter) {
-				result.push(WString(str.substr(start, index - start)));
-				start = index + 1;
-			}
+Vector<WString> WString::Split() const {
+	return Split(static_cast<std::wstring_view>(*this));
+}
+
+Queue<WString> WString::Explode(std::wstring_view str, wchar_t delimiter) {
+	Queue<WString> result;
+	std::size_t start = 0;
+	for (std::size_t index = 0; index <= str.size(); ++index) {
+		if (index == str.size() || str[index] == delimiter) {
+			result.push(WString(str.substr(start, index - start)));
+			start = index + 1;
 		}
-		out = std::move(result);
-		return Status::Success;
-	} catch (...) {
-		return Status::Failure;
 	}
+	return result;
 }
 
-Status WString::Split(Vector<WString>& out) const noexcept {
-	return Split(static_cast<std::wstring_view>(*this), out);
-}
-
-Status WString::Explode(wchar_t delimiter, Queue<WString>& out) const noexcept {
-	return Explode(static_cast<std::wstring_view>(*this), delimiter, out);
+Queue<WString> WString::Explode(wchar_t delimiter) const {
+	return Explode(static_cast<std::wstring_view>(*this), delimiter);
 }

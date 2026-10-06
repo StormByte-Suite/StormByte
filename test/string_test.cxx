@@ -58,6 +58,8 @@
 using StormByte::Size;
 using StormByte::Safe::String;
 using StormByte::Safe::WString;
+using StormByte::Safe::Queue;
+using StormByte::Safe::Vector;
 
 static int TestEmbeddedNul() {
 	int result = 0;
@@ -422,8 +424,7 @@ int test_case_latin1() {
 
 int test_explode() {
 	int result = 0;
-	std::queue<String> parts;
-	String::Explode("a,,b", ',', parts);
+	Queue<String> parts = String::Explode("a,,b", ',');
 	ASSERT_EQUAL("test_explode", 3u, parts.size());
 	ASSERT_TRUE("test_explode", parts.front() == "a");
 	parts.pop();
@@ -458,8 +459,7 @@ int test_newlines_and_space() {
 
 int test_split() {
 	int result = 0;
-	std::vector<String> tokens;
-	String::Split("  a  bb\tc ", tokens);
+	Vector<String> tokens = String::Split("  a  bb\tc ");
 	ASSERT_EQUAL("test_split", 3u, tokens.size());
 	ASSERT_TRUE("test_split", tokens[0] == "a");
 	ASSERT_TRUE("test_split", tokens[2] == "c");
