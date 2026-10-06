@@ -37,8 +37,8 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/heap.hxx>
-#include <StormByte/exception.hxx>
 
 #include <new>
 
@@ -48,34 +48,34 @@ void* Heap::Allocate(std::size_t bytes) {
 	try {
 		return ::operator new(bytes);
 	} catch (const std::bad_alloc&) {
-		throw StormByte::AllocationError();
+		throw StormByte::Safe::AllocationError();
 	} catch (...) {
 		RethrowException();
 	}
 }
 
 void Heap::ThrowExpiredWeakPointer() {
-	throw StormByte::ExpiredWeakPointerError("Cannot acquire an empty or expired weak pointer");
+	throw StormByte::Safe::ExpiredWeakPointerError("Cannot acquire an empty or expired weak pointer");
 }
 
 void Heap::RethrowException() {
 	try {
 		throw;
-	} catch (const StormByte::Exception&) {
+	} catch (const StormByte::Safe::Exception&) {
 		throw;
 	} catch (const std::bad_alloc&) {
-		throw StormByte::AllocationError();
+		throw StormByte::Safe::AllocationError();
 	} catch (const std::exception& error) {
 		try {
 			throw StormByte::OperationError(std::string_view(error.what()));
 		} catch (const std::bad_alloc&) {
-			throw StormByte::AllocationError();
+			throw StormByte::Safe::AllocationError();
 		}
 	} catch (...) {
 		try {
 			throw StormByte::OperationError("Operation failed with an unknown exception");
 		} catch (const std::bad_alloc&) {
-			throw StormByte::AllocationError();
+			throw StormByte::Safe::AllocationError();
 		}
 	}
 }

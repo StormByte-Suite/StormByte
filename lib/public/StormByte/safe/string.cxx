@@ -38,7 +38,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/exception.hxx>
+#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/safe/text.hxx>
 #include <StormByte/safe/utf8.hxx>

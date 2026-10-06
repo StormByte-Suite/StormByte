@@ -38,6 +38,7 @@
  */
 
 #include <StormByte/binary_data.hxx>
+#include <StormByte/safe/exception.hxx>
 
 #include <algorithm>
 #include <cstdint>
@@ -47,8 +48,8 @@
 
 using StormByte::BinaryData;
 using StormByte::ByteSize;
+using StormByte::Safe::OutOfBoundsError;
 using StormByte::Safe::String;
-using StormByte::OutOfBoundsError;
 using StormByte::Size;
 
 struct BinaryData::Storage {

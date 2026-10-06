@@ -37,10 +37,10 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/pointers.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/safe/wstring.hxx>
-#include <StormByte/exception.hxx>
 #include <StormByte/test_handlers.h>
 
 #include <limits>

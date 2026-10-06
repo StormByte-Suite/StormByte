@@ -37,19 +37,17 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/exception.hxx>
+#include <StormByte/safe/exception.hxx>
 
-using namespace StormByte;
+using namespace StormByte::Safe;
 
 Exception::Exception() noexcept = default;
 
-Exception::Exception(std::string_view message) {
-	m_what.append("StormByte: ");
-	m_what.append(message);
-}
+Exception::Exception(std::string_view message)
+	: StormByte::Exception(StormByte::Exception::Path{"Safe"}, "{}", message) {}
 
-Exception::Exception(const Safe::String& message)
-	: Exception(static_cast<std::string_view>(message)) {}
+Exception::Exception(const String& message)
+	: StormByte::Exception(StormByte::Exception::Path{"Safe"}, "{}", static_cast<std::string_view>(message)) {}
 
 Exception::Exception(const Exception& other) = default;
 
@@ -61,54 +59,50 @@ Exception& Exception::operator=(const Exception& other) = default;
 
 Exception& Exception::operator=(Exception&& other) noexcept = default;
 
-const char* Exception::what() const noexcept {
-	return m_what.c_str();
+AllocationError::AllocationError() noexcept = default;
+
+AllocationError::AllocationError(const AllocationError& other) noexcept = default;
+
+AllocationError::AllocationError(AllocationError&& other) noexcept = default;
+
+AllocationError::~AllocationError() noexcept = default;
+
+AllocationError& AllocationError::operator=(const AllocationError& other) noexcept = default;
+
+AllocationError& AllocationError::operator=(AllocationError&& other) noexcept = default;
+
+const char* AllocationError::what() const noexcept {
+	return "StormByte.Safe: Memory allocation failed";
 }
 
-DeserializeError::DeserializeError(std::string_view message)
+ExpiredWeakPointerError::ExpiredWeakPointerError(std::string_view message)
 	: Exception(message) {}
 
-DeserializeError::DeserializeError(const Safe::String& message)
+ExpiredWeakPointerError::ExpiredWeakPointerError(const String& message)
 	: Exception(message) {}
 
-DeserializeError::DeserializeError(const DeserializeError& other) = default;
+ExpiredWeakPointerError::ExpiredWeakPointerError(const ExpiredWeakPointerError& other) = default;
 
-DeserializeError::DeserializeError(DeserializeError&& other) noexcept = default;
+ExpiredWeakPointerError::ExpiredWeakPointerError(ExpiredWeakPointerError&& other) noexcept = default;
 
-DeserializeError::~DeserializeError() noexcept = default;
+ExpiredWeakPointerError::~ExpiredWeakPointerError() noexcept = default;
 
-DeserializeError& DeserializeError::operator=(const DeserializeError& other) = default;
+ExpiredWeakPointerError& ExpiredWeakPointerError::operator=(const ExpiredWeakPointerError& other) = default;
 
-DeserializeError& DeserializeError::operator=(DeserializeError&& other) noexcept = default;
+ExpiredWeakPointerError& ExpiredWeakPointerError::operator=(ExpiredWeakPointerError&& other) noexcept = default;
 
-OperationError::OperationError(std::string_view message)
+OutOfBoundsError::OutOfBoundsError(std::string_view message)
 	: Exception(message) {}
 
-OperationError::OperationError(const Safe::String& message)
+OutOfBoundsError::OutOfBoundsError(const String& message)
 	: Exception(message) {}
 
-OperationError::OperationError(const OperationError& other) = default;
+OutOfBoundsError::OutOfBoundsError(const OutOfBoundsError& other) = default;
 
-OperationError::OperationError(OperationError&& other) noexcept = default;
+OutOfBoundsError::OutOfBoundsError(OutOfBoundsError&& other) noexcept = default;
 
-OperationError::~OperationError() noexcept = default;
+OutOfBoundsError::~OutOfBoundsError() noexcept = default;
 
-OperationError& OperationError::operator=(const OperationError& other) = default;
+OutOfBoundsError& OutOfBoundsError::operator=(const OutOfBoundsError& other) = default;
 
-OperationError& OperationError::operator=(OperationError&& other) noexcept = default;
-
-Base64Error::Base64Error(std::string_view message)
-	: Exception(message) {}
-
-Base64Error::Base64Error(const Safe::String& message)
-	: Exception(message) {}
-
-Base64Error::Base64Error(const Base64Error& other) = default;
-
-Base64Error::Base64Error(Base64Error&& other) noexcept = default;
-
-Base64Error::~Base64Error() noexcept = default;
-
-Base64Error& Base64Error::operator=(const Base64Error& other) = default;
-
-Base64Error& Base64Error::operator=(Base64Error&& other) noexcept = default;
+OutOfBoundsError& OutOfBoundsError::operator=(OutOfBoundsError&& other) noexcept = default;

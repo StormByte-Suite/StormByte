@@ -47,8 +47,7 @@
  * @file safe/heap.hxx
  * @brief Private Base heap used by @ref StormByte::Safe::Shared, @ref StormByte::Safe::Unique and @ref StormByte::Safe::Clonable.
  *
- * Not installed. Not part of the public include tree. Implementation lives in
- * `safe/heap.cxx` so allocation and release run on Base's CRT.
+ * Not installed. Not part of the public include tree. Implementation lives in `safe/heap.cxx` so allocation and release run on Base's CRT.
  */
 
 /**
@@ -58,38 +57,44 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Types that are safe to pass across a DLL boundary: owners and polymorphic clones on Base's heap.
+	 * @brief Owned values that cross a DLL without the caller's CRT.
 	 */
 	namespace Safe {
 		/**
 		 * @namespace StormByte::Safe::Heap
 		 * @brief Allocate and free raw blocks on Base's heap.
 		 *
-		 * Public templates call @ref Allocate and @ref Free through matching
-		 * declarations in the public headers. This header exists only for the
-		 * translation unit that defines those functions.
+		 * Public templates call @ref Allocate and @ref Free through matching declarations in the public headers. This header exists only for the translation unit that defines those functions. A failed allocation throws @ref AllocationError and does not allocate the exception message.
 		 */
 		namespace Heap {
 			/**
 			 * @brief Allocate @p bytes on Base's heap.
 			 * @param bytes Block size in octets. Zero is forwarded to `operator new`.
-			 * @return Address of the block.
-			 * @throws StormByte::AllocationError When the allocator cannot satisfy the request.
+			 * @return Address of the block. Never null.
+			 * @throws AllocationError The allocator cannot satisfy the request. `std::bad_alloc` is not propagated.
+			 * @throws Exception A StormByte exception already in flight is rethrown unchanged.
+			 * @throws OperationError A foreign exception is translated. If that translation cannot allocate, @ref AllocationError is thrown instead.
 			 */
 			STORMBYTE_PUBLIC void* Allocate(std::size_t bytes);
 
 			/**
 			 * @brief Release a block obtained from @ref Allocate.
-			 * @param pointer Block address, or a null pointer.
+			 * @param pointer Block address, or a null pointer. A null pointer is ignored.
 			 */
 			STORMBYTE_PUBLIC void Free(void* pointer) noexcept;
 
-			/** @brief Throw Base's expired-observer exception. */
+			/**
+			 * @brief Throw @ref ExpiredWeakPointerError.
+			 * @throws ExpiredWeakPointerError Always. The body does not include the path.
+			 */
 			[[noreturn]] STORMBYTE_PUBLIC void ThrowExpiredWeakPointer();
 
 			/**
-			 * @brief Preserve an active StormByte exception or translate a foreign exception.
+			 * @brief Preserve an active StormByte exception or translate a foreign one.
 			 * @pre Called from an active exception handler.
+			 * @throws Exception A StormByte exception already in flight is rethrown unchanged.
+			 * @throws AllocationError The active exception is `std::bad_alloc`, or translating it cannot allocate.
+			 * @throws OperationError The active exception is foreign. The body is `what()`, or a fixed unknown-exception text.
 			 */
 			[[noreturn]] STORMBYTE_PUBLIC void RethrowException();
 		}

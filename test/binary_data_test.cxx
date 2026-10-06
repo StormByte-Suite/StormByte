@@ -39,7 +39,7 @@
 
 #include <StormByte/binary_data.hxx>
 #include <StormByte/byte_size.hxx>
-#include <StormByte/exception.hxx>
+#include <StormByte/safe/exception.hxx>
 #include <StormByte/serializable.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
@@ -60,7 +60,7 @@
 
 using StormByte::BinaryData;
 using StormByte::ByteSize;
-using StormByte::OutOfBoundsError;
+using StormByte::Safe::OutOfBoundsError;
 using StormByte::Size;
 
 namespace {

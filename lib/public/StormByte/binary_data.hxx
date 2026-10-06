@@ -41,10 +41,8 @@
 
 #include <StormByte/byte_size.hxx>
 #include <StormByte/safe/string.hxx>
-#include <StormByte/exception.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/type_traits.hxx>
-#include <StormByte/visibility.h>
 
 #include <compare>
 #include <cstddef>

@@ -37,7 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/exception.hxx>
+#include <StormByte/safe/exception.hxx>
 #include <StormByte/test_handlers.h>
 
 #include <string>
@@ -170,9 +170,9 @@ int test_derived_are_exceptions() {
 		ASSERT_EQUAL("test_derived_are_exceptions", std::string("StormByte: bad alphabet"), std::string(e.what()));
 	}
 	try {
-		throw OutOfBoundsError("index");
+		throw Safe::OutOfBoundsError("index");
 	} catch (const Exception& e) {
-		ASSERT_EQUAL("test_derived_are_exceptions", std::string("StormByte: index"), std::string(e.what()));
+		ASSERT_EQUAL("test_derived_are_exceptions", std::string("StormByte.Safe: index"), std::string(e.what()));
 	}
 	try {
 		throw DeserializeError("wire");
