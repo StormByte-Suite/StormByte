@@ -39,6 +39,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <type_traits>
 
 /**
@@ -77,12 +78,56 @@ namespace StormByte {
 		concept Callable = std::is_invocable_v<F, Args...>;
 
 		/**
+		 * @brief Regularly invocable with argument types @p Args (`std::invocable`).
+		 * @tparam F Callable type.
+		 * @tparam Args Argument types passed to `F`.
+		 *
+		 * Not @ref StormByte::Type::Callable. That only checks `std::is_invocable`. This also requires the invocation to be equality-preserving.
+		 *
+		 * @code
+		 * template<typename F, typename... Args>
+		 * requires Type::Invocable<F, Args...>
+		 * decltype(auto) call(F&& func, Args&&... args);
+		 * @endcode
+		 */
+		template<typename F, typename... Args>
+		concept Invocable = std::invocable<F, Args...>;
+
+		/**
+		 * @brief Invocable with argument types @p Args and a result convertible to @p R (`std::is_invocable_r`).
+		 * @tparam R Expected result type.
+		 * @tparam F Callable type.
+		 * @tparam Args Argument types passed to `F`.
+		 *
+		 * @code
+		 * template<typename F, typename... Args>
+		 * requires Type::InvocableR<bool, F, Args...>
+		 * bool test(F&& func, Args&&... args);
+		 * @endcode
+		 */
+		template<typename R, typename F, typename... Args>
+		concept InvocableR = std::is_invocable_r_v<R, F, Args...>;
+
+		/**
+		 * @brief Predicate over argument types @p Args (`std::predicate`).
+		 * @tparam F Callable type.
+		 * @tparam Args Argument types passed to `F`.
+		 *
+		 * @code
+		 * template<typename F, typename T>
+		 * requires Type::Predicate<F, const T&>
+		 * bool keep(F&& func, const T& value);
+		 * @endcode
+		 */
+		template<typename F, typename... Args>
+		concept Predicate = std::predicate<F, Args...>;
+
+		/**
 		 * @brief Same type after stripping cv and references from both sides.
 		 * @tparam T First type.
 		 * @tparam U Second type.
 		 *
-		 * Not `std::same_as`: that does not strip. `int` and `const int&`
-		 * match here.
+		 * Not `std::same_as`: that does not strip. `int` and `const int&` match here.
 		 *
 		 * @code
 		 * template<typename T, typename U>
@@ -99,9 +144,7 @@ namespace StormByte {
 		 * @tparam Derived Candidate derived type.
 		 * @tparam Base Candidate base type.
 		 *
-		 * Not `std::derived_from`: that also requires an unambiguous,
-		 * public base-to-derived conversion. This only checks the
-		 * inheritance relationship itself.
+		 * Not `std::derived_from`: that also requires an unambiguous, public base-to-derived conversion. This only checks the inheritance relationship itself.
 		 *
 		 * @code
 		 * struct Base {};

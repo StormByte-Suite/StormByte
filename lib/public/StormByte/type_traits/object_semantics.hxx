@@ -39,6 +39,7 @@
 
 #pragma once
 
+#include <StormByte/type_traits/comparison.hxx>
 #include <StormByte/type_traits/containers.hxx>
 #include <StormByte/type_traits/ranges.hxx>
 
@@ -325,6 +326,94 @@ namespace StormByte {
 		 */
 		template<typename T>
 		concept Swappable = std::is_swappable_v<T>;
+
+		/**
+		 * @brief Type that can be destroyed.
+		 * @tparam T Type to test.
+		 *
+		 * Not @ref StormByte::Type::TriviallyDestructible. A user-provided destructor matches here.
+		 *
+		 * @code
+		 * template<Type::Destructible T>
+		 * void release(T* object) { object->~T(); }
+		 * @endcode
+		 */
+		template<typename T>
+		concept Destructible = std::is_destructible_v<T>;
+
+		/**
+		 * @brief Type constructible from @p Args (`std::constructible_from`).
+		 * @tparam T Type to construct.
+		 * @tparam Args Constructor argument types.
+		 *
+		 * @code
+		 * template<typename T, typename... Args>
+		 * requires Type::ConstructibleFrom<T, Args...>
+		 * T make(Args&&... args);
+		 * @endcode
+		 */
+		template<typename T, typename... Args>
+		concept ConstructibleFrom = std::constructible_from<T, Args...>;
+
+		/**
+		 * @brief @p T can be assigned from @p U (`std::assignable_from`).
+		 * @tparam T Destination type.
+		 * @tparam U Source type.
+		 *
+		 * Not @ref StormByte::Type::CopyAssignable. That only covers assignment from the same type.
+		 *
+		 * @code
+		 * template<typename T, typename U>
+		 * requires Type::AssignableFrom<T&, U>
+		 * T& store(T& dest, U&& value);
+		 * @endcode
+		 */
+		template<typename T, typename U>
+		concept AssignableFrom = std::assignable_from<T, U>;
+
+		/**
+		 * @brief Type with equality and a total order.
+		 * @tparam T Type to test.
+		 *
+		 * @code
+		 * template<Type::TotallyOrdered T>
+		 * bool before(const T& left, const T& right) { return left < right; }
+		 * @endcode
+		 */
+		template<typename T>
+		concept TotallyOrdered = EqualityComparable<T> &&
+			requires(std::remove_cvref_t<T> const& a, std::remove_cvref_t<T> const& b) {
+				{ a < b } -> std::convertible_to<bool>;
+				{ a > b } -> std::convertible_to<bool>;
+				{ a <= b } -> std::convertible_to<bool>;
+				{ a >= b } -> std::convertible_to<bool>;
+			};
+
+		/**
+		 * @brief Default-constructible, copyable and movable.
+		 * @tparam T Type to test.
+		 *
+		 * Not `std::semiregular`: that also requires `std::swappable`. Swap stays a separate contract.
+		 *
+		 * @code
+		 * template<Type::Semiregular T>
+		 * T make();
+		 * @endcode
+		 */
+		template<typename T>
+		concept Semiregular = DefaultConstructible<T> && Copyable<T> && Movable<T>;
+
+		/**
+		 * @brief @ref StormByte::Type::Semiregular and equality-comparable.
+		 * @tparam T Type to test.
+		 *
+		 * @code
+		 * template<Type::Regular T>
+		 * bool same(const T& left, const T& right) { return left == right; }
+		 * @endcode
+		 */
+		template<typename T>
+		concept Regular = Semiregular<T> && EqualityComparable<T>;
 
 		/** @} */
 		/** @} */
