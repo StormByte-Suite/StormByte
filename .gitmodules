@@ -1,0 +1,3 @@
+[submodule "SDS"]
+	path = lib/private/StormByte/sds
+	url = https://github.com/antirez/sds.git
