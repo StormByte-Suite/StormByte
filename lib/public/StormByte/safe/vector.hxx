@@ -43,8 +43,11 @@
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
 
+#include <compare>
 #include <cstddef>
 #include <initializer_list>
+#include <iterator>
+#include <limits>
 #include <span>
 #include <utility>
 #include <vector>
@@ -70,7 +73,7 @@ namespace StormByte {
 		 * @brief Contiguous sequence stored on Base's heap.
 		 * @tparam T Safe value.
 		 *
-		 * The block is allocated with @ref Heap::Allocate. Iterators are pointers into that block. A move from `std::vector` moves the elements and clears the source in the caller, so its buffer is released by the caller's CRT. Conversion to `std::span` borrows the block and does not take ownership.
+		 * The block is allocated with @ref Heap::Allocate. Iterators are pointers into that block. A move from `std::vector` moves the elements and clears the source in the caller, so its buffer is released by the caller's CRT. A range constructor copies elements. It does not adopt the source buffer. Conversion to `std::span` borrows the block and does not take ownership. There is no allocator: that would be the caller CRT.
 		 */
 		template<Type::SafeValue T>
 		class STORMBYTE_PUBLIC_TYPE Vector final {
@@ -84,6 +87,8 @@ namespace StormByte {
 				using const_pointer = const T*; ///< Read-only element pointer.
 				using iterator = T*; ///< Mutable contiguous iterator.
 				using const_iterator = const T*; ///< Read-only contiguous iterator.
+				using reverse_iterator = std::reverse_iterator<iterator>; ///< Mutable reverse iterator.
+				using const_reverse_iterator = std::reverse_iterator<const_iterator>; ///< Read-only reverse iterator.
 
 				/**
 				 * @brief Construct an empty sequence.
@@ -104,6 +109,16 @@ namespace StormByte {
 				 * @throws AllocationError The block could not be allocated.
 				 */
 				Vector(size_type count, const T& value);
+
+				/**
+				 * @brief Copy the range `[first, last)`.
+				 * @tparam InputIt Input iterator whose value is convertible to T.
+				 * @param first Start of the source range.
+				 * @param last End of the source range.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<std::input_iterator InputIt>
+				Vector(InputIt first, InputIt last);
 
 				/**
 				 * @brief Construct from an initializer list.
@@ -229,6 +244,54 @@ namespace StormByte {
 				const_iterator cend() const noexcept;
 
 				/**
+				 * @brief Return a mutable reverse iterator to the last element.
+				 * @return Reverse iterator.
+				 */
+				STORMBYTE_FORCE_INLINE reverse_iterator rbegin() noexcept {
+					return reverse_iterator(end());
+				}
+
+				/**
+				 * @brief Return the mutable reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				STORMBYTE_FORCE_INLINE reverse_iterator rend() noexcept {
+					return reverse_iterator(begin());
+				}
+
+				/**
+				 * @brief Return a read-only reverse iterator to the last element.
+				 * @return Reverse iterator.
+				 */
+				STORMBYTE_FORCE_INLINE const_reverse_iterator rbegin() const noexcept {
+					return const_reverse_iterator(end());
+				}
+
+				/**
+				 * @brief Return the read-only reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				STORMBYTE_FORCE_INLINE const_reverse_iterator rend() const noexcept {
+					return const_reverse_iterator(begin());
+				}
+
+				/**
+				 * @brief Return a read-only reverse iterator to the last element.
+				 * @return Reverse iterator.
+				 */
+				STORMBYTE_FORCE_INLINE const_reverse_iterator crbegin() const noexcept {
+					return rbegin();
+				}
+
+				/**
+				 * @brief Return the read-only reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				STORMBYTE_FORCE_INLINE const_reverse_iterator crend() const noexcept {
+					return rend();
+				}
+
+				/**
 				 * @brief Test whether the sequence is empty.
 				 * @return Whether there are no elements.
 				 */
@@ -239,6 +302,14 @@ namespace StormByte {
 				 * @return Element count.
 				 */
 				size_type size() const noexcept;
+
+				/**
+				 * @brief Return the largest representable element count.
+				 * @return Maximum element count for this element size.
+				 */
+				STORMBYTE_FORCE_INLINE size_type max_size() const noexcept {
+					return std::numeric_limits<size_type>::max() / sizeof(T);
+				}
 
 				/**
 				 * @brief Return the allocated capacity.
@@ -370,6 +441,15 @@ namespace StormByte {
 				void push_back(T&& value);
 
 				/**
+				 * @brief Append a copy of each element of @p range.
+				 * @tparam R Input range whose value is convertible to T.
+				 * @param range Source range. Copied first when it refers to this sequence.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				void append_range(R&& range);
+
+				/**
 				 * @brief Remove the last element.
 				 * @throws OutOfBoundsError The sequence is empty.
 				 */
@@ -414,6 +494,38 @@ namespace StormByte {
 				iterator insert(const_iterator position, size_type count, const T& value);
 
 				/**
+				 * @brief Insert `[first, last)` before @p position.
+				 * @tparam InputIt Input iterator whose value is convertible to T.
+				 * @param position Insertion point.
+				 * @param first Start of the source range.
+				 * @param last End of the source range.
+				 * @return Iterator to the first inserted element, or @p position when the range is empty.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<std::input_iterator InputIt>
+				iterator insert(const_iterator position, InputIt first, InputIt last);
+
+				/**
+				 * @brief Insert an initializer list before @p position.
+				 * @param position Insertion point.
+				 * @param values Elements to insert.
+				 * @return Iterator to the first inserted element, or @p position when @p values is empty.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				iterator insert(const_iterator position, std::initializer_list<T> values);
+
+				/**
+				 * @brief Insert a copy of each element of @p range before @p position.
+				 * @tparam R Input range whose value is convertible to T.
+				 * @param position Insertion point.
+				 * @param range Source range. Copied first when it refers to this sequence.
+				 * @return Iterator to the first inserted element, or @p position when @p range is empty.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				iterator insert_range(const_iterator position, R&& range);
+
+				/**
 				 * @brief Construct an element before @p position.
 				 * @tparam Args Constructor argument types.
 				 * @param position Insertion point.
@@ -448,11 +560,30 @@ namespace StormByte {
 				void assign(size_type count, const T& value);
 
 				/**
+				 * @brief Replace the contents with `[first, last)`.
+				 * @tparam InputIt Input iterator whose value is convertible to T.
+				 * @param first Start of the source range.
+				 * @param last End of the source range.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<std::input_iterator InputIt>
+				void assign(InputIt first, InputIt last);
+
+				/**
 				 * @brief Replace the contents with an initializer list.
 				 * @param values New elements.
 				 * @throws AllocationError The block could not be allocated.
 				 */
 				void assign(std::initializer_list<T> values);
+
+				/**
+				 * @brief Replace the contents with a copy of @p range.
+				 * @tparam R Input range whose value is convertible to T.
+				 * @param range Source range. Copied first when it refers to this sequence.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				void assign_range(R&& range);
 
 				/**
 				 * @brief Change the size, value-initializing new elements.
@@ -475,6 +606,13 @@ namespace StormByte {
 				 * @return Whether both sequences contain the same elements.
 				 */
 				bool operator==(const Vector& other) const requires Type::EqualityComparable<T>;
+
+				/**
+				 * @brief Order sequences lexicographically.
+				 * @param other Sequence to compare.
+				 * @return Ordering of the two sequences.
+				 */
+				std::strong_ordering operator<=>(const Vector& other) const requires requires(const T& left, const T& right) { left < right; };
 
 				/**
 				 * @brief Order sequences lexicographically.
@@ -538,6 +676,16 @@ namespace StormByte {
 				size_type m_size; ///< Constructed element count.
 				size_type m_capacity; ///< Allocated element capacity.
 		};
+
+		/**
+		 * @brief Exchange two sequences.
+		 * @param lhs First sequence.
+		 * @param rhs Second sequence.
+		 */
+		template<Type::SafeValue T>
+		void swap(Vector<T>& lhs, Vector<T>& rhs) noexcept {
+			lhs.swap(rhs);
+		}
 	}
 
 	/**

@@ -45,6 +45,7 @@
 #include <StormByte/safe/wstring.hxx>
 
 #include <cstring>
+#include <limits>
 #include <string>
 #include <utility>
 
@@ -96,6 +97,18 @@ String::String(const char* str) noexcept {
 String::String(std::string_view str) noexcept {
 	SetEmpty();
 	assign(str);
+}
+
+String::String(size_type count, char character) {
+	SetEmpty();
+	assign(count, character);
+}
+
+String::String(const String& other, size_type pos, size_type count) {
+	SetEmpty();
+	if (static_cast<std::size_t>(pos) > static_cast<std::size_t>(other.size()))
+		throw OutOfBoundsError("position is past size");
+	assign(static_cast<std::string_view>(other.substr(pos, count)));
 }
 
 String::String(const WString& other) noexcept {
@@ -161,6 +174,10 @@ Size String::capacity() const noexcept {
 	if (IsLong())
 		return Size{stormbyte_sdslen(m_storage.long_) + stormbyte_sdsavail(m_storage.long_)};
 	return Size{SSO_CAPACITY};
+}
+
+Size String::max_size() const noexcept {
+	return Size{std::numeric_limits<std::size_t>::max() / 2};
 }
 
 String& String::append(std::string_view text) {
@@ -229,6 +246,10 @@ String& String::operator+=(char character) {
 	return append(Size{1}, character);
 }
 
+String& String::operator+=(const String& text) {
+	return append(static_cast<std::string_view>(text));
+}
+
 void String::push_back(char character) {
 	append(Size{1}, character);
 }
@@ -253,7 +274,7 @@ void String::reserve(size_type new_capacity) {
 		return;
 	const std::size_t requested = static_cast<std::size_t>(new_capacity);
 	if (requested > std::numeric_limits<std::size_t>::max() - 1)
-		throw OutOfBoundsError("Safe::String reserve capacity is too large");
+		throw OutOfBoundsError("reserve capacity is too large");
 	if (!IsLong()) {
 		const std::size_t n = static_cast<std::size_t>(size());
 		sds created = sdsnewlen(m_storage.data, n);
@@ -268,11 +289,17 @@ void String::reserve(size_type new_capacity) {
 	}
 	const std::size_t n = static_cast<std::size_t>(size());
 	if (requested < n)
-		throw OutOfBoundsError("Safe::String reserve capacity is too large");
+		throw OutOfBoundsError("reserve capacity is too large");
 	sds grown = sdsMakeRoomFor(m_storage.long_, requested - n);
 	if (!grown)
 		throw AllocationError();
 	m_storage.long_ = grown;
+}
+
+void String::shrink_to_fit() {
+	if (!IsLong())
+		return;
+	assign(static_cast<std::string_view>(*this));
 }
 
 void String::resize(size_type count, char character) {
@@ -294,7 +321,7 @@ void String::resize(size_type count, char character) {
 String& String::insert(size_type position, std::string_view text) {
 	const std::string_view view = *this;
 	if (static_cast<std::size_t>(position) > view.size())
-		throw OutOfBoundsError("Safe::String insert position is past size");
+		throw OutOfBoundsError("insert position is past size");
 	std::string merged;
 	merged.reserve(view.size() + text.size());
 	merged.append(view.substr(0, static_cast<std::size_t>(position)));
@@ -303,10 +330,21 @@ String& String::insert(size_type position, std::string_view text) {
 	return assign(std::string_view{merged});
 }
 
+String& String::insert(size_type position, size_type count, char character) {
+	String block(count, character);
+	return insert(position, static_cast<std::string_view>(block));
+}
+
+String::iterator String::insert(const_iterator pos, std::initializer_list<char> values) {
+	const Size index{static_cast<std::size_t>(pos - cbegin())};
+	insert(index, std::string_view(values.begin(), values.size()));
+	return begin() + static_cast<std::size_t>(index);
+}
+
 String& String::erase(size_type position, size_type count) {
 	const std::string_view view = *this;
 	if (static_cast<std::size_t>(position) > view.size())
-		throw OutOfBoundsError("Safe::String erase position is past size");
+		throw OutOfBoundsError("erase position is past size");
 	const std::size_t start = static_cast<std::size_t>(position);
 	const std::size_t n = count == npos ? view.size() - start : std::min(static_cast<std::size_t>(count), view.size() - start);
 	std::string merged;
@@ -315,9 +353,48 @@ String& String::erase(size_type position, size_type count) {
 	return assign(std::string_view{merged});
 }
 
+String::iterator String::erase(const_iterator pos) {
+	return erase(pos, pos + 1);
+}
+
+String::iterator String::erase(const_iterator first, const_iterator last) {
+	const Size index{static_cast<std::size_t>(first - cbegin())};
+	const Size count{static_cast<std::size_t>(last - first)};
+	erase(index, count);
+	return begin() + static_cast<std::size_t>(index);
+}
+
 String& String::replace(size_type position, size_type count, std::string_view text) {
 	erase(position, count);
 	return insert(position, text);
+}
+
+String& String::replace(const_iterator first, const_iterator last, std::string_view text) {
+	const Size index{static_cast<std::size_t>(first - cbegin())};
+	const Size count{static_cast<std::size_t>(last - first)};
+	return replace(index, count, text);
+}
+
+char& String::at(size_type index) {
+	if (index >= size())
+		throw OutOfBoundsError("index is past size");
+	return data()[static_cast<std::size_t>(index)];
+}
+
+const char& String::at(size_type index) const {
+	if (index >= size())
+		throw OutOfBoundsError("index is past size");
+	return data()[static_cast<std::size_t>(index)];
+}
+
+String::size_type String::copy(char* dest, size_type count, size_type pos) const {
+	if (static_cast<std::size_t>(pos) > static_cast<std::size_t>(size()))
+		throw OutOfBoundsError("copy position is past size");
+	const std::size_t available = static_cast<std::size_t>(size() - pos);
+	const std::size_t n = std::min(available, static_cast<std::size_t>(count));
+	if (n != 0)
+		std::memcpy(dest, data() + static_cast<std::size_t>(pos), n);
+	return Size{n};
 }
 
 void String::swap(String& other) noexcept {

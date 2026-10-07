@@ -52,9 +52,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <ostream>
 #include <queue>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -96,6 +98,7 @@ namespace StormByte {
 		 *
 		 * Observers follow `std::string_view`. Size-changing modifiers follow `std::string` value semantics.
 		 * `capacity()` and `reserve(Size)` count UTF-8 bytes excluding NUL; reserve never shrinks.
+		 * `size_type` is @ref Size. There is no allocator.
 		 */
 		class STORMBYTE_PUBLIC String {
 			public:
@@ -134,6 +137,36 @@ namespace StormByte {
 				 * @param str Source. Embedded NUL counts.
 				 */
 				explicit String(std::string_view str) noexcept;
+
+				/**
+				 * @brief Construct @p count copies of @p character.
+				 * @param count Byte count.
+				 * @param character Fill byte.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				String(size_type count, char character);
+
+				/**
+				 * @brief Copy a slice of @p other.
+				 * @param other Source text.
+				 * @param pos Start, in bytes.
+				 * @param count Length. @ref npos means through the end.
+				 * @throws OutOfBoundsError @p pos is past @p other.size().
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				String(const String& other, size_type pos, size_type count = npos);
+
+				/**
+				 * @brief Copy the byte range `[first, last)`.
+				 * @tparam InputIt Input iterator of bytes.
+				 * @param first Start.
+				 * @param last End.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				template<std::input_iterator InputIt>
+				String(InputIt first, InputIt last): String() {
+					append(first, last);
+				}
 
 				/**
 				 * @brief UTF-8 from wide text.
@@ -315,6 +348,12 @@ namespace StormByte {
 				Size capacity() const noexcept;
 
 				/**
+				 * @brief Largest representable byte count.
+				 * @return Maximum size.
+				 */
+				Size max_size() const noexcept;
+
+				/**
 				 * @brief Same as @ref size.
 				 * @return Length as @ref StormByte::Size.
 				 */
@@ -346,6 +385,33 @@ namespace StormByte {
 				String& append(size_type count, char character);
 
 				/**
+				 * @brief Append the byte range `[first, last)`.
+				 * @tparam InputIt Input iterator of bytes.
+				 * @param first Start.
+				 * @param last End.
+				 * @return This string.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				template<std::input_iterator InputIt>
+				String& append(InputIt first, InputIt last) {
+					for (; first != last; ++first)
+						push_back(static_cast<char>(*first));
+					return *this;
+				}
+
+				/**
+				 * @brief Append a copy of @p range.
+				 * @tparam R Input range of bytes.
+				 * @param range Source range.
+				 * @return This string.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				String& append_range(R&& range) {
+					return append(std::ranges::begin(range), std::ranges::end(range));
+				}
+
+				/**
 				 * @brief Replace the contents with a text view.
 				 * @param text Source bytes.
 				 * @return This string.
@@ -361,6 +427,32 @@ namespace StormByte {
 				String& assign(size_type count, char character);
 
 				/**
+				 * @brief Replace the contents with `[first, last)`.
+				 * @tparam InputIt Input iterator of bytes.
+				 * @param first Start.
+				 * @param last End.
+				 * @return This string.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				template<std::input_iterator InputIt>
+				String& assign(InputIt first, InputIt last) {
+					clear();
+					return append(first, last);
+				}
+
+				/**
+				 * @brief Replace the contents with a copy of @p range.
+				 * @tparam R Input range of bytes.
+				 * @param range Source range.
+				 * @return This string.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				String& assign_range(R&& range) {
+					return assign(std::ranges::begin(range), std::ranges::end(range));
+				}
+
+				/**
 				 * @brief Append a view.
 				 * @param text Text to append.
 				 * @return This string.
@@ -373,6 +465,14 @@ namespace StormByte {
 				 * @return This string.
 				 */
 				String& operator+=(char character);
+
+				/**
+				 * @brief Append another Safe string.
+				 * @param text Text to append.
+				 * @return This string.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				String& operator+=(const String& text);
 
 				/**
 				 * @brief Append one byte.
@@ -401,6 +501,11 @@ namespace StormByte {
 				void reserve(size_type new_capacity);
 
 				/**
+				 * @brief Drop unused long-path capacity. A short string is unchanged.
+				 */
+				void shrink_to_fit();
+
+				/**
 				 * @brief Resize the byte sequence, filling new bytes with character.
 				 * @param count New byte count.
 				 * @param character Fill byte, default initialized to NUL.
@@ -416,12 +521,83 @@ namespace StormByte {
 				String& insert(size_type position, std::string_view text);
 
 				/**
+				 * @brief Insert @p count copies of @p character at @p position.
+				 * @param position Insertion position.
+				 * @param count Copy count.
+				 * @param character Fill byte.
+				 * @return This string.
+				 * @throws OutOfBoundsError @p position is past @ref size.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				String& insert(size_type position, size_type count, char character);
+
+				/**
+				 * @brief Insert `[first, last)` before @p pos.
+				 * @tparam InputIt Input iterator of bytes.
+				 * @param pos Insertion point.
+				 * @param first Start.
+				 * @param last End.
+				 * @return Iterator to the first inserted byte, or @p pos when the range is empty.
+				 * @throws OutOfBoundsError @p pos is outside this string.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				template<std::input_iterator InputIt>
+				iterator insert(const_iterator pos, InputIt first, InputIt last) {
+					const Size index{static_cast<std::size_t>(pos - cbegin())};
+					String copied;
+					copied.append(first, last);
+					insert(index, static_cast<std::string_view>(copied));
+					return begin() + static_cast<std::size_t>(index);
+				}
+
+				/**
+				 * @brief Insert an initializer list before @p pos.
+				 * @param pos Insertion point.
+				 * @param values Bytes to insert.
+				 * @return Iterator to the first inserted byte.
+				 * @throws OutOfBoundsError @p pos is outside this string.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				iterator insert(const_iterator pos, std::initializer_list<char> values);
+
+				/**
+				 * @brief Insert a copy of @p range before @p pos.
+				 * @tparam R Input range of bytes.
+				 * @param pos Insertion point.
+				 * @param range Source range.
+				 * @return Iterator to the first inserted byte.
+				 * @throws OutOfBoundsError @p pos is outside this string.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				iterator insert_range(const_iterator pos, R&& range) {
+					return insert(pos, std::ranges::begin(range), std::ranges::end(range));
+				}
+
+				/**
 				 * @brief Erase bytes starting at position.
 				 * @param position First byte to erase.
 				 * @param count Maximum bytes to erase.
 				 * @return This string.
 				 */
 				String& erase(size_type position = {}, size_type count = npos);
+
+				/**
+				 * @brief Erase the byte at @p pos.
+				 * @param pos Byte to erase.
+				 * @return Iterator following the erased byte.
+				 * @throws OutOfBoundsError @p pos is outside this string.
+				 */
+				iterator erase(const_iterator pos);
+
+				/**
+				 * @brief Erase `[first, last)`.
+				 * @param first Start.
+				 * @param last End.
+				 * @return Iterator following the erased range.
+				 * @throws OutOfBoundsError The range is outside this string.
+				 */
+				iterator erase(const_iterator first, const_iterator last);
 
 				/**
 				 * @brief Replace a byte range with text.
@@ -431,6 +607,17 @@ namespace StormByte {
 				 * @return This string.
 				 */
 				String& replace(size_type position, size_type count, std::string_view text);
+
+				/**
+				 * @brief Replace `[first, last)` with @p text.
+				 * @param first Start.
+				 * @param last End.
+				 * @param text Replacement.
+				 * @return This string.
+				 * @throws OutOfBoundsError The range is outside this string.
+				 * @throws AllocationError The long path could not be allocated.
+				 */
+				String& replace(const_iterator first, const_iterator last, std::string_view text);
 
 				/**
 				 * @brief Character at @p index.
@@ -453,6 +640,32 @@ namespace StormByte {
 					assert(index <= size());
 					return data()[static_cast<std::size_t>(index)];
 				}
+
+				/**
+				 * @brief Byte at @p index.
+				 * @param index Byte offset.
+				 * @return Byte.
+				 * @throws OutOfBoundsError @p index is not less than @ref size.
+				 */
+				char& at(size_type index);
+
+				/**
+				 * @brief Read-only byte at @p index.
+				 * @param index Byte offset.
+				 * @return Byte.
+				 * @throws OutOfBoundsError @p index is not less than @ref size.
+				 */
+				const char& at(size_type index) const;
+
+				/**
+				 * @brief Copy at most @p count bytes into @p dest, starting at @p pos.
+				 * @param dest Caller buffer.
+				 * @param count Buffer capacity.
+				 * @param pos Start, in bytes.
+				 * @return Bytes copied.
+				 * @throws OutOfBoundsError @p pos is past @ref size.
+				 */
+				size_type copy(char* dest, size_type count, size_type pos = {}) const;
 
 				/**
 				 * @brief Whether the text is non-empty.
@@ -750,6 +963,17 @@ namespace StormByte {
 				 */
 				inline int compare(std::string_view text) const noexcept {
 					return static_cast<std::string_view>(*this).compare(text);
+				}
+
+				/**
+				 * @brief Compare a slice with @p text.
+				 * @param pos Start, in bytes.
+				 * @param count Slice length.
+				 * @param text Other text.
+				 * @return Negative, zero, or positive.
+				 */
+				inline int compare(size_type pos, size_type count, std::string_view text) const noexcept {
+					return static_cast<std::string_view>(substr(pos, count)).compare(text);
 				}
 
 				/**
@@ -1079,11 +1303,11 @@ namespace StormByte {
 
 		/**
 		 * @brief Writes @p text to @p stream.
-		 * @param stream Destination.
+		 * @param stream Destination. Caller-owned stream.
 		 * @param text Source.
 		 * @return @p stream.
 		 */
-		inline std::ostream& operator<<(std::ostream& stream, const String& text) {
+		STORMBYTE_FORCE_INLINE std::ostream& operator<<(std::ostream& stream, const String& text) {
 			return stream << static_cast<std::string_view>(text);
 		}
 
@@ -1105,6 +1329,45 @@ namespace StormByte {
 		 */
 		inline bool operator!=(const char* str, const String& text) noexcept {
 			return text != str;
+		}
+
+		/**
+		 * @brief Concatenate two texts.
+		 * @param left Left text.
+		 * @param right Right text.
+		 * @return New text owned by Base.
+		 * @throws AllocationError The long path could not be allocated.
+		 */
+		inline String operator+(const String& left, const String& right) {
+			String result(left);
+			result += right;
+			return result;
+		}
+
+		/**
+		 * @brief Concatenate a text and a view.
+		 * @param left Left text.
+		 * @param right Right view.
+		 * @return New text owned by Base.
+		 * @throws AllocationError The long path could not be allocated.
+		 */
+		inline String operator+(const String& left, std::string_view right) {
+			String result(left);
+			result += right;
+			return result;
+		}
+
+		/**
+		 * @brief Concatenate a view and a text.
+		 * @param left Left view.
+		 * @param right Right text.
+		 * @return New text owned by Base.
+		 * @throws AllocationError The long path could not be allocated.
+		 */
+		inline String operator+(std::string_view left, const String& right) {
+			String result(left);
+			result += right;
+			return result;
 		}
 
 		/**

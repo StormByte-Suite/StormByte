@@ -39,12 +39,20 @@
 
 #pragma once
 
+#include <algorithm>
+#include <compare>
 #include <utility>
 
 namespace StormByte {
 	namespace Safe {
 		template<Type::SafeValue T>
 		Queue<T>::Queue() noexcept: m_values() {}
+
+		template<Type::SafeValue T>
+		Queue<T>::Queue(const container_type& values): m_values(values) {}
+
+		template<Type::SafeValue T>
+		Queue<T>::Queue(container_type&& values) noexcept: m_values(std::move(values)) {}
 
 		template<Type::SafeValue T>
 		Queue<T>::Queue(const Queue& other): m_values(other.m_values) {}
@@ -108,7 +116,7 @@ namespace StormByte {
 
 		template<Type::SafeValue T>
 		Queue<T>::size_type Queue<T>::size() const noexcept {
-			return m_values.size();
+			return static_cast<size_type>(m_values.size());
 		}
 
 		template<Type::SafeValue T>
@@ -180,6 +188,11 @@ namespace StormByte {
 		template<Type::SafeValue T>
 		bool Queue<T>::operator==(const Queue& other) const requires Type::EqualityComparable<T> {
 			return m_values == other.m_values;
+		}
+
+		template<Type::SafeValue T>
+		std::strong_ordering Queue<T>::operator<=>(const Queue& other) const requires std::three_way_comparable<T> {
+			return std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end());
 		}
 
 		template<Type::SafeValue T>

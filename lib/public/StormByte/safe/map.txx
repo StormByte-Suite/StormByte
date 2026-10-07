@@ -39,9 +39,10 @@
 
 #pragma once
 
-#include <format>
+#include <StormByte/safe/exception.hxx>
+
+#include <algorithm>
 #include <new>
-#include <string>
 #include <utility>
 
 namespace StormByte {
@@ -144,9 +145,8 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		Map<K, V, Compare>::Map(const std::map<K, V, Compare>& other): Map(other.key_comp()) {
-			for (const auto& entry : other)
-				insert(value_type(entry.first, entry.second));
+		Map<K, V, Compare>::Map(std::initializer_list<value_type> values): Map() {
+			insert(values);
 		}
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
@@ -184,9 +184,9 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		Map<K, V, Compare>& Map<K, V, Compare>::operator=(const std::map<K, V, Compare>& other) {
-			Map copy(other);
-			swap(copy);
+		Map<K, V, Compare>& Map<K, V, Compare>::operator=(std::initializer_list<value_type> values) {
+			Map replacement(values);
+			swap(replacement);
 			return *this;
 		}
 
@@ -247,6 +247,21 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
+		bool Map<K, V, Compare>::HintMatches(const_iterator hint, const K& key) const noexcept {
+			if (hint == cend())
+				return empty() || m_compare(m_header->Right->Entry.first, key);
+			if (m_compare(key, hint->first)) {
+				if (hint == cbegin())
+					return true;
+				const_iterator previous = hint;
+				--previous;
+				return m_compare(previous->first, key);
+			}
+			return false;
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
 		Map<K, V, Compare>::insert_result Map<K, V, Compare>::insert(const value_type& entry) {
 			return try_emplace(entry.first, entry.second);
 		}
@@ -254,7 +269,19 @@ namespace StormByte {
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
 		Map<K, V, Compare>::insert_result Map<K, V, Compare>::insert(value_type&& entry) {
-			return try_emplace(entry.first, std::move(entry.second));
+			return try_emplace(std::move(const_cast<K&>(entry.first)), std::move(entry.second));
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::insert(const_iterator hint, const value_type& entry) {
+			return try_emplace(hint, entry.first, entry.second);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::insert(const_iterator hint, value_type&& entry) {
+			return try_emplace(hint, std::move(const_cast<K&>(entry.first)), std::move(entry.second));
 		}
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
@@ -267,20 +294,54 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
+		void Map<K, V, Compare>::insert(std::initializer_list<value_type> values) {
+			insert(values.begin(), values.end());
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
 		template<class... Args>
 		Map<K, V, Compare>::insert_result Map<K, V, Compare>::try_emplace(const K& key, Args&&... args) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr)
+				return insert_result(iterator(existing), false);
+			return insert_result(try_emplace(cend(), key, std::forward<Args>(args)...), true);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		template<class... Args>
+		Map<K, V, Compare>::insert_result Map<K, V, Compare>::try_emplace(K&& key, Args&&... args) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr)
+				return insert_result(iterator(existing), false);
+			return insert_result(try_emplace(cend(), std::move(key), std::forward<Args>(args)...), true);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		template<class... Args>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::try_emplace(const_iterator hint, const K& key, Args&&... args) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr)
+				return iterator(existing);
 			Node* parent = m_header;
-			Node* current = m_header->Parent;
 			bool left = true;
-			while (current != nullptr) {
-				parent = current;
-				left = m_compare(key, current->Entry.first);
-				if (left)
-					current = current->Left;
-				else if (m_compare(current->Entry.first, key))
-					current = current->Right;
-				else
-					return insert_result(iterator(current), false);
+			if (HintMatches(hint, key)) {
+				if (hint == cend()) {
+					parent = empty() ? m_header : m_header->Right;
+					left = empty();
+				} else {
+					parent = const_cast<Node*>(hint.m_node);
+					left = true;
+				}
+			} else {
+				Node* current = m_header->Parent;
+				while (current != nullptr) {
+					parent = current;
+					left = m_compare(key, current->Entry.first);
+					current = left ? current->Left : current->Right;
+				}
 			}
 			Node* created = nullptr;
 			if constexpr (sizeof...(Args) == 0)
@@ -288,7 +349,42 @@ namespace StormByte {
 			else
 				created = MakeNode(key, std::forward<Args>(args)...);
 			InsertNode(created, parent, left);
-			return insert_result(iterator(created), true);
+			return iterator(created);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		template<class... Args>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::try_emplace(const_iterator hint, K&& key, Args&&... args) {
+			const K& lookup = key;
+			Node* existing = FindNode(lookup);
+			if (existing != nullptr)
+				return iterator(existing);
+			Node* parent = m_header;
+			bool left = true;
+			if (HintMatches(hint, lookup)) {
+				if (hint == cend()) {
+					parent = empty() ? m_header : m_header->Right;
+					left = empty();
+				} else {
+					parent = const_cast<Node*>(hint.m_node);
+					left = true;
+				}
+			} else {
+				Node* current = m_header->Parent;
+				while (current != nullptr) {
+					parent = current;
+					left = m_compare(lookup, current->Entry.first);
+					current = left ? current->Left : current->Right;
+				}
+			}
+			Node* created = nullptr;
+			if constexpr (sizeof...(Args) == 0)
+				created = MakeNode(std::move(key), V{});
+			else
+				created = MakeNode(std::move(key), std::forward<Args>(args)...);
+			InsertNode(created, parent, left);
+			return iterator(created);
 		}
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
@@ -300,11 +396,187 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
+		template<class... Args>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::emplace_hint(const_iterator hint, Args&&... args) {
+			return insert(hint, value_type(std::forward<Args>(args)...));
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
 		Map<K, V, Compare>::insert_result Map<K, V, Compare>::insert_or_assign(const K& key, const V& value) {
-			insert_result result = try_emplace(key, value);
-			if (!result.second)
-				result.first->second = value;
-			return result;
+			Node* existing = FindNode(key);
+			if (existing != nullptr) {
+				existing->Entry.second = value;
+				return insert_result(iterator(existing), false);
+			}
+			return insert_result(try_emplace(cend(), key, value), true);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::insert_result Map<K, V, Compare>::insert_or_assign(const K& key, V&& value) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr) {
+				existing->Entry.second = std::move(value);
+				return insert_result(iterator(existing), false);
+			}
+			return insert_result(try_emplace(cend(), key, std::move(value)), true);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::insert_result Map<K, V, Compare>::insert_or_assign(K&& key, const V& value) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr) {
+				existing->Entry.second = value;
+				return insert_result(iterator(existing), false);
+			}
+			return insert_result(try_emplace(cend(), std::move(key), value), true);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::insert_result Map<K, V, Compare>::insert_or_assign(K&& key, V&& value) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr) {
+				existing->Entry.second = std::move(value);
+				return insert_result(iterator(existing), false);
+			}
+			return insert_result(try_emplace(cend(), std::move(key), std::move(value)), true);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::insert_or_assign(const_iterator hint, const K& key, const V& value) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr) {
+				existing->Entry.second = value;
+				return iterator(existing);
+			}
+			return try_emplace(hint, key, value);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::insert_or_assign(const_iterator hint, const K& key, V&& value) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr) {
+				existing->Entry.second = std::move(value);
+				return iterator(existing);
+			}
+			return try_emplace(hint, key, std::move(value));
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::insert_or_assign(const_iterator hint, K&& key, const V& value) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr) {
+				existing->Entry.second = value;
+				return iterator(existing);
+			}
+			return try_emplace(hint, std::move(key), value);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::insert_or_assign(const_iterator hint, K&& key, V&& value) {
+			Node* existing = FindNode(key);
+			if (existing != nullptr) {
+				existing->Entry.second = std::move(value);
+				return iterator(existing);
+			}
+			return try_emplace(hint, std::move(key), std::move(value));
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::insert_return_type Map<K, V, Compare>::insert(node_type&& handle) {
+			if (!handle)
+				return insert_return_type{end(), false, node_type{}};
+			Node* existing = FindNode(handle.key());
+			if (existing != nullptr)
+				return insert_return_type{iterator(existing), false, std::move(handle)};
+			Node* node = handle.m_node;
+			handle.m_node = nullptr;
+			node->Left = nullptr;
+			node->Right = nullptr;
+			node->Red = true;
+			const K& key = node->Entry.first;
+			Node* parent = m_header;
+			Node* current = m_header->Parent;
+			bool left = true;
+			while (current != nullptr) {
+				parent = current;
+				left = m_compare(key, current->Entry.first);
+				current = left ? current->Left : current->Right;
+			}
+			InsertNode(node, parent, left);
+			return insert_return_type{iterator(node), true, node_type{}};
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::iterator Map<K, V, Compare>::insert(const_iterator hint, node_type&& handle) {
+			if (!handle)
+				return end();
+			if (!HintMatches(hint, handle.key()))
+				return insert(std::move(handle)).position;
+			Node* existing = FindNode(handle.key());
+			if (existing != nullptr)
+				return iterator(existing);
+			Node* node = handle.m_node;
+			handle.m_node = nullptr;
+			node->Left = nullptr;
+			node->Right = nullptr;
+			node->Red = true;
+			Node* parent = m_header;
+			bool left = true;
+			if (hint == cend()) {
+				parent = empty() ? m_header : m_header->Right;
+				left = empty();
+			} else {
+				parent = const_cast<Node*>(hint.m_node);
+				left = true;
+			}
+			InsertNode(node, parent, left);
+			return iterator(node);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::node_type Map<K, V, Compare>::extract(const_iterator position) {
+			if (position == cend())
+				return node_type{};
+			Node* node = const_cast<Node*>(position.m_node);
+			Unlink(node);
+			node->Parent = nullptr;
+			node->Left = nullptr;
+			node->Right = nullptr;
+			return node_type(node);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		Map<K, V, Compare>::node_type Map<K, V, Compare>::extract(const K& key) {
+			iterator found = find(key);
+			return found == end() ? node_type{} : extract(found);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		template<class OtherCompare>
+		void Map<K, V, Compare>::merge(Map<K, V, OtherCompare>& source) {
+			auto cursor = source.begin();
+			while (cursor != source.end()) {
+				auto next = cursor;
+				++next;
+				if (FindNode(cursor->first) == nullptr) {
+					node_type handle = source.extract(cursor);
+					insert(std::move(handle));
+				}
+				cursor = next;
+			}
 		}
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
@@ -312,7 +584,8 @@ namespace StormByte {
 		Map<K, V, Compare>::iterator Map<K, V, Compare>::erase(iterator position) noexcept {
 			iterator following = position;
 			++following;
-			EraseNode(position.m_node);
+			Unlink(position.m_node);
+			DestroyNode(position.m_node);
 			return following;
 		}
 
@@ -339,7 +612,8 @@ namespace StormByte {
 			Node* node = FindNode(key);
 			if (node == nullptr)
 				return 0;
-			EraseNode(node);
+			Unlink(node);
+			DestroyNode(node);
 			return 1;
 		}
 
@@ -453,6 +727,12 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
+		V& Map<K, V, Compare>::operator[](K&& key) {
+			return try_emplace(std::move(key)).first->second;
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
 		V& Map<K, V, Compare>::at(const K& key) {
 			Node* node = FindNode(key);
 			if (node == nullptr)
@@ -483,6 +763,42 @@ namespace StormByte {
 				++right;
 			}
 			return true;
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		std::strong_ordering Map<K, V, Compare>::operator<=>(const Map& other) const requires std::three_way_comparable<K> && std::three_way_comparable<V> {
+			return std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end(), [](const value_type& left, const value_type& right) {
+				if (auto key = left.first <=> right.first; key != 0)
+					return key;
+				return left.second <=> right.second;
+			});
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		bool Map<K, V, Compare>::operator<(const Map& other) const requires requires(const K& a, const K& b, const V& c, const V& d) { a < b; c < d; } {
+			return std::lexicographical_compare(begin(), end(), other.begin(), other.end(), [](const value_type& left, const value_type& right) {
+				return left.first < right.first || (!(right.first < left.first) && left.second < right.second);
+			});
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		bool Map<K, V, Compare>::operator<=(const Map& other) const requires requires(const K& a, const K& b, const V& c, const V& d) { a < b; c < d; } {
+			return !(other < *this);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		bool Map<K, V, Compare>::operator>(const Map& other) const requires requires(const K& a, const K& b, const V& c, const V& d) { a < b; c < d; } {
+			return other < *this;
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
+		bool Map<K, V, Compare>::operator>=(const Map& other) const requires requires(const K& a, const K& b, const V& c, const V& d) { a < b; c < d; } {
+			return !(*this < other);
 		}
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
@@ -674,6 +990,12 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
+		void Map<K, V, Compare>::Unlink(Node* node) noexcept {
+			EraseNode(node);
+		}
+
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		requires std::strict_weak_order<Compare, const K&, const K&>
 		void Map<K, V, Compare>::EraseNode(Node* node) noexcept {
 			Node* successor = node;
 			Node* child = nullptr;
@@ -793,7 +1115,6 @@ namespace StormByte {
 				if (child != nullptr)
 					child->Red = false;
 			}
-			DestroyNode(successor);
 			--m_size;
 			if (m_size == 0) {
 				m_header->Parent = nullptr;
@@ -804,13 +1125,16 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		std::string Map<K, V, Compare>::AbsentKey(const K& key) {
-			if constexpr (requires { std::format("{}", key); })
-				return std::format("map key '{}' is absent", key);
+		String Map<K, V, Compare>::AbsentKey(const K& key) {
+			String message("map key '");
+			if constexpr (requires { String(key); })
+				message += String(key);
 			else if constexpr (requires { key.data(); key.size(); })
-				return std::format("map key '{}' is absent", std::string(key.data(), key.size()));
+				message += String(key.data(), static_cast<std::size_t>(key.size()));
 			else
-				return "map key is absent and the key type is not printable";
+				message += "?";
+			message += "' is absent";
+			return message;
 		}
 	}
 }

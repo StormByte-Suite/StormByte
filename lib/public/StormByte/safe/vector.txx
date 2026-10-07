@@ -39,6 +39,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <iterator>
 #include <new>
 #include <utility>
 
@@ -55,6 +57,12 @@ namespace StormByte {
 		template<Type::SafeValue T>
 		Vector<T>::Vector(size_type count, const T& value): m_data(nullptr), m_size(0), m_capacity(0) {
 			assign(count, value);
+		}
+
+		template<Type::SafeValue T>
+		template<std::input_iterator InputIt>
+		Vector<T>::Vector(InputIt first, InputIt last): m_data(nullptr), m_size(0), m_capacity(0) {
+			assign(first, last);
 		}
 
 		template<Type::SafeValue T>
@@ -285,6 +293,15 @@ namespace StormByte {
 		}
 
 		template<Type::SafeValue T>
+		template<std::ranges::input_range R>
+		void Vector<T>::append_range(R&& range) {
+			if constexpr (std::ranges::sized_range<R>)
+				reserve(m_size + static_cast<size_type>(std::ranges::size(range)));
+			for (auto&& value : range)
+				push_back(static_cast<T>(std::forward<decltype(value)>(value)));
+		}
+
+		template<Type::SafeValue T>
 		void Vector<T>::pop_back() {
 			if (m_size == 0)
 				ThrowVectorOutOfBounds();
@@ -339,6 +356,39 @@ namespace StormByte {
 		}
 
 		template<Type::SafeValue T>
+		template<std::input_iterator InputIt>
+		Vector<T>::iterator Vector<T>::insert(const_iterator position, InputIt first, InputIt last) {
+			const size_type index = static_cast<size_type>(position - cbegin());
+			Vector copied;
+			for (; first != last; ++first)
+				copied.push_back(static_cast<T>(*first));
+			if (copied.empty())
+				return begin() + static_cast<difference_type>(index);
+			if (m_size + copied.size() > m_capacity)
+				reserve(m_capacity * 2 > m_size + copied.size() ? m_capacity * 2 : m_size + copied.size());
+			const size_type count = copied.size();
+			for (size_type cursor = m_size; cursor > index; --cursor) {
+				new (m_data + cursor + count - 1) T(std::move(m_data[cursor - 1]));
+				m_data[cursor - 1].~T();
+			}
+			for (size_type cursor = 0; cursor < count; ++cursor)
+				new (m_data + index + cursor) T(std::move(copied[cursor]));
+			m_size += count;
+			return m_data + index;
+		}
+
+		template<Type::SafeValue T>
+		Vector<T>::iterator Vector<T>::insert(const_iterator position, std::initializer_list<T> values) {
+			return insert(position, values.begin(), values.end());
+		}
+
+		template<Type::SafeValue T>
+		template<std::ranges::input_range R>
+		Vector<T>::iterator Vector<T>::insert_range(const_iterator position, R&& range) {
+			return insert(position, std::ranges::begin(range), std::ranges::end(range));
+		}
+
+		template<Type::SafeValue T>
 		template<class... Args>
 		Vector<T>::iterator Vector<T>::emplace(const_iterator position, Args&&... args) {
 			const size_type index = static_cast<size_type>(position - m_data);
@@ -381,11 +431,26 @@ namespace StormByte {
 		}
 
 		template<Type::SafeValue T>
+		template<std::input_iterator InputIt>
+		void Vector<T>::assign(InputIt first, InputIt last) {
+			Vector copied;
+			for (; first != last; ++first)
+				copied.push_back(static_cast<T>(*first));
+			swap(copied);
+		}
+
+		template<Type::SafeValue T>
 		void Vector<T>::assign(std::initializer_list<T> values) {
 			clear();
 			reserve(values.size());
 			for (const T& value : values)
 				push_back(value);
+		}
+
+		template<Type::SafeValue T>
+		template<std::ranges::input_range R>
+		void Vector<T>::assign_range(R&& range) {
+			assign(std::ranges::begin(range), std::ranges::end(range));
 		}
 
 		template<Type::SafeValue T>
@@ -422,6 +487,15 @@ namespace StormByte {
 		}
 
 		template<Type::SafeValue T>
+		std::strong_ordering Vector<T>::operator<=>(const Vector& other) const requires requires(const T& left, const T& right) { left < right; } {
+			if (*this < other)
+				return std::strong_ordering::less;
+			if (other < *this)
+				return std::strong_ordering::greater;
+			return std::strong_ordering::equal;
+		}
+
+		template<Type::SafeValue T>
 		bool Vector<T>::operator<(const Vector& other) const requires requires(const T& left, const T& right) { left < right; } {
 			const size_type count = m_size < other.m_size ? m_size : other.m_size;
 			for (size_type index = 0; index < count; ++index) {
@@ -450,9 +524,7 @@ namespace StormByte {
 
 		template<Type::SafeValue T>
 		T* Vector<T>::Allocate(size_type capacity) {
-			if (capacity == 0)
-				return nullptr;
-			return static_cast<T*>(Heap::Allocate(capacity * sizeof(T)));
+			return capacity == 0 ? nullptr : static_cast<T*>(Heap::Allocate(capacity * sizeof(T)));
 		}
 
 		template<Type::SafeValue T>

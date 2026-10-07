@@ -39,7 +39,6 @@
 
 #pragma once
 
-#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/heap.hxx>
 #include <StormByte/safe/pair.hxx>
 #include <StormByte/type_traits.hxx>
@@ -47,10 +46,11 @@
 
 #include <compare>
 #include <cstddef>
-#include <functional>
+#include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <map>
-#include <string>
+#include <ranges>
 #include <utility>
 
 /**
@@ -70,7 +70,7 @@ namespace StormByte {
 		 * @tparam V Safe mapped type.
 		 * @tparam Compare Strict weak ordering. A stateless comparator does not allocate. A stateful one is stored in the map object and must itself be Safe.
 		 *
-		 * Nodes are allocated with @ref Heap::Allocate. Iterators point at those nodes. Dereference returns a real @ref Pair reference, so the map is a bidirectional range. Public results are @ref Pair, never `std::pair`.
+		 * Nodes are allocated with @ref Heap::Allocate. Iterators point at those nodes. Dereference returns a real @ref Pair reference, so the map is a bidirectional range. Public results are @ref Pair, never `std::pair`. @ref node_type owns a Base node. It is not `std::map::node_type`. @ref extract unlinks that node. It does not copy it. There is no allocator.
 		 */
 		template<Type::SafeValue K, Type::SafeValue V, class Compare = std::less<K>>
 		requires std::strict_weak_order<Compare, const K&, const K&>
@@ -87,6 +87,34 @@ namespace StormByte {
 				using difference_type = std::ptrdiff_t; ///< Iterator distance type.
 				using reference = value_type&; ///< Mutable entry reference.
 				using const_reference = const value_type&; ///< Read-only entry reference.
+
+				/**
+				 * @class value_compare
+				 * @brief Orders entries by key, using the map comparator.
+				 */
+				class value_compare {
+						friend class Map;
+
+					public:
+						/**
+						 * @brief Compare two entries by key.
+						 * @param left Left entry.
+						 * @param right Right entry.
+						 * @return Whether @p left precedes @p right.
+						 */
+						bool operator()(const value_type& left, const value_type& right) const {
+							return m_compare(left.first, right.first);
+						}
+
+					private:
+						/**
+						 * @brief Store the key comparator.
+						 * @param compare Key ordering.
+						 */
+						explicit value_compare(Compare compare): m_compare(compare) {}
+
+						Compare m_compare; ///< Key ordering.
+				};
 
 				/**
 				 * @class BasicIterator
@@ -180,9 +208,128 @@ namespace StormByte {
 
 				using iterator = BasicIterator<false>; ///< Mutable iterator.
 				using const_iterator = BasicIterator<true>; ///< Read-only iterator.
+				using reverse_iterator = std::reverse_iterator<iterator>; ///< Mutable reverse iterator.
+				using const_reverse_iterator = std::reverse_iterator<const_iterator>; ///< Read-only reverse iterator.
 				using insert_result = Pair<iterator, bool>; ///< Iterator to the entry and whether it was inserted.
 				using equal_range_result = Pair<iterator, iterator>; ///< Lower and upper bound.
 				using const_equal_range_result = Pair<const_iterator, const_iterator>; ///< Read-only lower and upper bound.
+
+				/**
+				 * @class node_type
+				 * @brief Owning handle to one extracted Base node.
+				 *
+				 * Not `std::map::node_type`. The node was allocated with @ref Heap::Allocate and is released with @ref Heap::Free. @ref extract transfers this node. It does not allocate another.
+				 */
+				class node_type {
+					public:
+						/**
+						 * @brief Construct an empty handle.
+						 */
+						node_type() noexcept = default;
+
+						/**
+						 * @brief Take the node. @p other becomes empty.
+						 * @param other Source handle.
+						 */
+						node_type(node_type&& other) noexcept: m_node(other.m_node) { other.m_node = nullptr; }
+
+						/**
+						 * @brief Take the node. The previous node, if any, is destroyed.
+						 * @param other Source handle.
+						 * @return This handle.
+						 */
+						node_type& operator=(node_type&& other) noexcept {
+							if (this != &other) {
+								reset();
+								m_node = other.m_node;
+								other.m_node = nullptr;
+							}
+							return *this;
+						}
+
+						/**
+						 * @brief Copying a node handle is not supported.
+						 */
+						node_type(const node_type&) = delete;
+
+						/**
+						 * @brief Copying a node handle is not supported.
+						 * @return This handle.
+						 */
+						node_type& operator=(const node_type&) = delete;
+
+						/**
+						 * @brief Destroy the owned node, if any.
+						 */
+						~node_type() { reset(); }
+
+						/**
+						 * @brief Test whether the handle owns a node.
+						 * @return Whether no node is owned.
+						 */
+						bool empty() const noexcept { return m_node == nullptr; }
+
+						/**
+						 * @brief Test whether the handle owns a node.
+						 * @return Whether a node is owned.
+						 */
+						explicit operator bool() const noexcept { return !empty(); }
+
+						/**
+						 * @brief Return the owned key.
+						 * @return Key. Valid until the handle is emptied.
+						 */
+						const K& key() const { return m_node->Entry.first; }
+
+						/**
+						 * @brief Return the owned mapped value.
+						 * @return Mapped value. Valid until the handle is emptied.
+						 */
+						V& mapped() { return m_node->Entry.second; }
+
+						/**
+						 * @brief Return the owned mapped value.
+						 * @return Mapped value. Valid until the handle is emptied.
+						 */
+						const V& mapped() const { return m_node->Entry.second; }
+
+						/**
+						 * @brief Exchange owned nodes.
+						 * @param other Other handle.
+						 */
+						void swap(node_type& other) noexcept { std::swap(m_node, other.m_node); }
+
+					private:
+						friend class Map;
+
+						/**
+						 * @brief Take ownership of an unlinked node.
+						 * @param node Node. Not null.
+						 */
+						explicit node_type(Node* node) noexcept: m_node(node) {}
+
+						/**
+						 * @brief Destroy and release the owned node.
+						 */
+						void reset() noexcept {
+							if (m_node == nullptr)
+								return;
+							m_node->Entry.~value_type();
+							Heap::Free(m_node);
+							m_node = nullptr;
+						}
+
+						Node* m_node = nullptr; ///< Owned node, or null.
+				};
+
+				/**
+				 * @brief Result of inserting an extracted node.
+				 */
+				struct insert_return_type {
+					iterator position; ///< Entry, or end when the node was not inserted and is empty.
+					bool inserted; ///< Whether the node was linked.
+					node_type node; ///< Returned node when the key was already present.
+				};
 
 				/**
 				 * @brief Construct an empty map.
@@ -213,7 +360,10 @@ namespace StormByte {
 				 * @param other Source.
 				 * @throws AllocationError A node could not be allocated.
 				 */
-				explicit Map(const std::map<K, V, Compare>& other);
+				STORMBYTE_FORCE_INLINE explicit Map(const std::map<K, V, Compare>& other): Map(other.key_comp()) {
+					for (const auto& entry : other)
+						insert(value_type(entry.first, entry.second));
+				}
 
 				/**
 				 * @brief Move elements from a caller-owned STL map and leave it empty.
@@ -225,6 +375,25 @@ namespace StormByte {
 						insert(value_type(std::move(entry.first), std::move(entry.second)));
 					other.clear();
 				}
+
+				/**
+				 * @brief Copy the entries of @p range.
+				 * @tparam R Input range of @ref value_type.
+				 * @param range Source. Instantiated in the caller.
+				 * @throws AllocationError A node could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
+				STORMBYTE_FORCE_INLINE explicit Map(std::from_range_t, R&& range): Map() {
+					insert_range(std::forward<R>(range));
+				}
+
+				/**
+				 * @brief Insert every entry of an initializer list.
+				 * @param values Entries.
+				 * @throws AllocationError A node could not be allocated.
+				 */
+				Map(std::initializer_list<value_type> values);
 
 				/**
 				 * @brief Destroy every node through Base.
@@ -252,7 +421,11 @@ namespace StormByte {
 				 * @return This map.
 				 * @throws AllocationError A node could not be allocated.
 				 */
-				Map& operator=(const std::map<K, V, Compare>& other);
+				STORMBYTE_FORCE_INLINE Map& operator=(const std::map<K, V, Compare>& other) {
+					Map replacement(other);
+					swap(replacement);
+					return *this;
+				}
 
 				/**
 				 * @brief Move-assign elements from a caller-owned STL map and leave it empty.
@@ -267,10 +440,24 @@ namespace StormByte {
 				}
 
 				/**
+				 * @brief Replace the contents with an initializer list.
+				 * @param values Entries.
+				 * @return This map.
+				 * @throws AllocationError A node could not be allocated.
+				 */
+				Map& operator=(std::initializer_list<value_type> values);
+
+				/**
 				 * @brief Return the key ordering.
 				 * @return Comparator.
 				 */
 				key_compare key_comp() const { return m_compare; }
+
+				/**
+				 * @brief Return an entry comparator that uses the key ordering.
+				 * @return Entry comparator.
+				 */
+				value_compare value_comp() const { return value_compare(m_compare); }
 
 				/**
 				 * @brief Return a mutable iterator to the first entry.
@@ -309,6 +496,42 @@ namespace StormByte {
 				const_iterator cend() const noexcept;
 
 				/**
+				 * @brief Return a reverse iterator to the last entry.
+				 * @return Reverse iterator.
+				 */
+				reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+
+				/**
+				 * @brief Return the reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+
+				/**
+				 * @brief Return a read-only reverse iterator to the last entry.
+				 * @return Reverse iterator.
+				 */
+				const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+
+				/**
+				 * @brief Return the read-only reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+
+				/**
+				 * @brief Return a read-only reverse iterator to the last entry.
+				 * @return Reverse iterator.
+				 */
+				const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+
+				/**
+				 * @brief Return the read-only reverse end iterator.
+				 * @return Reverse end iterator.
+				 */
+				const_reverse_iterator crend() const noexcept { return rend(); }
+
+				/**
 				 * @brief Test whether the map has no entries.
 				 * @return Whether the map is empty.
 				 */
@@ -319,6 +542,12 @@ namespace StormByte {
 				 * @return Entry count.
 				 */
 				size_type size() const noexcept { return m_size; }
+
+				/**
+				 * @brief Return the largest representable entry count.
+				 * @return Maximum size.
+				 */
+				size_type max_size() const noexcept { return std::numeric_limits<size_type>::max() / sizeof(Node); }
 
 				/**
 				 * @brief Destroy every node.
@@ -348,6 +577,24 @@ namespace StormByte {
 				insert_result insert(value_type&& entry);
 
 				/**
+				 * @brief Insert a copy of an entry, using @p hint when the neighbouring keys confirm it.
+				 * @param hint Suggested position.
+				 * @param entry Entry to insert.
+				 * @return Iterator to the entry.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				iterator insert(const_iterator hint, const value_type& entry);
+
+				/**
+				 * @brief Insert a moved entry, using @p hint when the neighbouring keys confirm it.
+				 * @param hint Suggested position.
+				 * @param entry Entry to insert.
+				 * @return Iterator to the entry.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				iterator insert(const_iterator hint, value_type&& entry);
+
+				/**
 				 * @brief Insert an entry constructed from a compatible value.
 				 * @tparam P Source type. @ref value_type must be constructible from it.
 				 * @param entry Source entry.
@@ -357,6 +604,39 @@ namespace StormByte {
 				template<class P>
 				requires Type::ConstructibleFrom<value_type, P> && (!Type::SameAs<std::remove_cvref_t<P>, value_type>)
 				insert_result insert(P&& entry);
+
+				/**
+				 * @brief Insert every entry in `[first, last)`.
+				 * @tparam InputIt Input iterator of entries.
+				 * @param first Start.
+				 * @param last End.
+				 * @throws AllocationError A node could not be allocated.
+				 */
+				template<class InputIt>
+				STORMBYTE_FORCE_INLINE void insert(InputIt first, InputIt last) {
+					for (; first != last; ++first)
+						insert(value_type(*first));
+				}
+
+				/**
+				 * @brief Insert every entry of an initializer list.
+				 * @param values Entries.
+				 * @throws AllocationError A node could not be allocated.
+				 */
+				void insert(std::initializer_list<value_type> values);
+
+				/**
+				 * @brief Insert a copy of @p range.
+				 * @tparam R Input range of entries.
+				 * @param range Source. Instantiated in the caller.
+				 * @throws AllocationError A node could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				requires std::convertible_to<std::ranges::range_reference_t<R>, value_type>
+				STORMBYTE_FORCE_INLINE void insert_range(R&& range) {
+					for (auto&& entry : range)
+						insert(value_type(std::forward<decltype(entry)>(entry)));
+				}
 
 				/**
 				 * @brief Construct an entry in a new node if the key is absent.
@@ -370,6 +650,41 @@ namespace StormByte {
 				insert_result try_emplace(const K& key, Args&&... args);
 
 				/**
+				 * @brief Construct an entry in a new node if the key is absent.
+				 * @tparam Args Mapped constructor argument types.
+				 * @param key Lookup key, moved when inserted.
+				 * @param args Arguments forwarded to V.
+				 * @return Iterator to the entry and whether it was inserted.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				template<class... Args>
+				insert_result try_emplace(K&& key, Args&&... args);
+
+				/**
+				 * @brief Construct an entry if the key is absent, using @p hint when the neighbouring keys confirm it.
+				 * @tparam Args Mapped constructor argument types.
+				 * @param hint Suggested position.
+				 * @param key Lookup key.
+				 * @param args Arguments forwarded to V.
+				 * @return Iterator to the entry.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				template<class... Args>
+				iterator try_emplace(const_iterator hint, const K& key, Args&&... args);
+
+				/**
+				 * @brief Construct an entry if the key is absent, using @p hint when the neighbouring keys confirm it.
+				 * @tparam Args Mapped constructor argument types.
+				 * @param hint Suggested position.
+				 * @param key Lookup key, moved when inserted.
+				 * @param args Arguments forwarded to V.
+				 * @return Iterator to the entry.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				template<class... Args>
+				iterator try_emplace(const_iterator hint, K&& key, Args&&... args);
+
+				/**
 				 * @brief Construct an entry from arguments forwarded to @ref value_type.
 				 * @tparam Args Entry constructor argument types.
 				 * @param args Arguments forwarded to @ref value_type.
@@ -380,6 +695,17 @@ namespace StormByte {
 				insert_result emplace(Args&&... args);
 
 				/**
+				 * @brief Construct an entry from arguments, using @p hint when the neighbouring keys confirm it.
+				 * @tparam Args Entry constructor argument types.
+				 * @param hint Suggested position.
+				 * @param args Arguments forwarded to @ref value_type.
+				 * @return Iterator to the entry.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				template<class... Args>
+				iterator emplace_hint(const_iterator hint, Args&&... args);
+
+				/**
 				 * @brief Insert or replace the mapped value.
 				 * @param key Lookup key.
 				 * @param value Replacement value.
@@ -387,6 +713,110 @@ namespace StormByte {
 				 * @throws AllocationError The node could not be allocated.
 				 */
 				insert_result insert_or_assign(const K& key, const V& value);
+
+				/**
+				 * @brief Insert or replace the mapped value.
+				 * @param key Lookup key.
+				 * @param value Replacement value, moved when assigned.
+				 * @return Iterator to the entry and whether it was inserted.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				insert_result insert_or_assign(const K& key, V&& value);
+
+				/**
+				 * @brief Insert or replace the mapped value.
+				 * @param key Lookup key, moved when inserted.
+				 * @param value Replacement value.
+				 * @return Iterator to the entry and whether it was inserted.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				insert_result insert_or_assign(K&& key, const V& value);
+
+				/**
+				 * @brief Insert or replace the mapped value.
+				 * @param key Lookup key, moved when inserted.
+				 * @param value Replacement value, moved when assigned.
+				 * @return Iterator to the entry and whether it was inserted.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				insert_result insert_or_assign(K&& key, V&& value);
+
+				/**
+				 * @brief Insert or replace the mapped value, using @p hint when the neighbouring keys confirm it.
+				 * @param hint Suggested position.
+				 * @param key Lookup key.
+				 * @param value Replacement value.
+				 * @return Iterator to the entry.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				iterator insert_or_assign(const_iterator hint, const K& key, const V& value);
+
+				/**
+				 * @brief Insert or replace the mapped value, using @p hint when the neighbouring keys confirm it.
+				 * @param hint Suggested position.
+				 * @param key Lookup key.
+				 * @param value Replacement value, moved when assigned.
+				 * @return Iterator to the entry.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				iterator insert_or_assign(const_iterator hint, const K& key, V&& value);
+
+				/**
+				 * @brief Insert or replace the mapped value, using @p hint when the neighbouring keys confirm it.
+				 * @param hint Suggested position.
+				 * @param key Lookup key, moved when inserted.
+				 * @param value Replacement value.
+				 * @return Iterator to the entry.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				iterator insert_or_assign(const_iterator hint, K&& key, const V& value);
+
+				/**
+				 * @brief Insert or replace the mapped value, using @p hint when the neighbouring keys confirm it.
+				 * @param hint Suggested position.
+				 * @param key Lookup key, moved when inserted.
+				 * @param value Replacement value, moved when assigned.
+				 * @return Iterator to the entry.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				iterator insert_or_assign(const_iterator hint, K&& key, V&& value);
+
+				/**
+				 * @brief Insert an extracted node if its key is absent. The same node is linked.
+				 * @param handle Node. Emptied when inserted.
+				 * @return Position, whether it was inserted, and the rejected node.
+				 */
+				insert_return_type insert(node_type&& handle);
+
+				/**
+				 * @brief Insert an extracted node, using @p hint when the neighbouring keys confirm it.
+				 * @param hint Suggested position.
+				 * @param handle Node. Emptied when inserted.
+				 * @return Iterator to the entry, or end when @p handle was empty.
+				 */
+				iterator insert(const_iterator hint, node_type&& handle);
+
+				/**
+				 * @brief Unlink the entry at @p position and return that node.
+				 * @param position Entry to extract.
+				 * @return Owning handle. Empty when @p position is end.
+				 */
+				node_type extract(const_iterator position);
+
+				/**
+				 * @brief Unlink the entry with @p key and return that node.
+				 * @param key Lookup key.
+				 * @return Owning handle. Empty when the key is absent.
+				 */
+				node_type extract(const K& key);
+
+				/**
+				 * @brief Move unique keys from @p source into this map. The node is transferred, not copied.
+				 * @tparam OtherCompare Source ordering.
+				 * @param source Map to drain. Entries whose key is already present stay in @p source.
+				 */
+				template<class OtherCompare>
+				void merge(Map<K, V, OtherCompare>& source);
 
 				/**
 				 * @brief Erase the entry at an iterator.
@@ -496,6 +926,14 @@ namespace StormByte {
 				V& operator[](const K& key);
 
 				/**
+				 * @brief Return the mapped value, inserting a value-initialized one if absent.
+				 * @param key Lookup key, moved when inserted.
+				 * @return Mapped value. Valid until the entry is erased.
+				 * @throws AllocationError The node could not be allocated.
+				 */
+				V& operator[](K&& key);
+
+				/**
 				 * @brief Return the mapped value.
 				 * @param key Lookup key.
 				 * @return Mapped value. Valid until the entry is erased.
@@ -519,6 +957,41 @@ namespace StormByte {
 				bool operator==(const Map& other) const requires Type::EqualityComparable<K> && Type::EqualityComparable<V>;
 
 				/**
+				 * @brief Order maps lexicographically by key, then mapped value.
+				 * @param other Map to compare.
+				 * @return Ordering.
+				 */
+				std::strong_ordering operator<=>(const Map& other) const requires std::three_way_comparable<K> && std::three_way_comparable<V>;
+
+				/**
+				 * @brief Order maps lexicographically.
+				 * @param other Map to compare.
+				 * @return Whether this map precedes @p other.
+				 */
+				bool operator<(const Map& other) const requires requires(const K& a, const K& b, const V& c, const V& d) { a < b; c < d; };
+
+				/**
+				 * @brief Order maps lexicographically.
+				 * @param other Map to compare.
+				 * @return Whether this map precedes or equals @p other.
+				 */
+				bool operator<=(const Map& other) const requires requires(const K& a, const K& b, const V& c, const V& d) { a < b; c < d; };
+
+				/**
+				 * @brief Order maps lexicographically.
+				 * @param other Map to compare.
+				 * @return Whether this map follows @p other.
+				 */
+				bool operator>(const Map& other) const requires requires(const K& a, const K& b, const V& c, const V& d) { a < b; c < d; };
+
+				/**
+				 * @brief Order maps lexicographically.
+				 * @param other Map to compare.
+				 * @return Whether this map follows or equals @p other.
+				 */
+				bool operator>=(const Map& other) const requires requires(const K& a, const K& b, const V& c, const V& d) { a < b; c < d; };
+
+				/**
 				 * @brief Copy the entries into caller-owned STL storage.
 				 * @return A `std::map` owned by the caller.
 				 */
@@ -540,6 +1013,14 @@ namespace StormByte {
 					Node* Right; ///< Right child, or null.
 					bool Red; ///< Whether the node is red.
 				};
+
+				/**
+				 * @brief Test whether @p hint is the insertion point of @p key.
+				 * @param hint Suggested position.
+				 * @param key Lookup key.
+				 * @return Whether the neighbouring keys confirm @p hint.
+				 */
+				bool HintMatches(const_iterator hint, const K& key) const noexcept;
 
 				/**
 				 * @brief Allocate the header sentinel.
@@ -599,8 +1080,14 @@ namespace StormByte {
 				void InsertNode(Node* node, Node* parent, bool left) noexcept;
 
 				/**
-				 * @brief Unlink a node and rebalance.
-				 * @param node Node to erase.
+				 * @brief Unlink a node and rebalance. The node is not destroyed.
+				 * @param node Node to unlink.
+				 */
+				void Unlink(Node* node) noexcept;
+
+				/**
+				 * @brief Unlink a node and rebalance. The node is not destroyed.
+				 * @param node Node to unlink.
 				 */
 				void EraseNode(Node* node) noexcept;
 
@@ -625,14 +1112,27 @@ namespace StormByte {
 				/**
 				 * @brief Format the missing-key error.
 				 * @param key Absent key.
-				 * @return Error message.
+				 * @return Error message. Owned by Base.
 				 */
-				static std::string AbsentKey(const K& key);
+				static String AbsentKey(const K& key);
 
 				key_compare m_compare; ///< Key ordering.
 				Node* m_header; ///< Sentinel. Its parent is the root.
 				size_type m_size; ///< Entry count.
 		};
+
+		/**
+		 * @brief Exchange two maps. Does not allocate.
+		 * @tparam K Safe key.
+		 * @tparam V Safe mapped type.
+		 * @tparam Compare Key ordering.
+		 * @param left First map.
+		 * @param right Second map.
+		 */
+		template<Type::SafeValue K, Type::SafeValue V, class Compare>
+		inline void swap(Map<K, V, Compare>& left, Map<K, V, Compare>& right) noexcept {
+			left.swap(right);
+		}
 	}
 
 	/**

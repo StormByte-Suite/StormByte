@@ -43,8 +43,10 @@
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
 
+#include <compare>
 #include <cstddef>
 #include <queue>
+#include <ranges>
 #include <utility>
 
 /**
@@ -74,6 +76,7 @@ namespace StormByte {
 		class STORMBYTE_PUBLIC_TYPE Queue final {
 			public:
 				using value_type = T; ///< Element type.
+				using container_type = Vector<T>; ///< Underlying Base-owned sequence.
 				using size_type = std::size_t; ///< Element count type.
 				using difference_type = std::ptrdiff_t; ///< Iterator distance type.
 				using reference = T&; ///< Mutable element reference.
@@ -109,6 +112,31 @@ namespace StormByte {
 						push(std::move(values.front()));
 						values.pop();
 					}
+				}
+
+				/**
+				 * @brief Copy the underlying sequence.
+				 * @param values Source. Unchanged.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				explicit Queue(const container_type& values);
+
+				/**
+				 * @brief Take the underlying sequence. @p values is left empty.
+				 * @param values Source.
+				 */
+				explicit Queue(container_type&& values) noexcept;
+
+				/**
+				 * @brief Copy the elements of @p range, in order.
+				 * @tparam R Input range of @ref value_type.
+				 * @param range Source. Instantiated in the caller.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+				STORMBYTE_FORCE_INLINE explicit Queue(std::from_range_t, R&& range): Queue() {
+					push_range(std::forward<R>(range));
 				}
 
 				/**
@@ -259,6 +287,19 @@ namespace StormByte {
 				void push(T&& value);
 
 				/**
+				 * @brief Append a copy of @p range, in order.
+				 * @tparam R Input range of @ref value_type.
+				 * @param range Source. Instantiated in the caller.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				template<std::ranges::input_range R>
+				requires std::convertible_to<std::ranges::range_reference_t<R>, T>
+				STORMBYTE_FORCE_INLINE void push_range(R&& range) {
+					for (auto&& value : range)
+						push(T(std::forward<decltype(value)>(value)));
+				}
+
+				/**
 				 * @brief Construct an element at the back.
 				 * @tparam Args Constructor argument types.
 				 * @param args Arguments forwarded to T.
@@ -305,6 +346,13 @@ namespace StormByte {
 				/**
 				 * @brief Order queues lexicographically.
 				 * @param other Queue to compare.
+				 * @return Ordering.
+				 */
+				std::strong_ordering operator<=>(const Queue& other) const requires std::three_way_comparable<T>;
+
+				/**
+				 * @brief Order queues lexicographically.
+				 * @param other Queue to compare.
 				 * @return Whether this queue precedes @p other.
 				 */
 				bool operator<(const Queue& other) const requires requires(const T& left, const T& right) { left < right; };
@@ -344,6 +392,17 @@ namespace StormByte {
 			private:
 				Vector<T> m_values; ///< FIFO storage. Front is the first element.
 		};
+
+		/**
+		 * @brief Exchange two queues. Does not allocate.
+		 * @tparam T Safe value.
+		 * @param left First queue.
+		 * @param right Second queue.
+		 */
+		template<Type::SafeValue T>
+		inline void swap(Queue<T>& left, Queue<T>& right) noexcept {
+			left.swap(right);
+		}
 	}
 
 	/**
