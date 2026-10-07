@@ -42,26 +42,31 @@
 #include <StormByte/expected.hxx>
 #include <StormByte/helpers.hxx>
 #include <StormByte/safe/binary.hxx>
+#include <StormByte/safe/list.hxx>
 #include <StormByte/safe/map.hxx>
 #include <StormByte/safe/optional.hxx>
 #include <StormByte/safe/pair.hxx>
 #include <StormByte/safe/queue.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/unordered_map.hxx>
 #include <StormByte/safe/vector.hxx>
 #include <StormByte/safe/wstring.hxx>
 #include <StormByte/serializable.hxx>
+#include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
 #include <StormByte/type_traits.hxx>
 
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <list>
 #include <map>
 #include <optional>
 #include <queue>
 #include <random>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -134,6 +139,10 @@ namespace {
 			std::byte{255},
 			std::byte{128}
 		};
+	}
+
+	Safe::Binary CountOnly(std::uint64_t count) {
+		return Serializable<std::uint64_t>(count).Serialize();
 	}
 
 	template<typename T>
@@ -256,8 +265,11 @@ int test_queue_roundtrip() {
 	const auto buffer = Serializable<std::queue<int>>(original).Serialize();
 	const auto decoded = Serializable<std::queue<int>>::Deserialize(buffer);
 	ASSERT_TRUE(static_cast<bool>(decoded));
-	ASSERT_EQUAL(std::size_t{2}, decoded.value().size());
-	ASSERT_EQUAL(4, decoded.value().front());
+	auto got = decoded.value();
+	ASSERT_EQUAL(std::size_t{2}, got.size());
+	ASSERT_EQUAL(4, got.front());
+	got.pop();
+	ASSERT_EQUAL(5, got.front());
 	RETURN_TEST(0);
 }
 
@@ -309,6 +321,17 @@ int test_corruption_empty_buffer() {
 	ASSERT_FALSE(static_cast<bool>(Serializable<std::vector<std::string>>::Deserialize(Safe::Binary{})));
 	ASSERT_FALSE(static_cast<bool>(Serializable<std::pair<int, double>>::Deserialize(Safe::Binary{})));
 	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Binary>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::String>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::WString>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::List<int>>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Vector<int>>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Map<Safe::String, int>>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::UnorderedMap<Safe::String, int>>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Queue<int>>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Optional<int>>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Pair<int, int>>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Size>::Deserialize(Safe::Binary{})));
+	ASSERT_FALSE(static_cast<bool>(Serializable<ByteSize>::Deserialize(Safe::Binary{})));
 	RETURN_TEST(0);
 }
 
@@ -317,10 +340,16 @@ int test_corruption_huge_container_and_string() {
 	const std::uint64_t huge = static_cast<std::uint64_t>(-1);
 	std::memcpy(vector_buf.data(), &huge, sizeof(huge));
 	ASSERT_FALSE(static_cast<bool>(Serializable<std::vector<std::string>>::Deserialize(vector_buf)));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Vector<Safe::String>>::Deserialize(vector_buf)));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::List<Safe::String>>::Deserialize(vector_buf)));
 	auto string_buf = MakeStringBuffer();
 	std::memcpy(string_buf.data(), &huge, sizeof(huge));
 	ASSERT_FALSE(static_cast<bool>(Serializable<std::string>::Deserialize(string_buf)));
 	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::String>::Deserialize(string_buf)));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::WString>::Deserialize(string_buf)));
+	const auto claimed = CountOnly(huge);
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Map<Safe::String, int>>::Deserialize(claimed)));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::UnorderedMap<Safe::String, int>>::Deserialize(claimed)));
 	RETURN_TEST(0);
 }
 
@@ -331,6 +360,8 @@ int test_corruption_no_crash_text() {
 			auto buf = clean;
 			FlipBit(buf, i, bit);
 			(void)Serializable<std::vector<std::string>>::Deserialize(buf);
+			(void)Serializable<Safe::Vector<Safe::String>>::Deserialize(buf);
+			(void)Serializable<Safe::List<Safe::String>>::Deserialize(buf);
 		}
 	}
 	const auto text = MakeStringBuffer();
@@ -339,6 +370,7 @@ int test_corruption_no_crash_text() {
 			auto buf = text;
 			CorruptByte(buf, i, static_cast<std::byte>(value));
 			(void)Serializable<std::string>::Deserialize(buf);
+			(void)Serializable<Safe::String>::Deserialize(buf);
 		}
 	}
 	std::mt19937 rng(0xC0FFEE);
@@ -349,6 +381,8 @@ int test_corruption_no_crash_text() {
 		for (int c = 0; c < 1 + (i % 4); ++c)
 			CorruptByte(buf, pos_dist(rng), static_cast<std::byte>(val_dist(rng)));
 		(void)Serializable<std::vector<std::string>>::Deserialize(buf);
+		(void)Serializable<Safe::Map<Safe::String, Safe::String>>::Deserialize(buf);
+		(void)Serializable<Safe::UnorderedMap<Safe::String, Safe::String>>::Deserialize(buf);
 	}
 	auto doubled = clean;
 	for (std::size_t i = 0; i < 4; ++i)
@@ -357,6 +391,7 @@ int test_corruption_no_crash_text() {
 		doubled[ByteSize{ByteCount(doubled) - 1 - i}] = std::byte{0xAA};
 	(void)Serializable<std::vector<std::string>>::Deserialize(doubled);
 	(void)Serializable<std::string>::Deserialize(clean);
+	(void)Serializable<Safe::Queue<Safe::String>>::Deserialize(clean);
 	RETURN_TEST(0);
 }
 
@@ -365,12 +400,30 @@ int test_corruption_truncated() {
 	const auto text = MakeStringBuffer();
 	const auto vector_buf = MakeStringVectorBuffer();
 	const auto tag = Serializable<Tag>(Tag{7, "codec"}).Serialize();
+	const Safe::String owned("StormByte serialization test");
+	const auto safe_text = Serializable<Safe::String>(owned).Serialize();
+	const Safe::List<int> numbers{1, 2, 3};
+	const auto list_buf = Serializable<Safe::List<int>>(numbers).Serialize();
+	Safe::Queue<int> fifo;
+	fifo.push(9);
+	fifo.push(8);
+	const auto queue_buf = Serializable<Safe::Queue<int>>(fifo).Serialize();
+	const Safe::Optional<int> present(7);
+	const auto optional_buf = Serializable<Safe::Optional<int>>(present).Serialize();
 	for (std::size_t len = 0; len < ByteCount(binary); ++len)
 		ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Binary>::Deserialize(Truncate(binary, len))));
 	for (std::size_t len = 0; len < ByteCount(text); ++len)
 		ASSERT_FALSE(static_cast<bool>(Serializable<std::string>::Deserialize(Truncate(text, len))));
+	for (std::size_t len = 0; len < ByteCount(safe_text); ++len)
+		ASSERT_FALSE(static_cast<bool>(Serializable<Safe::String>::Deserialize(Truncate(safe_text, len))));
 	for (std::size_t len = 0; len < ByteCount(vector_buf); ++len)
 		ASSERT_FALSE(static_cast<bool>(Serializable<std::vector<std::string>>::Deserialize(Truncate(vector_buf, len))));
+	for (std::size_t len = 0; len < ByteCount(list_buf); ++len)
+		ASSERT_FALSE(static_cast<bool>(Serializable<Safe::List<int>>::Deserialize(Truncate(list_buf, len))));
+	for (std::size_t len = 0; len < ByteCount(queue_buf); ++len)
+		ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Queue<int>>::Deserialize(Truncate(queue_buf, len))));
+	for (std::size_t len = 0; len < ByteCount(optional_buf); ++len)
+		ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Optional<int>>::Deserialize(Truncate(optional_buf, len))));
 	for (std::size_t len = 0; len < ByteCount(tag); ++len)
 		ASSERT_FALSE(static_cast<bool>(Serializable<Tag>::Deserialize(Truncate(tag, len))));
 	RETURN_TEST(0);
@@ -393,6 +446,7 @@ int test_optional_empty_and_filled() {
 int test_optional_invalid_flag() {
 	Safe::Binary buffer(ByteSize{1}, std::byte{2});
 	ASSERT_FALSE(static_cast<bool>(Serializable<std::optional<int>>::Deserialize(buffer)));
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Optional<int>>::Deserialize(buffer)));
 	RETURN_TEST(0);
 }
 
@@ -408,14 +462,46 @@ int test_pair_roundtrip() {
 // Safe
 // -------------------
 
+int test_safe_bytesize_roundtrip() {
+	ASSERT_EQUAL(0, RoundTrip(ByteSize{0}));
+	ASSERT_EQUAL(0, RoundTrip(ByteSize{1024}));
+	ASSERT_EQUAL(0, RoundTrip(4 * MiB));
+	const auto buffer = Serializable<ByteSize>(ByteSize{1}).Serialize();
+	ASSERT_EQUAL(Serializable<std::uint64_t>(std::uint64_t{1}).Serialize(), buffer);
+	RETURN_TEST(0);
+}
+
+int test_safe_list_matches_vector_wire() {
+	const Safe::List<int> owned{1, 6, 7};
+	const std::vector<int> standard{1, 6, 7};
+	ASSERT_EQUAL(Serializable<std::vector<int>>(standard).Serialize(), Serializable<Safe::List<int>>(owned).Serialize());
+	const auto decoded = Serializable<Safe::List<int>>::Deserialize(Serializable<Safe::List<int>>(owned).Serialize());
+	ASSERT_TRUE(static_cast<bool>(decoded));
+	ASSERT_EQUAL(Size{3}, decoded.value().size());
+	ASSERT_EQUAL(1, decoded.value().front());
+	ASSERT_EQUAL(7, decoded.value().back());
+	RETURN_TEST(0);
+}
+
+int test_safe_list_roundtrip() {
+	ASSERT_EQUAL(0, RoundTrip(Safe::List<int>{}));
+	return RoundTrip(Safe::List<Safe::String>{Safe::String("one"), Safe::String("two")});
+}
+
+int test_safe_map_empty() {
+	return RoundTrip(Safe::Map<Safe::String, int>{});
+}
+
 int test_safe_map_roundtrip() {
 	Safe::Map<Safe::String, Safe::String> original;
 	original.insert_or_assign(Safe::String("key"), Safe::String("value"));
+	original.insert_or_assign(Safe::String("other"), Safe::String("row"));
 	const auto buffer = Serializable<Safe::Map<Safe::String, Safe::String>>(original).Serialize();
 	const auto decoded = Serializable<Safe::Map<Safe::String, Safe::String>>::Deserialize(buffer);
 	ASSERT_TRUE(static_cast<bool>(decoded));
-	ASSERT_EQUAL(Size{1}, decoded.value().size());
+	ASSERT_EQUAL(Size{2}, decoded.value().size());
 	ASSERT_EQUAL(std::string_view{"value"}, std::string_view{decoded.value().at(Safe::String("key"))});
+	ASSERT_EQUAL(std::string_view{"row"}, std::string_view{decoded.value().at(Safe::String("other"))});
 	RETURN_TEST(0);
 }
 
@@ -445,18 +531,42 @@ int test_safe_pair_roundtrip() {
 	const auto decoded = Serializable<Pair>::Deserialize(buffer);
 	ASSERT_TRUE(static_cast<bool>(decoded));
 	ASSERT_EQUAL(original, decoded.value());
+	const auto standard = Serializable<std::pair<Safe::String, Safe::String>>(std::pair<Safe::String, Safe::String>(original.first, original.second)).Serialize();
+	ASSERT_EQUAL(standard, buffer);
 	RETURN_TEST(0);
 }
 
-int test_safe_queue_roundtrip() {
+int test_safe_queue_fifo_and_wire() {
 	Safe::Queue<int> original;
 	original.push(9);
 	original.push(8);
+	std::queue<int> standard;
+	standard.push(9);
+	standard.push(8);
 	const auto buffer = Serializable<Safe::Queue<int>>(original).Serialize();
+	ASSERT_EQUAL(Serializable<std::queue<int>>(standard).Serialize(), buffer);
 	const auto decoded = Serializable<Safe::Queue<int>>::Deserialize(buffer);
 	ASSERT_TRUE(static_cast<bool>(decoded));
-	ASSERT_EQUAL(Size{2}, decoded.value().size());
-	ASSERT_EQUAL(9, decoded.value().front());
+	auto got = decoded.value();
+	ASSERT_EQUAL(Size{2}, got.size());
+	ASSERT_EQUAL(9, got.front());
+	got.pop();
+	ASSERT_EQUAL(8, got.front());
+	RETURN_TEST(0);
+}
+
+int test_safe_queue_rejects_huge_count() {
+	const auto claimed = CountOnly(static_cast<std::uint64_t>(1'048'576) + 1);
+	ASSERT_FALSE(static_cast<bool>(Serializable<Safe::Queue<int>>::Deserialize(claimed)));
+	ASSERT_FALSE(static_cast<bool>(Serializable<std::queue<int>>::Deserialize(claimed)));
+	RETURN_TEST(0);
+}
+
+int test_safe_size_roundtrip() {
+	ASSERT_EQUAL(0, RoundTrip(Size{0}));
+	ASSERT_EQUAL(0, RoundTrip(Size{42}));
+	const auto buffer = Serializable<Size>(Size{7}).Serialize();
+	ASSERT_EQUAL(Serializable<std::uint64_t>(std::uint64_t{7}).Serialize(), buffer);
 	RETURN_TEST(0);
 }
 
@@ -468,7 +578,49 @@ int test_safe_string_embedded_nul() {
 	ASSERT_TRUE(static_cast<bool>(decoded));
 	ASSERT_EQUAL(Size{3}, decoded.value().size());
 	ASSERT_EQUAL('\0', decoded.value()[Size{1}]);
+	ASSERT_EQUAL(Serializable<std::string>(std::string(raw, 3)).Serialize(), buffer);
 	RETURN_TEST(0);
+}
+
+int test_safe_string_null_and_empty() {
+	const Safe::String null;
+	const Safe::String empty("");
+	const auto null_buffer = Serializable<Safe::String>(null).Serialize();
+	const auto empty_buffer = Serializable<Safe::String>(empty).Serialize();
+	ASSERT_EQUAL(empty_buffer, null_buffer);
+	ASSERT_EQUAL(Serializable<std::string>(std::string{}).Serialize(), null_buffer);
+	const auto decoded = Serializable<Safe::String>::Deserialize(null_buffer);
+	ASSERT_TRUE(static_cast<bool>(decoded));
+	ASSERT_FALSE(static_cast<bool>(decoded.value()));
+	ASSERT_TRUE(decoded.value().empty());
+	ASSERT_EQUAL(Size{0}, decoded.value().size());
+	RETURN_TEST(0);
+}
+
+int test_safe_unordered_map_roundtrip() {
+	Safe::UnorderedMap<Safe::String, int> original;
+	original.insert_or_assign(Safe::String("a"), 1);
+	original.insert_or_assign(Safe::String("b"), 2);
+	const auto buffer = Serializable<Safe::UnorderedMap<Safe::String, int>>(original).Serialize();
+	const auto decoded = Serializable<Safe::UnorderedMap<Safe::String, int>>::Deserialize(buffer);
+	ASSERT_TRUE(static_cast<bool>(decoded));
+	ASSERT_EQUAL(Size{2}, decoded.value().size());
+	ASSERT_EQUAL(1, decoded.value().at(Safe::String("a")));
+	ASSERT_EQUAL(2, decoded.value().at(Safe::String("b")));
+	const auto again = Serializable<Safe::UnorderedMap<Safe::String, int>>(decoded.value()).Serialize();
+	const auto reread = Serializable<Safe::UnorderedMap<Safe::String, int>>::Deserialize(again);
+	ASSERT_TRUE(static_cast<bool>(reread));
+	ASSERT_EQUAL(1, reread.value().at(Safe::String("a")));
+	ASSERT_EQUAL(2, reread.value().at(Safe::String("b")));
+	const Safe::UnorderedMap<Safe::String, int> empty;
+	const auto empty_decoded = Serializable<Safe::UnorderedMap<Safe::String, int>>::Deserialize(Serializable<Safe::UnorderedMap<Safe::String, int>>(empty).Serialize());
+	ASSERT_TRUE(static_cast<bool>(empty_decoded));
+	ASSERT_EQUAL(Size{0}, empty_decoded.value().size());
+	RETURN_TEST(0);
+}
+
+int test_safe_vector_empty() {
+	return RoundTrip(Safe::Vector<int>{});
 }
 
 int test_safe_vector_roundtrip() {
@@ -476,11 +628,25 @@ int test_safe_vector_roundtrip() {
 	original.push_back(Safe::String("one"));
 	original.push_back(Safe::String("two"));
 	const auto buffer = Serializable<Safe::Vector<Safe::String>>(original).Serialize();
+	const std::vector<Safe::String> standard{Safe::String("one"), Safe::String("two")};
+	ASSERT_EQUAL(Serializable<std::vector<Safe::String>>(standard).Serialize(), buffer);
 	const auto decoded = Serializable<Safe::Vector<Safe::String>>::Deserialize(buffer);
 	ASSERT_TRUE(static_cast<bool>(decoded));
 	ASSERT_EQUAL(Size{2}, decoded.value().size());
 	ASSERT_EQUAL(std::string_view{"one"}, std::string_view{decoded.value()[Size{0}]});
 	ASSERT_EQUAL(std::string_view{"two"}, std::string_view{decoded.value()[Size{1}]});
+	RETURN_TEST(0);
+}
+
+int test_safe_wstring_embedded_nul() {
+	const wchar_t raw[] = {L'A', L'\0', L'B'};
+	const Safe::WString original(std::wstring_view{raw, 3});
+	const auto buffer = Serializable<Safe::WString>(original).Serialize();
+	const auto decoded = Serializable<Safe::WString>::Deserialize(buffer);
+	ASSERT_TRUE(static_cast<bool>(decoded));
+	ASSERT_EQUAL(Size{3}, decoded.value().size());
+	ASSERT_EQUAL(L'\0', decoded.value()[Size{1}]);
+	ASSERT_EQUAL(Serializable<std::wstring>(std::wstring(raw, 3)).Serialize(), buffer);
 	RETURN_TEST(0);
 }
 
@@ -490,6 +656,14 @@ int test_safe_wstring_roundtrip() {
 	const auto decoded = Serializable<Safe::WString>::Deserialize(buffer);
 	ASSERT_TRUE(static_cast<bool>(decoded));
 	ASSERT_TRUE(decoded.value() == L"ancho");
+	const Safe::WString empty(L"");
+	const auto empty_buffer = Serializable<Safe::WString>(empty).Serialize();
+	ASSERT_EQUAL(Serializable<Safe::WString>(Safe::WString{}).Serialize(), empty_buffer);
+	const auto empty_decoded = Serializable<Safe::WString>::Deserialize(empty_buffer);
+	ASSERT_TRUE(static_cast<bool>(empty_decoded));
+	ASSERT_FALSE(static_cast<bool>(empty_decoded.value()));
+	ASSERT_TRUE(empty_decoded.value().empty());
+	ASSERT_EQUAL(Size{0}, empty_decoded.value().size());
 	RETURN_TEST(0);
 }
 
@@ -582,12 +756,22 @@ int main() {
 	// -------------------
 	// Safe
 	// -------------------
+	result += test_safe_bytesize_roundtrip();
+	result += test_safe_list_matches_vector_wire();
+	result += test_safe_list_roundtrip();
+	result += test_safe_map_empty();
 	result += test_safe_map_roundtrip();
 	result += test_safe_optional_matches_std_wire();
 	result += test_safe_pair_roundtrip();
-	result += test_safe_queue_roundtrip();
+	result += test_safe_queue_fifo_and_wire();
+	result += test_safe_queue_rejects_huge_count();
+	result += test_safe_size_roundtrip();
 	result += test_safe_string_embedded_nul();
+	result += test_safe_string_null_and_empty();
+	result += test_safe_unordered_map_roundtrip();
+	result += test_safe_vector_empty();
 	result += test_safe_vector_roundtrip();
+	result += test_safe_wstring_embedded_nul();
 	result += test_safe_wstring_roundtrip();
 
 	// -------------------
