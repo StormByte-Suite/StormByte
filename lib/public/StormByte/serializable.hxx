@@ -39,16 +39,16 @@
 
 #pragma once
 
-#include <StormByte/binary_data.hxx>
 #include <StormByte/byte_size.hxx>
-#include <StormByte/safe/string.hxx>
 #include <StormByte/exception.hxx>
 #include <StormByte/expected.hxx>
 #include <StormByte/helpers.hxx>
+#include <StormByte/safe/binary.hxx>
 #include <StormByte/safe/queue.hxx>
+#include <StormByte/safe/string.hxx>
+#include <StormByte/safe/wstring.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
-#include <StormByte/safe/wstring.hxx>
 
 #include <array>
 #include <bit>
@@ -95,7 +95,7 @@ namespace StormByte {
 		 * template<>
 		 * struct StormByte::Detail::Codec<MyType> {
 		 *     static ByteSize Size(const MyType& v) noexcept;
-		 *     static BinaryData Write(const MyType& v) noexcept;
+		 *     static Safe::Binary Write(const MyType& v) noexcept;
 		 *     static Expected<MyType, DeserializeError> Read(std::span<const std::byte>) noexcept;
 		 * };
 		 * @endcode
@@ -123,7 +123,7 @@ namespace StormByte {
 			 * @param[in] data Value to encode.
 			 * @return Blob owned by Base. No framing beyond what @p T itself needs.
 			 */
-			static BinaryData Write(const T& data) noexcept {
+			static Safe::Binary Write(const T& data) noexcept {
 				static_assert(codec_always_false_v<T>,
 					"Specialize StormByte::Detail::Codec<T> instead of Serializable<T>");
 				(void)data;
@@ -162,7 +162,7 @@ namespace StormByte {
 			 * @param data Value to encode.
 			 * @return Blob owned by Base.
 			 */
-			static STORMBYTE_PUBLIC BinaryData Write(const std::string& data) noexcept;
+			static STORMBYTE_PUBLIC Safe::Binary Write(const std::string& data) noexcept;
 
 			/**
 			 * @brief Decodes a string from the start of @p data.
@@ -192,7 +192,7 @@ namespace StormByte {
 			 * @param data Value to encode.
 			 * @return Blob owned by Base.
 			 */
-			static STORMBYTE_PUBLIC BinaryData Write(const std::wstring& data) noexcept;
+			static STORMBYTE_PUBLIC Safe::Binary Write(const std::wstring& data) noexcept;
 
 			/**
 			 * @brief Decodes a wide string from the start of @p data.
@@ -221,7 +221,7 @@ namespace StormByte {
 			 * @param data Value to encode.
 			 * @return Blob owned by Base.
 			 */
-			static STORMBYTE_PUBLIC BinaryData Write(const std::u16string& data) noexcept;
+			static STORMBYTE_PUBLIC Safe::Binary Write(const std::u16string& data) noexcept;
 
 			/**
 			 * @brief Decodes a UTF-16 string from the start of @p data.
@@ -250,7 +250,7 @@ namespace StormByte {
 			 * @param data Value to encode.
 			 * @return Blob owned by Base.
 			 */
-			static STORMBYTE_PUBLIC BinaryData Write(const std::u32string& data) noexcept;
+			static STORMBYTE_PUBLIC Safe::Binary Write(const std::u32string& data) noexcept;
 
 			/**
 			 * @brief Decodes a UTF-32 string from the start of @p data.
@@ -282,7 +282,7 @@ namespace StormByte {
 			 * @param data Value to encode.
 			 * @return Blob owned by Base.
 			 */
-			static STORMBYTE_PUBLIC BinaryData Write(const Safe::String& data) noexcept;
+			static STORMBYTE_PUBLIC Safe::Binary Write(const Safe::String& data) noexcept;
 
 			/**
 			 * @brief Decodes a @ref StormByte::Safe::String from the start of @p data.
@@ -314,7 +314,7 @@ namespace StormByte {
 			 * @param data Value to encode.
 			 * @return Blob owned by Base.
 			 */
-			static STORMBYTE_PUBLIC BinaryData Write(const Safe::WString& data) noexcept;
+			static STORMBYTE_PUBLIC Safe::Binary Write(const Safe::WString& data) noexcept;
 
 			/**
 			 * @brief Decodes a @ref StormByte::Safe::WString from the start of @p data.
@@ -338,7 +338,7 @@ namespace StormByte {
 	 * Custom types: specialize @ref StormByte::Detail::Codec, then this class routes
 	 * them through the “complex” path automatically.
 	 *
-	 * The blob is a @ref StormByte::BinaryData. The wire layout is unchanged.
+	 * The blob is a @ref StormByte::Safe::Binary. The wire layout is unchanged.
 	 *
 	 * @note `Type::String` (`string` / `wstring` / `u16string` / `u32string`)
 	 *       is excluded from @ref StormByte::Type::Container so those types hit Codec
@@ -387,7 +387,7 @@ namespace StormByte {
 			 * @brief Encodes the bound value to a little-endian blob.
 			 * @return Blob for this one value, owned by Base. No outer framing.
 			 */
-			BinaryData Serialize() const noexcept;
+			Safe::Binary Serialize() const noexcept;
 
 			/**
 			 * @brief Decodes one @p T from the start of @p data.
@@ -397,11 +397,11 @@ namespace StormByte {
 			static Expected<T, DeserializeError> Deserialize(std::span<const std::byte> data) noexcept;
 
 			/**
-			 * @brief Decodes one @p T from a @ref StormByte::BinaryData.
+			 * @brief Decodes one @p T from a @ref StormByte::Safe::Binary.
 			 * @param[in] data Input blob.
 			 * @return Value, or @ref StormByte::DeserializeError.
 			 */
-			static Expected<T, DeserializeError> Deserialize(const BinaryData& data) noexcept;
+			static Expected<T, DeserializeError> Deserialize(const Safe::Binary& data) noexcept;
 
 			/**
 			 * @brief Serialized size of @p data.
@@ -426,7 +426,7 @@ namespace StormByte {
 			 * @return Blob of `sizeof(T)` bytes owned by Base.
 			 */
 			template<typename U = T>
-			BinaryData SerializeTrivial() const noexcept
+			Safe::Binary SerializeTrivial() const noexcept
 			requires Type::TriviallyCopyable<U>;
 
 			/**
@@ -435,7 +435,7 @@ namespace StormByte {
 			 * @return Blob owned by Base.
 			 */
 			template<typename U = T>
-			BinaryData SerializeContainer() const noexcept
+			Safe::Binary SerializeContainer() const noexcept
 			requires Type::Container<U>;
 
 			/**
@@ -444,7 +444,7 @@ namespace StormByte {
 			 * @return Blob owned by Base.
 			 */
 			template<typename U = T>
-			BinaryData SerializePair() const noexcept
+			Safe::Binary SerializePair() const noexcept
 			requires Type::Pair<U>;
 
 			/**
@@ -456,7 +456,7 @@ namespace StormByte {
 			 * @return Blob owned by Base.
 			 */
 			template<typename U = T>
-			BinaryData SerializeOptional() const noexcept
+			Safe::Binary SerializeOptional() const noexcept
 			requires Type::Optional<U>;
 
 			/**
@@ -465,7 +465,7 @@ namespace StormByte {
 			 * @return Blob owned by Base.
 			 */
 		template<typename U = T>
-		BinaryData SerializeQueue() const noexcept
+		Safe::Binary SerializeQueue() const noexcept
 			requires Type::Queue<U>;
 
 			/**
@@ -599,7 +599,7 @@ namespace StormByte {
 	extern template class STORMBYTE_PUBLIC Serializable<std::u32string>;
 	extern template class STORMBYTE_PUBLIC Serializable<Safe::String>;
 	extern template class STORMBYTE_PUBLIC Serializable<Safe::WString>;
-	extern template class STORMBYTE_PUBLIC Serializable<BinaryData>;
+	extern template class STORMBYTE_PUBLIC Serializable<Safe::Binary>;
 	/// @endcond
 }
 

@@ -39,14 +39,10 @@
 
 #pragma once
 
-#include <StormByte/binary_data.hxx>
-#include <StormByte/type_traits.hxx>
-#include <StormByte/visibility.h>
+#include <StormByte/safe/binary.hxx>
 
 #include <span>
 #include <utility>
-#include <vector>
-#include <version>
 
 /**
  * @namespace StormByte
@@ -54,76 +50,29 @@
  */
 namespace StormByte {
 	/**
-	 * @brief Appends a span of bytes onto a @ref BinaryData.
+	 * @brief Appends a span of bytes onto a @ref Safe::Binary.
 	 * @param dest Destination owned by Base.
 	 * @param src View over the bytes to copy.
 	 */
-	inline void append_bytes(BinaryData& dest, std::span<const std::byte> src) noexcept {
+	inline void append_bytes(Safe::Binary& dest, std::span<const std::byte> src) noexcept {
 		dest.append(src);
 	}
 
 	/**
-	 * @brief Appends a @ref BinaryData by copy.
+	 * @brief Appends a @ref Safe::Binary by copy.
 	 * @param dest Destination owned by Base.
 	 * @param src Source sequence (read-only).
 	 */
-	inline void append_bytes(BinaryData& dest, const BinaryData& src) noexcept {
+	inline void append_bytes(Safe::Binary& dest, const Safe::Binary& src) noexcept {
 		dest.append(src);
 	}
 
 	/**
-	 * @brief Appends a @ref BinaryData by move on Base's heap.
+	 * @brief Appends a @ref Safe::Binary by move on Base's heap.
 	 * @param dest Destination owned by Base.
 	 * @param src Source sequence; emptied after a successful append.
 	 */
-	inline void append_bytes(BinaryData& dest, BinaryData&& src) noexcept {
+	inline void append_bytes(Safe::Binary& dest, Safe::Binary&& src) noexcept {
 		dest.append(std::move(src));
-	}
-
-	/**
-	 * @brief Appends a span of convertible elements onto a vector.
-	 * @tparam T Destination element type.
-	 * @tparam U Source element type (`Type::ConvertibleTo<T, U>`).
-	 * @param dest Vector that receives the elements.
-	 * @param src View over the elements to copy.
-	 * @note Local STL helper. Do not use this for public byte blobs; use @ref append_bytes.
-	 */
-	template<typename T, typename U>
-	void append_vector(std::vector<T>& dest, std::span<U> src) noexcept requires Type::ConvertibleTo<T, U> {
-		dest.reserve(dest.size() + src.size());
-#ifdef __cpp_lib_containers_ranges
-		dest.append_range(src);
-#else
-		dest.insert(dest.end(), src.begin(), src.end());
-#endif
-	}
-
-	/**
-	 * @brief Appends a vector by copy.
-	 * @tparam T Element type.
-	 * @param dest Vector that receives the elements.
-	 * @param src Source vector (read-only).
-	 * @note Local STL helper. Do not use this for public byte blobs; use @ref append_bytes.
-	 */
-	template<typename T>
-	void append_vector(std::vector<T>& dest, const std::vector<T>& src) noexcept {
-		return append_vector(dest, std::span<const T>(src.data(), src.size()));
-	}
-
-	/**
-	 * @brief Appends a vector by move.
-	 * @tparam T Element type.
-	 * @param dest Vector that receives the elements.
-	 * @param src Source vector; elements are moved out.
-	 * @note Local STL helper. Do not use this for public byte blobs; use @ref append_bytes.
-	 */
-	template<typename T>
-	void append_vector(std::vector<T>& dest, std::vector<T>&& src) noexcept {
-		dest.reserve(dest.size() + src.size());
-#ifdef __cpp_lib_containers_ranges
-		dest.append_range(std::move(src));
-#else
-		dest.insert(dest.end(), std::make_move_iterator(src.begin()), std::make_move_iterator(src.end()));
-#endif
 	}
 }

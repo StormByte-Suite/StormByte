@@ -39,7 +39,7 @@
 
 #pragma once
 
-#include <StormByte/binary_data.hxx>
+#include <StormByte/safe/binary.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/visibility.h>
 
@@ -64,14 +64,14 @@ namespace StormByte {
 	 * @return Decoded bytes owned by Base.
 	 * @throws StormByte::Base64Error If a character is outside the alphabet.
 	 */
-	STORMBYTE_PUBLIC BinaryData Base64Decode(std::string_view input);
+	STORMBYTE_PUBLIC Safe::Binary Base64Decode(std::string_view input);
 
 	/**
 	 * @brief Encodes bytes as Base64 with `=` padding.
 	 * @param input Bytes to encode.
 	 * @return Base64 text as a `Safe::String`.
 	 */
-	STORMBYTE_PUBLIC Safe::String Base64Encode(const BinaryData& input);
+	STORMBYTE_PUBLIC Safe::String Base64Encode(const Safe::Binary& input);
 
 	/**
 	 * @brief Encodes a contiguous byte span as Base64 with `=` padding.

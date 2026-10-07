@@ -44,7 +44,7 @@
 
 namespace StormByte {
 	template<typename T>
-	BinaryData Serializable<T>::Serialize() const noexcept {
+	Safe::Binary Serializable<T>::Serialize() const noexcept {
 		if constexpr (Type::Optional<T>) {
 			return SerializeOptional();
 		} else if constexpr (Type::Queue<T>) {
@@ -78,7 +78,7 @@ namespace StormByte {
 	}
 
 	template<typename T>
-	Expected<T, DeserializeError> Serializable<T>::Deserialize(const BinaryData& data) noexcept {
+	Expected<T, DeserializeError> Serializable<T>::Deserialize(const Safe::Binary& data) noexcept {
 		return Deserialize(data.span());
 	}
 
@@ -101,7 +101,7 @@ namespace StormByte {
 
 	template<typename T>
 	template<typename U>
-	BinaryData Serializable<T>::SerializeTrivial() const noexcept
+	Safe::Binary Serializable<T>::SerializeTrivial() const noexcept
 	requires Type::TriviallyCopyable<U> {
 		DecayedT value = m_data;
 
@@ -111,15 +111,15 @@ namespace StormByte {
 		}
 
 		const auto* raw = reinterpret_cast<const std::byte*>(&value);
-		return BinaryData(raw, ByteSize{sizeof(value)});
+		return Safe::Binary(raw, ByteSize{sizeof(value)});
 	}
 
 	template<typename T>
 	template<typename U>
-	BinaryData Serializable<T>::SerializeContainer() const noexcept
+	Safe::Binary Serializable<T>::SerializeContainer() const noexcept
 	requires Type::Container<U> {
 		const std::uint64_t size = static_cast<std::uint64_t>(m_data.size());
-		BinaryData buffer = Serializable<std::uint64_t>(size).Serialize();
+		Safe::Binary buffer = Serializable<std::uint64_t>(size).Serialize();
 		buffer.reserve(ByteSize{static_cast<std::size_t>(buffer.size())} + SizeContainer(m_data));
 		using ElementT = typename DecayedT::value_type;
 		for (const auto& element : m_data) {
@@ -132,11 +132,11 @@ namespace StormByte {
 
 	template<typename T>
 	template<typename U>
-	BinaryData Serializable<T>::SerializePair() const noexcept
+	Safe::Binary Serializable<T>::SerializePair() const noexcept
 	requires Type::Pair<U> {
 		Serializable<std::remove_cvref_t<typename T::first_type>> first_serial(m_data.first);
 		Serializable<std::remove_cvref_t<typename T::second_type>> second_serial(m_data.second);
-		BinaryData buffer;
+		Safe::Binary buffer;
 		buffer.reserve(SizePair(m_data));
 		append_bytes(buffer, first_serial.Serialize());
 		append_bytes(buffer, second_serial.Serialize());
@@ -145,10 +145,10 @@ namespace StormByte {
 
 	template<typename T>
 	template<typename U>
-	BinaryData Serializable<T>::SerializeOptional() const noexcept
+	Safe::Binary Serializable<T>::SerializeOptional() const noexcept
 	requires Type::Optional<U> {
 		const bool has_value = m_data.has_value();
-		BinaryData buffer;
+		Safe::Binary buffer;
 		buffer.reserve(SizeOptional(m_data));
 		append_bytes(buffer, Serializable<bool>(has_value).Serialize());
 		if (m_data.has_value()) {
@@ -162,10 +162,10 @@ namespace StormByte {
 
 	template<typename T>
 	template<typename U>
-	BinaryData Serializable<T>::SerializeQueue() const noexcept
+	Safe::Binary Serializable<T>::SerializeQueue() const noexcept
 	requires Type::Queue<U> {
 		const std::uint64_t count = static_cast<std::uint64_t>(m_data.size());
-		BinaryData buffer = Serializable<std::uint64_t>(count).Serialize();
+		Safe::Binary buffer = Serializable<std::uint64_t>(count).Serialize();
 		buffer.reserve(ByteSize{static_cast<std::size_t>(buffer.size())} + SizeQueue(m_data));
 		DecayedT queue = m_data;
 		using ElementT = typename DecayedT::value_type;

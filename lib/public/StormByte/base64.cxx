@@ -107,8 +107,8 @@ namespace {
 	}
 }
 
-BinaryData StormByte::Base64Decode(std::string_view input) {
-	BinaryData output;
+Safe::Binary StormByte::Base64Decode(std::string_view input) {
+	Safe::Binary output;
 	output.reserve(ByteSize{(input.size() / 4) * 3});
 	std::uint32_t buffer = 0;
 	int bits_collected = 0;
@@ -132,7 +132,7 @@ BinaryData StormByte::Base64Decode(std::string_view input) {
 	return output;
 }
 
-Safe::String StormByte::Base64Encode(const BinaryData& input) {
+Safe::String StormByte::Base64Encode(const Safe::Binary& input) {
 	return EncodeImpl(input.span());
 }
 

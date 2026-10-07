@@ -132,7 +132,7 @@ namespace StormByte {
 			 * @tparam N Extent.
 			 *
 			 * Specialisation only. Do not use `tuple_size_v` in the
-			 * concept: any type with `value_type` (e.g. @ref StormByte::BinaryData)
+			 * concept: any type with `value_type` (e.g. @ref StormByte::Safe::Binary)
 			 * would instantiate an incomplete `std::tuple_size`.
 			 */
 			template<typename U, std::size_t N>

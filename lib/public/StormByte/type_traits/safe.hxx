@@ -81,10 +81,6 @@ namespace StormByte {
 	 */
 	class ByteSize;
 	/**
-	 * @brief Forward declaration of Base-owned binary storage.
-	 */
-	class BinaryData;
-	/**
 	 * @brief Forward declaration of Base's DLL-safe exception root.
 	 */
 	class Exception;
@@ -94,6 +90,10 @@ namespace StormByte {
 	 * @brief Types safe to pass across a DLL boundary.
 	 */
 	namespace Safe {
+		/**
+		 * @brief Forward declaration of Base-owned binary storage.
+		 */
+		class Binary;
 		/**
 		 * @brief Forward declaration of Base-owned UTF-8 text.
 		 */
@@ -148,6 +148,10 @@ namespace StormByte {
 		template<> struct IsSafe<StormByte::Exception>: std::true_type {};
 
 		/**
+		 * @brief Recognizes Base-owned binary storage.
+		 */
+		template<> struct IsSafe<Safe::Binary>: std::true_type {};
+		/**
 		 * @brief Recognizes Base-owned UTF-8 text.
 		 */
 		template<> struct IsSafe<Safe::String>: std::true_type {};
@@ -155,10 +159,6 @@ namespace StormByte {
 		 * @brief Recognizes Base-owned wide text.
 		 */
 		template<> struct IsSafe<Safe::WString>: std::true_type {};
-		/**
-		 * @brief Recognizes Base-owned binary storage.
-		 */
-		template<> struct IsSafe<BinaryData>: std::true_type {};
 		/**
 		 * @brief Recognizes Base's fixed-width count.
 		 */
@@ -339,6 +339,10 @@ namespace StormByte {
 		struct IsSafeValue: std::false_type {};
 
 		/**
+		 * @brief Admits Base-owned binary storage.
+		 */
+		template<> struct IsSafeValue<Safe::Binary>: std::true_type {};
+		/**
 		 * @brief Admits Base-owned UTF-8 text.
 		 */
 		template<> struct IsSafeValue<Safe::String>: std::true_type {};
@@ -346,10 +350,6 @@ namespace StormByte {
 		 * @brief Admits Base-owned wide text.
 		 */
 		template<> struct IsSafeValue<Safe::WString>: std::true_type {};
-		/**
-		 * @brief Admits Base-owned binary storage.
-		 */
-		template<> struct IsSafeValue<BinaryData>: std::true_type {};
 		/**
 		 * @brief Admits Base's fixed-width count.
 		 */
