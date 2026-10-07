@@ -39,11 +39,12 @@
 
 #pragma once
 
+#include <StormByte/safe/hash.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/wstring.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
-#include <StormByte/safe/wstring.hxx>
 
 #include <cassert>
 #include <compare>
@@ -51,6 +52,7 @@
 #include <cstdint>
 #include <limits>
 #include <ostream>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -1256,3 +1258,28 @@ namespace StormByte {
 	inline constexpr ByteSize EB{1000ull * 1000 * 1000 * 1000 * 1000 * 1000};
 
 }
+
+template<>
+struct StormByte::Safe::Hash<StormByte::ByteSize> {
+	/**
+	 * @brief Hashes @p value.
+	 * @param value Octet count.
+	 * @return FNV-1a of the 64-bit count. The same value in every module.
+	 */
+	STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::ByteSize& value) const noexcept {
+		const auto widened = static_cast<std::uint64_t>(static_cast<std::size_t>(value));
+		return Safe::HashBytes(std::as_bytes(std::span<const std::uint64_t>(&widened, 1)));
+	}
+};
+
+template<>
+struct std::hash<StormByte::ByteSize> {
+	/**
+	 * @brief Hashes @p value.
+	 * @param value Octet count.
+	 * @return Hash of this module's `std::hash<std::uint64_t>`.
+	 */
+	std::size_t operator()(const StormByte::ByteSize& value) const noexcept {
+		return StormByte::Safe::Hash<StormByte::ByteSize>{}(value);
+	}
+};

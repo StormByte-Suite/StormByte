@@ -40,14 +40,18 @@
 #pragma once
 
 #include <StormByte/safe/exception.hxx>
+#include <StormByte/safe/hash.hxx>
 #include <StormByte/safe/heap.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
 
 #include <compare>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <initializer_list>
 #include <optional>
+#include <span>
 #include <utility>
 
 /**
@@ -818,5 +822,39 @@ namespace StormByte {
 		struct IsSafeValue<Safe::Optional<T>>: std::true_type {};
 	}
 }
+
+/**
+ * @brief Cross-module hash of a @ref StormByte::Safe::Optional.
+ * @tparam T Safe component.
+ */
+template<StormByte::Type::SafeComponent T>
+struct StormByte::Safe::Hash<StormByte::Safe::Optional<T>> {
+    /**
+     * @brief Hash @p value. Empty and engaged differ.
+     * @param value Optional.
+     * @return Hash.
+     */
+    STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::Safe::Optional<T>& value) const noexcept {
+        if (!value.has_value())
+            return Hash<std::uint8_t>{}(0);
+        return HashCombine(Hash<std::uint8_t>{}(1), Hash<T>{}(*value));
+    }
+};
+
+/**
+ * @brief Hash of a @ref StormByte::Safe::Optional for an STL unordered container in this module.
+ * @tparam T Safe component.
+ */
+template<StormByte::Type::SafeComponent T>
+struct std::hash<StormByte::Safe::Optional<T>> {
+    /**
+     * @brief Hash @p value. Empty and engaged differ.
+     * @param value Optional.
+     * @return Hash.
+     */
+    std::size_t operator()(const StormByte::Safe::Optional<T>& value) const noexcept {
+        return StormByte::Safe::Hash<StormByte::Safe::Optional<T>>{}(value);
+    }
+};
 
 #include <StormByte/safe/optional.txx>

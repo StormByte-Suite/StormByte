@@ -18,6 +18,10 @@ add_executable(FunctionTests function_test.cxx)
 target_link_libraries(FunctionTests StormByte)
 add_test(NAME FunctionTests COMMAND FunctionTests)
 
+add_executable(HashTests hash_test.cxx)
+target_link_libraries(HashTests StormByte)
+add_test(NAME HashTests COMMAND HashTests)
+
 add_executable(HeapTests heap_test.cxx)
 target_link_libraries(HeapTests StormByte)
 add_test(NAME HeapTests COMMAND HeapTests)

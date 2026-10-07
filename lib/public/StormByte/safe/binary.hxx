@@ -40,6 +40,7 @@
 #pragma once
 
 #include <StormByte/byte_size.hxx>
+#include <StormByte/safe/hash.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/safe/vector.hxx>
 #include <StormByte/size.hxx>
@@ -742,3 +743,33 @@ namespace StormByte {
 		}
 	}
 }
+
+/**
+ * @brief Cross-module hash of the byte sequence. Not `std::hash`.
+ */
+template<>
+struct StormByte::Safe::Hash<StormByte::Safe::Binary> {
+	/**
+	 * @brief Hashes @p value.
+	 * @param value Sequence. Not copied. Embedded content counts.
+	 * @return FNV-1a of the occupied bytes. The same value in every module.
+	 */
+	STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::Safe::Binary& value) const noexcept {
+		return Safe::HashBytes(value.span());
+	}
+};
+
+/**
+ * @brief Hash of the byte sequence. An empty sequence hashes as an empty view.
+ */
+template<>
+struct std::hash<StormByte::Safe::Binary> {
+	/**
+	 * @brief Hashes @p value.
+	 * @param value Sequence. Not copied.
+	 * @return Hash of this module's `std::hash<std::string_view>` over the bytes.
+	 */
+	std::size_t operator()(const StormByte::Safe::Binary& value) const noexcept {
+		return StormByte::Safe::Hash<StormByte::Safe::Binary>{}(value);
+	}
+};

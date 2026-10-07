@@ -40,6 +40,7 @@
 
 #pragma once
 
+#include <StormByte/safe/hash.hxx>
 #include <StormByte/safe/pointers.hxx>
 #include <StormByte/safe/queue.hxx>
 #include <StormByte/safe/string.hxx>
@@ -58,6 +59,7 @@
 #include <ostream>
 #include <queue>
 #include <ranges>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1371,9 +1373,19 @@ namespace StormByte {
 	}
 }
 
-/**
- * @brief Hash of the text. An empty string hashes as an empty view.
- */
+template<>
+struct StormByte::Safe::Hash<StormByte::Safe::WString> {
+	/**
+	 * @brief Hash @p text. The wide units are hashed as bytes of this process.
+	 * @param text Text.
+	 * @return Hash.
+	 */
+	STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::Safe::WString& text) const noexcept {
+		const std::wstring_view view = text;
+		return HashBytes(std::as_bytes(std::span<const wchar_t>(view.data(), view.size())));
+	}
+};
+
 template<>
 struct std::hash<StormByte::Safe::WString> {
 	/**
@@ -1382,6 +1394,6 @@ struct std::hash<StormByte::Safe::WString> {
 	 * @return Hash.
 	 */
 	std::size_t operator()(const StormByte::Safe::WString& text) const noexcept {
-		return std::hash<std::wstring_view>{}(static_cast<std::wstring_view>(text));
+		return StormByte::Safe::Hash<StormByte::Safe::WString>{}(text);
 	}
 };

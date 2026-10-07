@@ -310,7 +310,7 @@ int test_search_helpers_and_order() {
 	ASSERT_TRUE(Safe::WString(L"ab") <= Safe::WString(L"ab"));
 	ASSERT_TRUE((text <=> Safe::WString(L"abXab")) == std::strong_ordering::equal);
 	ASSERT_TRUE((text <=> L"abXab") == std::strong_ordering::equal);
-	ASSERT_EQUAL(std::hash<std::wstring_view>{}(L"abXab"), std::hash<Safe::WString>{}(text));
+	ASSERT_EQUAL(Safe::Hash<Safe::WString>{}(text), std::hash<Safe::WString>{}(text));
 	RETURN_TEST(0);
 }
 

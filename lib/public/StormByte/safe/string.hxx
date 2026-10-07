@@ -40,6 +40,7 @@
 
 #pragma once
 
+#include <StormByte/safe/hash.hxx>
 #include <StormByte/safe/pointers.hxx>
 #include <StormByte/safe/queue.hxx>
 #include <StormByte/safe/vector.hxx>
@@ -57,6 +58,7 @@
 #include <ostream>
 #include <queue>
 #include <ranges>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -1380,9 +1382,19 @@ namespace StormByte {
 	}
 }
 
-/**
- * @brief Hash of the text. An empty string hashes as an empty view.
- */
+template<>
+struct StormByte::Safe::Hash<StormByte::Safe::String> {
+	/**
+	 * @brief Hash @p text. Embedded NUL counts. The text is not copied.
+	 * @param text Text.
+	 * @return Hash.
+	 */
+	STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::Safe::String& text) const noexcept {
+		const std::string_view view = text;
+		return HashBytes(std::as_bytes(std::span<const char>(view.data(), view.size())));
+	}
+};
+
 template<>
 struct std::hash<StormByte::Safe::String> {
 	/**
@@ -1391,6 +1403,6 @@ struct std::hash<StormByte::Safe::String> {
 	 * @return Hash.
 	 */
 	std::size_t operator()(const StormByte::Safe::String& text) const noexcept {
-		return std::hash<std::string_view>{}(static_cast<std::string_view>(text));
+		return StormByte::Safe::Hash<StormByte::Safe::String>{}(text);
 	}
 };

@@ -363,7 +363,7 @@ int test_search_helpers_and_order() {
 	ASSERT_TRUE((text <=> Safe::String("abXab")) == std::strong_ordering::equal);
 	ASSERT_TRUE((text <=> "abXab") == std::strong_ordering::equal);
 	ASSERT_TRUE((Safe::String("a") <=> "b") == std::strong_ordering::less);
-	ASSERT_EQUAL(std::hash<std::string_view>{}("abXab"), std::hash<Safe::String>{}(text));
+	ASSERT_EQUAL(Safe::Hash<Safe::String>{}(text), std::hash<Safe::String>{}(text));
 	RETURN_TEST(0);
 }
 

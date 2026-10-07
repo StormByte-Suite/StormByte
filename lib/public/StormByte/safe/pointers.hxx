@@ -39,6 +39,7 @@
 
 #pragma once
 
+#include <StormByte/safe/hash.hxx>
 #include <StormByte/safe/heap.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
@@ -917,6 +918,42 @@ namespace StormByte {
 }
 
 template<class T>
+struct StormByte::Safe::Hash<StormByte::Safe::Shared<T>> {
+	/**
+	 * @brief Hash the stored address.
+	 * @param value Owner.
+	 * @return Hash of the stored pointer.
+	 */
+	STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::Safe::Shared<T>& value) const noexcept {
+		return Hash<T*>{}(value.get());
+	}
+};
+
+template<class T>
+struct StormByte::Safe::Hash<StormByte::Safe::Unique<T>> {
+	/**
+	 * @brief Hash the stored address.
+	 * @param value Owner.
+	 * @return Hash of the stored pointer.
+	 */
+	STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::Safe::Unique<T>& value) const noexcept {
+		return Hash<T*>{}(value.get());
+	}
+};
+
+template<class T>
+struct StormByte::Safe::Hash<StormByte::Safe::Weak<T>> {
+	/**
+	 * @brief Hash the observed address. An expired observer hashes as null.
+	 * @param value Observer.
+	 * @return Hash of the locked pointer.
+	 */
+	STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::Safe::Weak<T>& value) const noexcept {
+		return Hash<T*>{}(value.lock().get());
+	}
+};
+
+template<class T>
 struct std::hash<StormByte::Safe::Shared<T>> {
 	/**
 	 * @brief Hash the stored address.
@@ -924,7 +961,7 @@ struct std::hash<StormByte::Safe::Shared<T>> {
 	 * @return Hash of the stored pointer.
 	 */
 	std::size_t operator()(const StormByte::Safe::Shared<T>& value) const noexcept {
-		return std::hash<T*>{}(value.get());
+		return StormByte::Safe::Hash<StormByte::Safe::Shared<T>>{}(value);
 	}
 };
 
@@ -936,7 +973,19 @@ struct std::hash<StormByte::Safe::Unique<T>> {
 	 * @return Hash of the stored pointer.
 	 */
 	std::size_t operator()(const StormByte::Safe::Unique<T>& value) const noexcept {
-		return std::hash<T*>{}(value.get());
+		return StormByte::Safe::Hash<StormByte::Safe::Unique<T>>{}(value);
+	}
+};
+
+template<class T>
+struct std::hash<StormByte::Safe::Weak<T>> {
+	/**
+	 * @brief Hash the observed address. An expired observer hashes as null.
+	 * @param value Observer.
+	 * @return Hash of the locked pointer.
+	 */
+	std::size_t operator()(const StormByte::Safe::Weak<T>& value) const noexcept {
+		return StormByte::Safe::Hash<StormByte::Safe::Weak<T>>{}(value);
 	}
 };
 

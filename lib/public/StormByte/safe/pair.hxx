@@ -39,11 +39,14 @@
 
 #pragma once
 
+#include <StormByte/safe/hash.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
 
 #include <compare>
 #include <cstddef>
+#include <functional>
+#include <span>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -572,6 +575,40 @@ template<std::size_t Index, StormByte::Type::SafeValue First, StormByte::Type::S
 requires (Index < 2)
 struct std::tuple_element<Index, StormByte::Safe::PairReference<First, Second, SecondReference>> {
 	using type = std::conditional_t<Index == 0, const First, SecondReference>;
+};
+
+/**
+ * @brief Cross-module hash of a @ref StormByte::Safe::Pair.
+ * @tparam First First Safe value.
+ * @tparam Second Second Safe value.
+ */
+template<StormByte::Type::SafeValue First, StormByte::Type::SafeValue Second>
+struct StormByte::Safe::Hash<StormByte::Safe::Pair<First, Second>> {
+	/**
+	 * @brief Hash @p value. Order matters.
+	 * @param value Pair.
+	 * @return Hash.
+	 */
+	STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::Safe::Pair<First, Second>& value) const noexcept {
+		return HashCombine(Hash<First>{}(value.first), Hash<Second>{}(value.second));
+	}
+};
+
+/**
+ * @brief Hash of a @ref StormByte::Safe::Pair for an STL unordered container in this module.
+ * @tparam First First Safe value.
+ * @tparam Second Second Safe value.
+ */
+template<StormByte::Type::SafeValue First, StormByte::Type::SafeValue Second>
+struct std::hash<StormByte::Safe::Pair<First, Second>> {
+	/**
+	 * @brief Hash @p value. Order matters.
+	 * @param value Pair.
+	 * @return Hash.
+	 */
+	std::size_t operator()(const StormByte::Safe::Pair<First, Second>& value) const noexcept {
+		return StormByte::Safe::Hash<StormByte::Safe::Pair<First, Second>>{}(value);
+	}
 };
 
 #include <StormByte/safe/pair.txx>

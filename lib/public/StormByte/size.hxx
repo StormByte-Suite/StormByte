@@ -39,6 +39,7 @@
 
 #pragma once
 
+#include <StormByte/safe/hash.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
 
@@ -48,6 +49,7 @@
 #include <cstdint>
 #include <limits>
 #include <ostream>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -1167,3 +1169,28 @@ namespace StormByte {
 	extern template STORMBYTE_PUBLIC Size operator%(char32_t, Size) noexcept;
 	/// @endcond
 }
+
+template<>
+struct StormByte::Safe::Hash<StormByte::Size> {
+	/**
+	 * @brief Hash @p value.
+	 * @param value Size.
+	 * @return Hash.
+	 */
+	STORMBYTE_FORCE_INLINE std::size_t operator()(const StormByte::Size& value) const noexcept {
+		const auto widened = static_cast<std::uint64_t>(static_cast<std::size_t>(value));
+		return HashBytes(std::as_bytes(std::span<const std::uint64_t>(&widened, 1)));
+	}
+};
+
+template<>
+struct std::hash<StormByte::Size> {
+	/**
+	 * @brief Hash @p value.
+	 * @param value Size.
+	 * @return Hash.
+	 */
+	std::size_t operator()(const StormByte::Size& value) const noexcept {
+		return StormByte::Safe::Hash<StormByte::Size>{}(value);
+	}
+};
