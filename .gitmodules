@@ -1,3 +1,4 @@
 [submodule "SDS"]
 	path = lib/private/StormByte/sds
-	url = https://github.com/antirez/sds.git
+	url = https://github.com/StormBytePP/sds.git
+	branch = msvc_support
