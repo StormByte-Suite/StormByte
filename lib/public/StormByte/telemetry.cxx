@@ -132,7 +132,7 @@ Clock::Sample Clock::Measure() {
 	{
 		std::lock_guard lock(m_state_lock);
 		if (!m_state)
-			m_state = Safe::Heap::MakeShared<State>();
+			m_state = Safe::MakeShared<State>();
 		state = m_state;
 	}
 	return Sample{std::move(state)};
@@ -173,7 +173,7 @@ std::chrono::microseconds Clock::MeanDuration() const noexcept {
 // --- StormByte::Telemetry ---
 
 Telemetry::Telemetry() noexcept:
-	m_store{Safe::Heap::MakeUnique<Store>()} {}
+	m_store{Safe::MakeUnique<Store>()} {}
 
 Telemetry::Telemetry(Telemetry&& other) noexcept:
 	m_store{std::move(other.m_store)} {}
@@ -188,7 +188,7 @@ Telemetry::~Telemetry() noexcept = default;
 
 Clock& Telemetry::Clock(const std::string_view name) {
 	if (!m_store)
-		m_store = Safe::Heap::MakeUnique<Store>();
+		m_store = Safe::MakeUnique<Store>();
 	m_store->lock.Lock();
 	try {
 		auto [it, inserted] = m_store->clocks.try_emplace(std::string(name));

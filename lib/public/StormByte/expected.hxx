@@ -97,12 +97,12 @@ namespace StormByte {
 	auto Unexpected(E&& error) {
 		using Error = std::decay_t<E>;
 		return std::unexpected<Safe::Shared<Error>>(
-			Safe::Heap::MakeShared<Error>(std::forward<E>(error))
+			Safe::MakeShared<Error>(std::forward<E>(error))
 		);
 	}
 
 	/**
-	 * @brief Builds `std::unexpected<shared_ptr<Base>>` from a `Derived` instance.
+	 * @brief Builds `std::unexpected` from a derived error.
 	 * @tparam Base Error base type stored in the pointer.
 	 * @tparam Derived Concrete error type, derived from @p Base and not the same type.
 	 * @param error Derived instance to own.
@@ -142,7 +142,7 @@ namespace StormByte {
 		}
 
 		return std::unexpected<Safe::Shared<E>>(
-			Safe::Heap::MakeShared<E>(std::move(formatted_message))
+			Safe::MakeShared<E>(std::move(formatted_message))
 		);
 	}
 }

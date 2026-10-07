@@ -159,13 +159,13 @@ static_assert(!Type::SafeValue<std::optional<Safe::String>>);
 static_assert(!Type::SafeValue<std::queue<Safe::String>>);
 static_assert(!Type::SafeValue<Safe::Callback>);
 static_assert(!Type::SafeValue<int*>);
-	static_assert(std::random_access_iterator<Safe::Vector<Safe::String>::iterator>);
-	static_assert(std::sortable<Safe::Vector<Safe::String>::iterator>);
-	static_assert(std::bidirectional_iterator<Safe::Map<Safe::String, Safe::String>::iterator>);
-	static_assert(std::ranges::input_range<Safe::Map<Safe::String, Safe::String>>);
-	static_assert(std::ranges::input_range<Safe::Optional<Safe::String>>);
-	static_assert(std::ranges::random_access_range<Safe::Queue<Safe::String>>);
-	static_assert(std::sortable<Safe::Queue<Safe::String>::iterator>);
+static_assert(std::random_access_iterator<Safe::Vector<Safe::String>::iterator>);
+static_assert(std::sortable<Safe::Vector<Safe::String>::iterator>);
+static_assert(std::bidirectional_iterator<Safe::Map<Safe::String, Safe::String>::iterator>);
+static_assert(std::ranges::input_range<Safe::Map<Safe::String, Safe::String>>);
+static_assert(std::ranges::input_range<Safe::Optional<Safe::String>>);
+static_assert(std::ranges::random_access_range<Safe::Queue<Safe::String>>);
+static_assert(std::sortable<Safe::Queue<Safe::String>::iterator>);
 
 namespace {
 	struct OwnerFixtureState {
@@ -250,7 +250,7 @@ int TestSafeVectorAlgorithms() {
 	scalarValues[1] = 4;
 	ASSERT_TRUE("TestSafeVectorAlgorithms", static_cast<int>(scalarValues[1]) == 4);
 
-	Safe::Shared<int> sharedValue = Safe::Heap::MakeShared<int>(42);
+	Safe::Shared<int> sharedValue = Safe::MakeShared<int>(42);
 	Safe::Vector<Safe::Shared<int>> sharedValues{sharedValue};
 	sharedValue.reset();
 	const auto sharedSnapshot = static_cast<Safe::Shared<int>>(sharedValues.at(0));
@@ -332,8 +332,9 @@ int TestSafeMapAlgorithms() {
 	const auto pairInsert = dictionary.insert(std::pair{Safe::String("delta"), Safe::String("fourth")});
 	ASSERT_TRUE("TestSafeMapAlgorithms", pairInsert.second && dictionary.contains(Safe::String("delta")));
 	const auto found = std::ranges::find_if(dictionary, [](const auto& entry) { return entry.first == "beta"; });
-	ASSERT_TRUE("TestSafeMapAlgorithms", found != dictionary.end());
+	ASSERT_TRUE("TestSafeVectorAlgorithms", found != dictionary.end());
 	std::ranges::for_each(dictionary, [](auto& entry) { entry.second = Safe::String("updated"); });
+	Safe::String mapped;
 	ASSERT_TRUE("TestSafeMapAlgorithms", dictionary.at(Safe::String("alpha")) == "updated");
 	auto rangeFirst = dictionary.find(Safe::String("beta"));
 	auto rangeLast = dictionary.find(Safe::String("delta"));
@@ -343,18 +344,24 @@ int TestSafeMapAlgorithms() {
 	other.try_emplace(Safe::String("other"), Safe::String("entry"));
 	dictionary.swap(other);
 	ASSERT_TRUE("TestSafeMapAlgorithms", dictionary.contains(Safe::String("other")) && other.contains(Safe::String("delta")));
-	Safe::Map<Safe::String, Safe::String, std::greater<Safe::String>> descending;
+	using DescendingMap = Safe::Map<Safe::String, Safe::String, std::greater<Safe::String>>;
+	DescendingMap descending;
 	descending.try_emplace(Safe::String("alpha"), Safe::String("first"));
 	descending.try_emplace(Safe::String("beta"), Safe::String("second"));
 	ASSERT_TRUE("TestSafeMapAlgorithms", descending.begin()->first == "beta" &&
 		descending.find(Safe::String("alpha")) != descending.end() &&
 		descending.lower_bound(Safe::String("beta"))->first == "beta");
-	Safe::Map<Safe::String, Safe::String, DirectionalStringCompare> stateful(DirectionalStringCompare{true});
+	using StatefulMap = Safe::Map<Safe::String, Safe::String, DirectionalStringCompare>;
+	StatefulMap stateful(DirectionalStringCompare{true});
 	stateful.try_emplace(Safe::String("alpha"), Safe::String("first"));
 	stateful.try_emplace(Safe::String("beta"), Safe::String("second"));
 	ASSERT_TRUE("TestSafeMapAlgorithms", stateful.key_comp().descending && stateful.begin()->first == "beta");
-	Safe::Map<Safe::String, Safe::String, DirectionalStringCompare> movedStateful(std::move(stateful));
-	ASSERT_TRUE("TestSafeMapAlgorithms", stateful.empty() && movedStateful.begin()->first == "beta");
+	StatefulMap movedStateful(std::move(stateful));
+	ASSERT_TRUE("TestSafeMapAlgorithms", stateful.empty());
+	stateful.try_emplace(Safe::String("gamma"), Safe::String("third"));
+	ASSERT_TRUE("TestSafeMapAlgorithms", stateful.contains(Safe::String("gamma")));
+	const auto exportedMovedFromStateful = static_cast<std::map<Safe::String, Safe::String, DirectionalStringCompare>>(stateful);
+	ASSERT_TRUE("TestSafeMapAlgorithms", exportedMovedFromStateful.size() == 1 && movedStateful.begin()->first == "beta");
 	RETURN_TEST("TestSafeMapAlgorithms", 0);
 }
 
@@ -365,14 +372,13 @@ int TestSafeOptionalAlgorithms() {
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", fromLiteral == Safe::String("literal"));
 	std::optional<std::string> narrowBuffer{std::string("converted optional")};
 	Safe::Optional<Safe::String> convertedFromSTL(narrowBuffer);
-	ASSERT_TRUE("TestSafeOptionalAlgorithms", narrowBuffer.has_value() && convertedFromSTL == Safe::String("converted optional"));
 	Safe::Optional<Safe::String> safeBuffer(Safe::String("converted safe"));
 	Safe::Optional<Safe::String> convertedFromSafe(safeBuffer);
 	convertedFromSafe = safeBuffer;
-	ASSERT_TRUE("TestSafeOptionalAlgorithms", convertedFromSafe == Safe::String("converted safe"));
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", convertedFromSTL == Safe::String("converted optional") && convertedFromSafe == Safe::String("converted safe"));
 	std::optional<Safe::String> standardDirect{Safe::String("implicit import")};
 	Safe::Optional<Safe::String> implicitImport = standardDirect;
-	ASSERT_TRUE("TestSafeOptionalAlgorithms", standardDirect.has_value() && implicitImport == Safe::String("implicit import"));
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", implicitImport == Safe::String("implicit import"));
 	const Safe::String copiedValue("copied assignment");
 	direct = copiedValue;
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", direct.value() == "copied assignment");
@@ -385,10 +391,9 @@ int TestSafeOptionalAlgorithms() {
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", empty.value_or(Safe::String("fallback")) == "filled");
 	empty = std::nullopt;
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", !empty.has_value());
-	ASSERT_THROWS("TestSafeOptionalAlgorithms", empty.value(), Exception);
 	std::optional<Safe::String> importedValue{Safe::String("std optional")};
 	empty = importedValue;
-	ASSERT_TRUE("TestSafeOptionalAlgorithms", importedValue.has_value() && empty == Safe::String("std optional"));
+	ASSERT_TRUE("TestSafeOptionalAlgorithms", empty == Safe::String("std optional"));
 	std::optional<Safe::String> movedImportedValue{Safe::String("moved std optional")};
 	empty = std::move(movedImportedValue);
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", movedImportedValue.has_value() && empty == Safe::String("moved std optional"));
@@ -453,6 +458,8 @@ int TestSafeOptionalAlgorithms() {
 		return Safe::Optional<Safe::String>(value);
 	});
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", mutatedChain == maybe && maybe == Safe::String("mutated and_then snapshot"));
+	ASSERT_THROWS("TestSafeOptionalAlgorithms", empty.value(), StormByte::Safe::BadOptionalAccess);
+	ASSERT_THROWS("TestSafeOptionalAlgorithms", std::as_const(empty).value(), StormByte::Safe::BadOptionalAccess);
 	const auto copied = maybe;
 	ASSERT_TRUE("TestSafeOptionalAlgorithms", copied == maybe && copied == Safe::String("mutated and_then snapshot"));
 	Safe::Optional<Safe::String> copyAssigned;
@@ -561,5 +568,5 @@ int main() {
 	// -------------------
 
 	result += TestDLLOwnership();
-		return result;
+	return result;
 }

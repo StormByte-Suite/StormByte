@@ -69,11 +69,12 @@ namespace {
 // -------------------
 
 int test_expected_holds_value() {
+	constexpr const char* test = "test_expected_holds_value";
 	int result = 0;
 	Expected<int, TestError> success = 42;
-	ASSERT_TRUE("test_expected_holds_value", success.has_value());
-	ASSERT_EQUAL("test_expected_holds_value", 42, success.value());
-	RETURN_TEST("test_expected_holds_value", result);
+	ASSERT_TRUE(test, success.has_value());
+	ASSERT_EQUAL(test, 42, success.value());
+	RETURN_TEST(test, result);
 }
 
 // -------------------
@@ -81,54 +82,60 @@ int test_expected_holds_value() {
 // -------------------
 
 int test_expected_holds_error() {
+	constexpr const char* test = "test_expected_holds_error";
 	int result = 0;
 	Expected<int, TestError> failure = Unexpected<TestError>(TestError{"failed"});
-	ASSERT_FALSE("test_expected_holds_error", failure.has_value());
-	ASSERT_TRUE("test_expected_holds_error", failure.error() != nullptr);
-	ASSERT_EQUAL("test_expected_holds_error", std::string("failed"), failure.error()->message);
-	RETURN_TEST("test_expected_holds_error", result);
+	ASSERT_FALSE(test, failure.has_value());
+	ASSERT_TRUE(test, failure.error() != nullptr);
+	ASSERT_EQUAL(test, std::string("failed"), failure.error()->message);
+	RETURN_TEST(test, result);
 }
 
 int test_unexpected_from_shared() {
+	constexpr const char* test = "test_unexpected_from_shared";
 	int result = 0;
-	Safe::Shared<TestError> ptr = Safe::Heap::MakeShared<TestError>("via pointer");
+	Safe::Shared<TestError> ptr = Safe::MakeShared<TestError>("via pointer");
 	Expected<int, TestError> failure = Unexpected(ptr);
-	ASSERT_FALSE("test_unexpected_from_shared", failure.has_value());
-	ASSERT_TRUE("test_unexpected_from_shared", failure.error() == ptr);
-	RETURN_TEST("test_unexpected_from_shared", result);
+	ASSERT_FALSE(test, failure.has_value());
+	ASSERT_TRUE(test, failure.error() == ptr);
+	RETURN_TEST(test, result);
 }
 
 int test_unexpected_from_format() {
+	constexpr const char* test = "test_unexpected_from_format";
 	int result = 0;
 	Expected<int, TestError> failure = Unexpected<TestError>("code {}", 7);
-	ASSERT_FALSE("test_unexpected_from_format", failure.has_value());
-	ASSERT_EQUAL("test_unexpected_from_format", std::string("code 7"), failure.error()->message);
-	RETURN_TEST("test_unexpected_from_format", result);
+	ASSERT_FALSE(test, failure.has_value());
+	ASSERT_EQUAL(test, std::string("code 7"), failure.error()->message);
+	RETURN_TEST(test, result);
 }
 
 int test_unexpected_from_format_no_args() {
+	constexpr const char* test = "test_unexpected_from_format_no_args";
 	int result = 0;
 	Expected<int, TestError> failure = Unexpected<TestError>("plain");
-	ASSERT_FALSE("test_unexpected_from_format_no_args", failure.has_value());
-	ASSERT_EQUAL("test_unexpected_from_format_no_args", std::string("plain"), failure.error()->message);
-	RETURN_TEST("test_unexpected_from_format_no_args", result);
+	ASSERT_FALSE(test, failure.has_value());
+	ASSERT_EQUAL(test, std::string("plain"), failure.error()->message);
+	RETURN_TEST(test, result);
 }
 
 int test_unexpected_same_type_not_upcast() {
+	constexpr const char* test = "test_unexpected_same_type_not_upcast";
 	int result = 0;
 	Expected<int, TestError> failure = Unexpected<TestError>(TestError("same"));
-	ASSERT_FALSE("test_unexpected_same_type_not_upcast", failure.has_value());
-	ASSERT_EQUAL("test_unexpected_same_type_not_upcast", std::string("same"), failure.error()->message);
-	RETURN_TEST("test_unexpected_same_type_not_upcast", result);
+	ASSERT_FALSE(test, failure.has_value());
+	ASSERT_EQUAL(test, std::string("same"), failure.error()->message);
+	RETURN_TEST(test, result);
 }
 
 int test_unexpected_derived_error_upcast() {
+	constexpr const char* test = "test_unexpected_derived_error_upcast";
 	int result = 0;
 	Expected<int, TestBaseError> failure = Unexpected<TestBaseError>(TestDerivedError("derived"));
-	ASSERT_FALSE("test_unexpected_derived_error_upcast", failure.has_value());
-	ASSERT_TRUE("test_unexpected_derived_error_upcast", failure.error() != nullptr);
-	ASSERT_EQUAL("test_unexpected_derived_error_upcast", std::string("derived"), failure.error()->message);
-	RETURN_TEST("test_unexpected_derived_error_upcast", result);
+	ASSERT_FALSE(test, failure.has_value());
+	ASSERT_TRUE(test, failure.error() != nullptr);
+	ASSERT_EQUAL(test, std::string("derived"), failure.error()->message);
+	RETURN_TEST(test, result);
 }
 
 // -------------------
@@ -136,13 +143,14 @@ int test_unexpected_derived_error_upcast() {
 // -------------------
 
 int test_expected_reference() {
+	constexpr const char* test = "test_expected_reference";
 	int result = 0;
 	int value = 7;
 	Expected<int&, TestError> reference = std::ref(value);
-	ASSERT_TRUE("test_expected_reference", reference.has_value());
+	ASSERT_TRUE(test, reference.has_value());
 	reference.value().get() = 11;
-	ASSERT_EQUAL("test_expected_reference", 11, value);
-	RETURN_TEST("test_expected_reference", result);
+	ASSERT_EQUAL(test, 11, value);
+	RETURN_TEST(test, result);
 }
 
 int main() {

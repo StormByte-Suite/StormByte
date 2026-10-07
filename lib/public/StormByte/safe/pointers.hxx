@@ -39,24 +39,17 @@
 
 #pragma once
 
+#include <StormByte/safe/heap.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
 
+#include <atomic>
 #include <compare>
 #include <cstddef>
-#include <functional>
+#include <cstdint>
 #include <memory>
-#include <type_traits>
+#include <new>
 #include <utility>
-
-/**
- * @file StormByte/safe/pointers.hxx
- * @brief DLL-safe shared and unique owners. Storage is on Base's heap.
- *
- * @ref StormByte::Safe::Heap is not a public header. `Allocate` / `Free` are
- * exported from the StormByte library and defined in a private translation
- * unit that is not installed.
- */
 
 /**
  * @namespace StormByte
@@ -65,298 +58,200 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Types that are safe to pass across a DLL boundary: owners and polymorphic clones on Base's heap.
+	 * @brief Owned values that cross a DLL without the caller's CRT.
 	 */
 	namespace Safe {
 		template<class T>
-		class STORMBYTE_PUBLIC_TYPE Shared;
+		class Shared;
 
 		template<class T>
-		class STORMBYTE_PUBLIC_TYPE Unique;
+		class Unique;
 
 		template<class T>
-		class STORMBYTE_PUBLIC_TYPE Weak;
+		class Weak;
+
+		template<class T>
+		class AtomicShared;
+
+		template<class T>
+		class EnableSharedFromThis;
 
 		/**
 		 * @namespace StormByte::Safe::Heap
-		 * @brief Allocate and free raw blocks on Base's heap.
+		 * @brief Deleter for a caller-owned `std::unique_ptr` that still frees Base's block.
 		 *
-		 * Declarations match the private `safe/heap.cxx` definitions. The private
-		 * header is not installed; public templates need these names here.
+		 * Allocation stays in the installed heap header. This name exists so a moved @ref Unique keeps its published deleter type.
 		 */
 		namespace Heap {
 			/**
-			 * @brief Allocate @p bytes on Base's heap.
-			 * @param bytes Block size in octets. Zero is forwarded to `operator new`.
-			 * @return Address of the block.
-			 * @throws StormByte::AllocationError When the allocator cannot satisfy the request.
-			 */
-			STORMBYTE_PUBLIC void* Allocate(std::size_t bytes);
-
-			/**
-			 * @brief Release a block obtained from @ref Allocate.
-			 * @param pointer Block address, or a null pointer.
-			 */
-			STORMBYTE_PUBLIC void Free(void* pointer) noexcept;
-
-			/** @brief Throw Base's expired-observer exception. */
-			[[noreturn]] STORMBYTE_PUBLIC void ThrowExpiredWeakPointer();
-
-			/**
-			 * @brief Preserve an active StormByte exception or translate a foreign exception.
-			 * @pre Called from an active exception handler.
-			 * @throws StormByte::AllocationError On allocation failure.
-			 * @throws StormByte::OperationError For other foreign exceptions.
-			 */
-			[[noreturn]] STORMBYTE_PUBLIC void RethrowException();
-
-			/**
-			 * @struct ObjectDeleter
-			 * @brief Destroy @p T and return its block to @ref Free.
+			 * @brief Destroy the concrete object and return its block to @ref Free.
 			 */
 			struct STORMBYTE_PUBLIC_TYPE ObjectDeleter {
+				void (*destroy)(void*) noexcept = nullptr; ///< Concrete destructor stored by @ref Unique.
+
 				/**
-				 * @brief Destroy @p pointer and free its block on Base's heap.
-				 * @tparam U Pointee type.
-				 * @param pointer Object constructed with placement `new` on @ref Allocate.
+				 * @brief Destroy @p pointer with the concrete destructor.
+				 * @tparam U Static pointee. The stored destructor is the real one.
+				 * @param pointer Object to destroy, or null.
 				 */
 				template<class U>
 				void operator()(U* pointer) const noexcept {
-					pointer->~U();
-					Free(pointer);
+					if (destroy != nullptr)
+						destroy(pointer);
 				}
 			};
+		}
 
+		/**
+		 * @namespace StormByte::Safe::Detail
+		 * @brief Control block shared by @ref Shared and @ref Weak.
+		 */
+		namespace Detail {
 			/**
-			 * @struct Allocator
-			 * @brief `std::shared_ptr` allocator that uses @ref Allocate / @ref Free.
-			 * @tparam T Control-block value type.
+			 * @brief Base-owned reference counts and the real destructor.
+			 *
+			 * The object lives in the same @ref Heap::Allocate block, after this header. @ref Destroy is the destructor of the concrete type, stored when the object is created.
 			 */
-			template<typename T>
-			struct STORMBYTE_PUBLIC_TYPE Allocator {
-				using value_type = T;	///< Allocator value type.
-
-				/**
-				 * @brief Default constructor.
-				 */
-				constexpr Allocator() noexcept = default;
-
-				/**
-				 * @brief Rebind constructor.
-				 * @tparam U Other allocator value type.
-				 */
-				template<typename U>
-				constexpr Allocator(const Allocator<U>&) noexcept {}
-
-				/**
-				 * @brief Allocate @p count objects of @p T.
-				 * @param count Object count.
-				 * @return Storage for @p count objects.
-				 */
-				[[nodiscard]] T* allocate(std::size_t count) {
-					return static_cast<T*>(Allocate(count * sizeof(T)));
-				}
-
-				/**
-				 * @brief Release storage obtained from @ref allocate.
-				 * @param pointer Storage to release.
-				 */
-				void deallocate(T* pointer, std::size_t) noexcept {
-					Free(pointer);
-				}
-
-				/**
-				 * @brief All @ref Allocator instances compare equal.
-				 * @tparam U Other allocator value type.
-				 * @return Always `true`.
-				 */
-				template<typename U>
-				constexpr bool operator==(const Allocator<U>&) const noexcept {
-					return true;
-				}
+			struct Control {
+				std::atomic<long> Strong; ///< Owners. Zero destroys the object.
+				std::atomic<long> Weak; ///< Owners plus observers. Zero frees the block.
+				void (*Destroy)(Control*) noexcept; ///< Destructor of the concrete object.
+				void* Object; ///< Address of the concrete object inside this block.
 			};
-
-			/**
-			 * @brief Construct @p T on Base's heap and wrap it in @ref Shared.
-			 * @tparam T Object type.
-			 * @tparam Args Constructor argument types.
-			 * @param args Forwarded to @p T.
-			 * @return Owning @ref Shared.
-			 */
-			template<class T, class... Args>
-			Shared<T> MakeShared(Args&&... args);
-
-			/**
-			 * @brief Construct @p T on Base's heap and wrap it in @ref Unique.
-			 * @tparam T Object type.
-			 * @tparam Args Constructor argument types.
-			 * @param args Forwarded to @p T.
-			 * @return Owning @ref Unique.
-			 */
-			template<class T, class... Args>
-			Unique<T> MakeUnique(Args&&... args);
 		}
 
 		/**
 		 * @class Shared
-		 * @brief Shared owner of a @p T allocated on Base's heap.
+		 * @brief Shared owner of an object allocated on Base's heap.
 		 * @tparam T Pointee type.
 		 *
-		 * Complements `std::shared_ptr`. It does not replace it. Use `std::shared_ptr`
-		 * when the object does not cross a DLL. Use @ref Shared when the object and
-		 * its control block must be freed on Base's heap.
-		 *
-		 * Construct the exact type with @ref Heap::MakeShared. Construct a derived
-		 * type with @ref Shared::MakePointer. The daily operations match
-		 * `std::shared_ptr`. There is no constructor from a raw pointer or from
-		 * `std::shared_ptr`, and no `release`. Implicit conversion to
-		 * `std::shared_ptr<T>` keeps Base's deleter, so a `std::shared_ptr` parameter
-		 * does not need a new signature. There is no conversion back.
+		 * The control block is a @ref Detail::Control allocated with @ref Heap::Allocate. Copying a @ref Shared copies that pointer. There is no `std::shared_ptr` inside. There is no constructor from a raw pointer, from `std::shared_ptr` or from `std::unique_ptr`.
 		 */
 		template<class T>
 		class STORMBYTE_PUBLIC_TYPE Shared {
 			public:
-				using element_type = T;	///< Pointee type.
-				using weak_type = Weak<T>;	///< Matching @ref Weak.
+				using element_type = T; ///< Pointee type.
+				using weak_type = Weak<T>; ///< Matching observer.
 
 				/**
-				 * @brief Empty owner.
+				 * @brief Construct an empty owner.
 				 */
-				Shared() noexcept = default;
+				Shared() noexcept;
 
 				/**
-				 * @brief Empty owner from `nullptr`.
+				 * @brief Construct an empty owner from null.
+				 * @param null Null pointer constant.
 				 */
-				Shared(std::nullptr_t) noexcept {}
+				Shared(std::nullptr_t null) noexcept;
 
 				/**
-				 * @brief Share ownership with @p other.
+				 * @brief Share ownership with another owner.
 				 * @tparam U Pointee convertible to @p T.
-				 * @param other Other owner.
+				 * @param other Owner to share.
 				 */
 				template<class U>
 				requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
-				Shared(const Shared<U>& other) noexcept: m_ptr(other.m_ptr) {}
+				Shared(const Shared<U>& other) noexcept;
 
 				/**
-				 * @brief Take ownership from @p other.
+				 * @brief Take ownership from another owner.
 				 * @tparam U Pointee convertible to @p T.
-				 * @param other Other owner.
+				 * @param other Owner to take.
 				 */
 				template<class U>
 				requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
-				Shared(Shared<U>&& other) noexcept: m_ptr(std::move(other.m_ptr)) {}
+				Shared(Shared<U>&& other) noexcept;
 
 				/**
-				 * @brief Copy constructor.
+				 * @brief Copy an owner. The control block stays.
+				 * @param other Owner to copy.
 				 */
-				Shared(const Shared&) noexcept = default;
+				Shared(const Shared& other) noexcept;
 
 				/**
-				 * @brief Move constructor.
+				 * @brief Take an owner. @p other is left empty.
+				 * @param other Owner to take.
 				 */
-				Shared(Shared&&) noexcept = default;
+				Shared(Shared&& other) noexcept;
 
 				/**
-				 * @brief Take ownership from @p weak.
-				 * @param weak Observer of a @ref Shared control block.
-				 * @throws StormByte::ExpiredWeakPointerError When @p weak is empty or expired.
+				 * @brief Lock an observer.
+				 * @param weak Observer of a live control block.
+				 * @throws ExpiredWeakPointerError @p weak is empty or expired.
 				 */
 				explicit Shared(const Weak<T>& weak);
 
 				/**
-				 * @brief Copy assignment.
-				 * @return @c *this.
+				 * @brief Share ownership.
+				 * @param other Owner to copy.
+				 * @return This owner.
 				 */
-				Shared& operator=(const Shared&) noexcept = default;
+				Shared& operator=(const Shared& other) noexcept;
 
 				/**
-				 * @brief Move assignment.
-				 * @return @c *this.
+				 * @brief Take ownership. @p other is left empty.
+				 * @param other Owner to take.
+				 * @return This owner.
 				 */
-				Shared& operator=(Shared&&) noexcept = default;
+				Shared& operator=(Shared&& other) noexcept;
 
 				/**
-				 * @brief Destructor.
+				 * @brief Drop this owner. The last owner destroys the object.
 				 */
-				~Shared() = default;
+				~Shared();
 
 				/**
-				 * @brief Raw pointer, or null.
+				 * @brief Return the stored pointer.
+				 * @return Pointee, or null.
+				 */
+				T* get() const noexcept;
+
+				/**
+				 * @brief Dereference the stored pointer.
 				 * @return Pointee.
 				 */
-				T* get() const noexcept {
-					return m_ptr.get();
-				}
+				T& operator*() const noexcept;
 
 				/**
-				 * @brief Dereference.
-				 * @return Pointee.
+				 * @brief Access a member of the pointee.
+				 * @return Stored pointer.
 				 */
-				T& operator*() const {
-					return *m_ptr;
-				}
+				T* operator->() const noexcept;
 
 				/**
-				 * @brief Member access.
-				 * @return Pointee.
+				 * @brief Test whether this owner holds an object.
+				 * @return Whether the stored pointer is non-null.
 				 */
-				T* operator->() const noexcept {
-					return m_ptr.get();
-				}
+				explicit operator bool() const noexcept;
 
 				/**
-				 * @brief Whether this owner holds an object.
-				 * @return @c true when non-empty.
+				 * @brief Return the number of owners.
+				 * @return Strong count, or zero when empty.
 				 */
-				explicit operator bool() const noexcept {
-					return static_cast<bool>(m_ptr);
-				}
+				long use_count() const noexcept;
 
 				/**
-				 * @brief Same control block as `std::shared_ptr`. Deleter stays Base.
-				 * @return `std::shared_ptr<T>` that still frees on Base's heap.
+				 * @brief Drop this owner.
 				 */
-				operator std::shared_ptr<T>() const noexcept {
-					return m_ptr;
-				}
+				void reset() noexcept;
 
 				/**
-				 * @brief Number of @ref Shared sharing this object.
-				 * @return Use count.
+				 * @brief Exchange owners.
+				 * @param other Owner to exchange with.
 				 */
-				long use_count() const noexcept {
-					return m_ptr.use_count();
-				}
+				void swap(Shared& other) noexcept;
 
 				/**
-				 * @brief Drop this owner's reference.
-				 */
-				void reset() noexcept {
-					m_ptr.reset();
-				}
-
-				/**
-				 * @brief Exchange owners with @p other.
-				 * @param other Other owner.
-				 */
-				void swap(Shared& other) noexcept {
-					m_ptr.swap(other.m_ptr);
-				}
-
-				/**
-				 * @brief Ownership order, same as `std::shared_ptr::owner_before`.
+				 * @brief Order control blocks by identity.
 				 * @tparam U Other pointee.
 				 * @param other Other owner.
 				 * @return Whether this control block precedes @p other.
 				 */
 				template<class U>
-				bool owner_before(const Shared<U>& other) const noexcept {
-					return m_ptr.owner_before(other.m_ptr);
-				}
+				bool owner_before(const Shared<U>& other) const noexcept;
 
 				/**
-				 * @brief Ownership order against a @ref Weak.
+				 * @brief Order this control block against an observer.
 				 * @tparam U Other pointee.
 				 * @param other Observer.
 				 * @return Whether this control block precedes @p other.
@@ -366,101 +261,46 @@ namespace StormByte {
 
 				/**
 				 * @brief Allocate @p Target on Base's heap and own it as @p T.
-				 * @tparam Target Concrete type (`T` or derived from @p T).
+				 * @tparam Target Concrete type. It is @p T or derived from @p T.
 				 * @tparam Args Constructor argument types.
-				 * @param args Forwarded to `Target`.
-				 * @return Owner of the `Target` object. The deleter still destroys `Target`.
+				 * @param args Arguments forwarded to @p Target.
+				 * @return Owner of the concrete object. The stored destructor is @p Target's.
+				 * @throws AllocationError The block could not be allocated.
 				 */
 				template<class Target, class... Args>
 				requires Type::SameAs<Target, T> || Type::DerivedFrom<Target, T>
-				static Shared<T> MakePointer(Args&&... args) {
-					return Heap::MakeShared<Target>(std::forward<Args>(args)...);
-				}
+				static Shared<T> MakePointer(Args&&... args);
 
 				/**
-				 * @brief Equality with null.
-				 * @param lhs Owner.
-				 * @return Whether @p lhs is empty.
+				 * @brief Copy the owner into caller-owned STL storage.
+				 * @return A `std::shared_ptr` whose deleter still releases Base's block. There is no conversion back.
 				 */
-				friend bool operator==(const Shared& lhs, std::nullptr_t) noexcept {
-					return !lhs.m_ptr;
-				}
-
-				/**
-				 * @brief Inequality with null.
-				 * @param lhs Owner.
-				 * @return Whether @p lhs is non-empty.
-				 */
-				friend bool operator!=(const Shared& lhs, std::nullptr_t) noexcept {
-					return static_cast<bool>(lhs.m_ptr);
-				}
-
-				/**
-				 * @brief Equality with null.
-				 * @param rhs Owner.
-				 * @return Whether @p rhs is empty.
-				 */
-				friend bool operator==(std::nullptr_t, const Shared& rhs) noexcept {
-					return !rhs.m_ptr;
-				}
-
-				/**
-				 * @brief Inequality with null.
-				 * @param rhs Owner.
-				 * @return Whether @p rhs is non-empty.
-				 */
-				friend bool operator!=(std::nullptr_t, const Shared& rhs) noexcept {
-					return static_cast<bool>(rhs.m_ptr);
-				}
-
-				/**
-				 * @brief Same stored pointer.
-				 * @param lhs Owner.
-				 * @param rhs Owner.
-				 * @return Whether both hold the same address.
-				 */
-				friend bool operator==(const Shared& lhs, const Shared& rhs) noexcept {
-					return lhs.get() == rhs.get();
-				}
-
-				/**
-				 * @brief Order of the stored pointers.
-				 * @param lhs Owner.
-				 * @param rhs Owner.
-				 * @return Three-way comparison of the addresses.
-				 */
-				friend auto operator<=>(const Shared& lhs, const Shared& rhs) noexcept {
-					return std::compare_three_way{}(lhs.get(), rhs.get());
-				}
-
-				/**
-				 * @brief Exchange @p left and @p right.
-				 * @param left Owner.
-				 * @param right Owner.
-				 */
-				friend void swap(Shared& left, Shared& right) noexcept {
-					left.swap(right);
+				STORMBYTE_FORCE_INLINE explicit operator std::shared_ptr<T>() const {
+					if (m_control == nullptr)
+						return {};
+					m_control->Strong.fetch_add(1, std::memory_order_relaxed);
+					Detail::Control* control = m_control;
+					return std::shared_ptr<T>(m_object, [control](T*) noexcept {
+						if (control->Strong.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+							control->Destroy(control);
+							if (control->Weak.fetch_sub(1, std::memory_order_acq_rel) == 1)
+								Heap::Free(control);
+						}
+					});
 				}
 
 			private:
 				/**
-				 * @brief Wrap a control block that already belongs to Base.
-				 * @param pointer Block created by @ref Heap::MakeShared or by a cast of one.
+				 * @brief Adopt a control block already created on Base's heap.
+				 * @param control Control block.
+				 * @param object Typed address inside that block.
 				 */
-				explicit Shared(std::shared_ptr<T> pointer) noexcept: m_ptr(std::move(pointer)) {}
+				Shared(Detail::Control* control, T* object) noexcept;
 
 				/**
-				 * @brief Tag for @ref Heap::MakeShared.
+				 * @brief Drop one strong reference.
 				 */
-				struct Adopt {
-					explicit constexpr Adopt() noexcept = default;
-				};
-
-				/**
-				 * @brief Take a block already constructed on Base's heap.
-				 * @param object Placement-new address from @ref Heap::Allocate.
-				 */
-				explicit Shared(Adopt, T* object): m_ptr(object, Heap::ObjectDeleter{}, Heap::Allocator<T>{}) {}
+				void Release() noexcept;
 
 				template<class U>
 				friend class Shared;
@@ -468,8 +308,11 @@ namespace StormByte {
 				template<class U>
 				friend class Weak;
 
+				template<class U>
+				friend class AtomicShared;
+
 				template<class U, class... Args>
-				friend Shared<U> Heap::MakeShared(Args&&...);
+				friend Shared<U> MakeShared(Args&&...);
 
 				template<class X, class Y>
 				friend Shared<X> StaticPointerCast(const Shared<Y>&) noexcept;
@@ -483,249 +326,150 @@ namespace StormByte {
 				template<class X, class Y>
 				friend Shared<X> ReinterpretPointerCast(const Shared<Y>&) noexcept;
 
-				std::shared_ptr<T> m_ptr;	///< Control block and object on Base's heap
+				Detail::Control* m_control; ///< Base control block, or null.
+				T* m_object; ///< Typed address, or null. A cast may differ from the concrete object.
 		};
 
 		/**
 		 * @class Unique
-		 * @brief Unique owner of a @p T allocated on Base's heap.
+		 * @brief Unique owner of an object allocated on Base's heap.
 		 * @tparam T Pointee type.
 		 *
-		 * Complements `std::unique_ptr`. It does not replace it. Use `std::unique_ptr`
-		 * when the object does not cross a DLL. Use @ref Unique when the object must
-		 * be freed on Base's heap.
-		 *
-		 * Construct the exact type with @ref Heap::MakeUnique. Construct a derived
-		 * type with @ref Unique::MakePointer. `~T` must be virtual when @p Target
-		 * is not @p T, because the deleter calls `~T`. There is no `release` and no
-		 * constructor from a raw pointer. Converts on move to
-		 * `std::unique_ptr<T, Heap::ObjectDeleter>`, not to `std::unique_ptr<T>`.
-		 * A signature that takes `std::unique_ptr<T>` has to change.
+		 * The object and its concrete destructor live on Base's heap. There is no `release` and no constructor from a raw pointer.
 		 */
 		template<class T>
 		class STORMBYTE_PUBLIC_TYPE Unique {
 			public:
-				using element_type = T;	///< Pointee type.
-				using pointer = T*;	///< Stored pointer.
-				using deleter_type = Heap::ObjectDeleter;	///< Deleter that calls @ref Heap::Free.
+				using element_type = T; ///< Pointee type.
+				using pointer = T*; ///< Stored pointer.
+				using deleter_type = Heap::ObjectDeleter; ///< Deleter used by the STL conversion.
 
 				/**
-				 * @brief Empty owner.
+				 * @brief Construct an empty owner.
 				 */
-				Unique() noexcept = default;
+				Unique() noexcept;
 
 				/**
-				 * @brief Empty owner from `nullptr`.
+				 * @brief Construct an empty owner from null.
+				 * @param null Null pointer constant.
 				 */
-				Unique(std::nullptr_t) noexcept {}
+				Unique(std::nullptr_t null) noexcept;
 
 				/**
-				 * @brief Take ownership from @p other.
+				 * @brief Take ownership from another owner.
 				 * @tparam U Pointee convertible to @p T.
-				 * @param other Other owner.
+				 * @param other Owner to take. Left empty.
 				 */
 				template<class U>
-				requires Type::SameAs<U, T> || (Type::DerivedFrom<U, T> && std::has_virtual_destructor_v<T>)
-				Unique(Unique<U>&& other) noexcept: m_ptr(std::move(other.m_ptr)) {}
+				requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
+				Unique(Unique<U>&& other) noexcept;
 
 				/**
 				 * @brief Copy constructor. Deleted.
+				 * @param other Ignored.
 				 */
-				Unique(const Unique&) = delete;
+				Unique(const Unique& other) = delete;
 
 				/**
-				 * @brief Move constructor.
+				 * @brief Take ownership. @p other is left empty.
+				 * @param other Owner to take.
 				 */
-				Unique(Unique&&) noexcept = default;
+				Unique(Unique&& other) noexcept;
 
 				/**
 				 * @brief Copy assignment. Deleted.
-				 * @return @c *this.
+				 * @param other Ignored.
+				 * @return This owner.
 				 */
-				Unique& operator=(const Unique&) = delete;
+				Unique& operator=(const Unique& other) = delete;
 
 				/**
-				 * @brief Move assignment.
-				 * @return @c *this.
+				 * @brief Take ownership. @p other is left empty.
+				 * @param other Owner to take.
+				 * @return This owner.
 				 */
-				Unique& operator=(Unique&&) noexcept = default;
+				Unique& operator=(Unique&& other) noexcept;
 
 				/**
-				 * @brief Destructor.
+				 * @brief Destroy the object through its concrete destructor and free the block.
 				 */
-				~Unique() = default;
+				~Unique();
 
 				/**
-				 * @brief Raw pointer, or null.
+				 * @brief Return the stored pointer.
+				 * @return Pointee, or null.
+				 */
+				T* get() const noexcept;
+
+				/**
+				 * @brief Dereference the stored pointer.
 				 * @return Pointee.
 				 */
-				T* get() const noexcept {
-					return m_ptr.get();
-				}
+				T& operator*() const noexcept;
 
 				/**
-				 * @brief Dereference.
-				 * @return Pointee.
+				 * @brief Access a member of the pointee.
+				 * @return Stored pointer.
 				 */
-				T& operator*() const {
-					return *m_ptr;
-				}
+				T* operator->() const noexcept;
 
 				/**
-				 * @brief Member access.
-				 * @return Pointee.
+				 * @brief Test whether this owner holds an object.
+				 * @return Whether the stored pointer is non-null.
 				 */
-				T* operator->() const noexcept {
-					return m_ptr.get();
-				}
+				explicit operator bool() const noexcept;
 
 				/**
-				 * @brief Whether this owner holds an object.
-				 * @return @c true when non-empty.
+				 * @brief Destroy the object and leave this owner empty.
 				 */
-				explicit operator bool() const noexcept {
-					return static_cast<bool>(m_ptr);
-				}
+				void reset() noexcept;
 
 				/**
-				 * @brief Release as `std::unique_ptr` with Base's deleter.
-				 * @return `std::unique_ptr<T, Heap::ObjectDeleter>`.
+				 * @brief Exchange owners.
+				 * @param other Owner to exchange with.
 				 */
-				operator std::unique_ptr<T, Heap::ObjectDeleter>() && noexcept {
-					return std::move(m_ptr);
-				}
-
-				/**
-				 * @brief Deleter stored in this owner.
-				 * @return @ref Heap::ObjectDeleter.
-				 */
-				deleter_type& get_deleter() noexcept {
-					return m_ptr.get_deleter();
-				}
-
-				/**
-				 * @brief Deleter stored in this owner.
-				 * @return @ref Heap::ObjectDeleter.
-				 */
-				const deleter_type& get_deleter() const noexcept {
-					return m_ptr.get_deleter();
-				}
-
-				/**
-				 * @brief Destroy the object and drop this owner.
-				 */
-				void reset() noexcept {
-					m_ptr.reset();
-				}
-
-				/**
-				 * @brief Exchange owners with @p other.
-				 * @param other Other owner.
-				 */
-				void swap(Unique& other) noexcept {
-					m_ptr.swap(other.m_ptr);
-				}
+				void swap(Unique& other) noexcept;
 
 				/**
 				 * @brief Allocate @p Target on Base's heap and own it as @p T.
-				 * @tparam Target Concrete type (`T` or derived from @p T).
+				 * @tparam Target Concrete type. It is @p T or derived from @p T.
 				 * @tparam Args Constructor argument types.
-				 * @param args Forwarded to `Target`.
-				 * @return Owner of the `Target` object.
-				 * @note When @p Target is not @p T, @p T must have a virtual destructor.
+				 * @param args Arguments forwarded to @p Target.
+				 * @return Owner. The stored destructor is @p Target's, so @p T does not need a virtual destructor.
+				 * @throws AllocationError The block could not be allocated.
 				 */
 				template<class Target, class... Args>
-				requires Type::SameAs<Target, T> || (Type::DerivedFrom<Target, T> && std::has_virtual_destructor_v<T>)
-				static Unique<T> MakePointer(Args&&... args) {
-					return Heap::MakeUnique<Target>(std::forward<Args>(args)...);
-				}
+				requires Type::SameAs<Target, T> || Type::DerivedFrom<Target, T>
+				static Unique<T> MakePointer(Args&&... args);
 
 				/**
-				 * @brief Equality with null.
-				 * @param lhs Owner.
-				 * @return Whether @p lhs is empty.
+				 * @brief Move the owner into caller-owned STL storage.
+				 * @return A `std::unique_ptr` whose deleter still frees Base's block. There is no conversion back.
 				 */
-				friend bool operator==(const Unique& lhs, std::nullptr_t) noexcept {
-					return !lhs.m_ptr;
-				}
-
-				/**
-				 * @brief Inequality with null.
-				 * @param lhs Owner.
-				 * @return Whether @p lhs is non-empty.
-				 */
-				friend bool operator!=(const Unique& lhs, std::nullptr_t) noexcept {
-					return static_cast<bool>(lhs.m_ptr);
-				}
-
-				/**
-				 * @brief Equality with null.
-				 * @param rhs Owner.
-				 * @return Whether @p rhs is empty.
-				 */
-				friend bool operator==(std::nullptr_t, const Unique& rhs) noexcept {
-					return !rhs.m_ptr;
-				}
-
-				/**
-				 * @brief Inequality with null.
-				 * @param rhs Owner.
-				 * @return Whether @p rhs is non-empty.
-				 */
-				friend bool operator!=(std::nullptr_t, const Unique& rhs) noexcept {
-					return static_cast<bool>(rhs.m_ptr);
-				}
-
-				/**
-				 * @brief Same stored pointer.
-				 * @param lhs Owner.
-				 * @param rhs Owner.
-				 * @return Whether both hold the same address.
-				 */
-				friend bool operator==(const Unique& lhs, const Unique& rhs) noexcept {
-					return lhs.get() == rhs.get();
-				}
-
-				/**
-				 * @brief Order of the stored pointers.
-				 * @param lhs Owner.
-				 * @param rhs Owner.
-				 * @return Three-way comparison of the addresses.
-				 */
-				friend auto operator<=>(const Unique& lhs, const Unique& rhs) noexcept {
-					return std::compare_three_way{}(lhs.get(), rhs.get());
-				}
-
-				/**
-				 * @brief Exchange @p left and @p right.
-				 * @param left Owner.
-				 * @param right Owner.
-				 */
-				friend void swap(Unique& left, Unique& right) noexcept {
-					left.swap(right);
+				operator std::unique_ptr<T, Heap::ObjectDeleter>() && noexcept {
+					Heap::ObjectDeleter deleter{m_destroy};
+					T* object = m_object;
+					m_object = nullptr;
+					m_destroy = nullptr;
+					return std::unique_ptr<T, Heap::ObjectDeleter>(object, deleter);
 				}
 
 			private:
 				/**
-				 * @brief Tag for @ref Heap::MakeUnique.
+				 * @brief Adopt an object already constructed on Base's heap.
+				 * @param object Object address.
+				 * @param destroy Concrete destructor. It also frees the block.
 				 */
-				struct Adopt {
-					explicit constexpr Adopt() noexcept = default;
-				};
-
-				/**
-				 * @brief Take a block already constructed on Base's heap.
-				 * @param object Placement-new address from @ref Heap::Allocate.
-				 */
-				explicit Unique(Adopt, T* object): m_ptr(object) {}
+				Unique(T* object, void (*destroy)(void*) noexcept) noexcept;
 
 				template<class U>
 				friend class Unique;
 
 				template<class U, class... Args>
-				friend Unique<U> Heap::MakeUnique(Args&&...);
+				friend Unique<U> MakeUnique(Args&&...);
 
-				std::unique_ptr<T, Heap::ObjectDeleter> m_ptr;	///< Object on Base's heap
+				T* m_object; ///< Object, or null.
+				void (*m_destroy)(void*) noexcept; ///< Concrete destructor, or null.
 		};
 
 		/**
@@ -733,140 +477,315 @@ namespace StormByte {
 		 * @brief Non-owning observer of a @ref Shared control block.
 		 * @tparam T Pointee type.
 		 *
-		 * Complements `std::weak_ptr`. It does not replace it. Construct it only
-		 * from a @ref Shared. `lock` returns a @ref Shared, or an empty owner when
-		 * the object is gone. There is no constructor from `std::weak_ptr`.
+		 * Construct it only from a @ref Shared. @ref lock returns a @ref Shared, or an empty owner when the object is gone.
 		 */
 		template<class T>
 		class STORMBYTE_PUBLIC_TYPE Weak {
 			public:
-				using element_type = T;	///< Pointee type.
+				using element_type = T; ///< Pointee type.
 
 				/**
-				 * @brief Empty observer.
+				 * @brief Construct an empty observer.
 				 */
-				Weak() noexcept = default;
+				Weak() noexcept;
 
 				/**
-				 * @brief Empty observer from `nullptr`.
+				 * @brief Construct an empty observer from null.
+				 * @param null Null pointer constant.
 				 */
-				Weak(std::nullptr_t) noexcept {}
+				Weak(std::nullptr_t null) noexcept;
 
 				/**
-				 * @brief Observe @p owner.
+				 * @brief Observe an owner.
 				 * @tparam U Pointee convertible to @p T.
 				 * @param owner Owner to watch.
 				 */
 				template<class U>
 				requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
-				Weak(const Shared<U>& owner) noexcept: m_weak(owner.m_ptr) {}
+				Weak(const Shared<U>& owner) noexcept;
 
 				/**
-				 * @brief Copy constructor.
+				 * @brief Copy an observer.
+				 * @param other Observer to copy.
 				 */
-				Weak(const Weak&) noexcept = default;
+				Weak(const Weak& other) noexcept;
 
 				/**
-				 * @brief Move constructor.
+				 * @brief Take an observer. @p other is left empty.
+				 * @param other Observer to take.
 				 */
-				Weak(Weak&&) noexcept = default;
+				Weak(Weak&& other) noexcept;
 
 				/**
-				 * @brief Copy assignment.
-				 * @return @c *this.
+				 * @brief Copy an observer.
+				 * @param other Observer to copy.
+				 * @return This observer.
 				 */
-				Weak& operator=(const Weak&) noexcept = default;
+				Weak& operator=(const Weak& other) noexcept;
 
 				/**
-				 * @brief Move assignment.
-				 * @return @c *this.
+				 * @brief Take an observer. @p other is left empty.
+				 * @param other Observer to take.
+				 * @return This observer.
 				 */
-				Weak& operator=(Weak&&) noexcept = default;
+				Weak& operator=(Weak&& other) noexcept;
 
 				/**
-				 * @brief Destructor.
+				 * @brief Drop this observer. The last observer frees an expired block.
 				 */
-				~Weak() = default;
+				~Weak();
 
 				/**
 				 * @brief Lock the control block.
-				 * @return @ref Shared owning the object, or empty when expired.
+				 * @return Owner of the object, or empty when expired.
 				 */
-				Shared<T> lock() const noexcept {
-					return Shared<T>(m_weak.lock());
-				}
+				Shared<T> lock() const noexcept;
 
 				/**
-				 * @brief Whether the object is already gone.
-				 * @return @c true when @ref lock would return empty.
+				 * @brief Test whether the object is already gone.
+				 * @return Whether @ref lock would return empty.
 				 */
-				bool expired() const noexcept {
-					return m_weak.expired();
-				}
+				bool expired() const noexcept;
 
 				/**
-				 * @brief Number of @ref Shared still holding the object.
-				 * @return Use count, or `0` when expired.
+				 * @brief Return the number of owners.
+				 * @return Strong count, or zero when expired.
 				 */
-				long use_count() const noexcept {
-					return m_weak.use_count();
-				}
+				long use_count() const noexcept;
 
 				/**
 				 * @brief Drop this observer.
 				 */
-				void reset() noexcept {
-					m_weak.reset();
-				}
+				void reset() noexcept;
 
 				/**
-				 * @brief Exchange observers with @p other.
-				 * @param other Other observer.
+				 * @brief Exchange observers.
+				 * @param other Observer to exchange with.
 				 */
-				void swap(Weak& other) noexcept {
-					m_weak.swap(other.m_weak);
-				}
+				void swap(Weak& other) noexcept;
 
 				/**
-				 * @brief Ownership order, same as `std::weak_ptr::owner_before`.
+				 * @brief Order control blocks by identity.
 				 * @tparam U Other pointee.
 				 * @param other Other observer.
 				 * @return Whether this control block precedes @p other.
 				 */
 				template<class U>
-				bool owner_before(const Weak<U>& other) const noexcept {
-					return m_weak.owner_before(other.m_weak);
-				}
+				bool owner_before(const Weak<U>& other) const noexcept;
 
 				/**
-				 * @brief Ownership order against a @ref Shared.
+				 * @brief Order this control block against an owner.
 				 * @tparam U Other pointee.
 				 * @param other Owner.
 				 * @return Whether this control block precedes @p other.
 				 */
 				template<class U>
-				bool owner_before(const Shared<U>& other) const noexcept {
-					return m_weak.owner_before(other.m_ptr);
-				}
-
-				/**
-				 * @brief Exchange @p left and @p right.
-				 * @param left Observer.
-				 * @param right Observer.
-				 */
-				friend void swap(Weak& left, Weak& right) noexcept {
-					left.swap(right);
-				}
+				bool owner_before(const Shared<U>& other) const noexcept;
 
 			private:
+				/**
+				 * @brief Drop one weak reference.
+				 */
+				void Release() noexcept;
+
 				template<class U>
 				friend class Weak;
 
 				template<class U>
 				friend class Shared;
 
-				std::weak_ptr<T> m_weak;	///< Observer of a Base control block
+				template<class U>
+				friend class EnableSharedFromThis;
+
+				Detail::Control* m_control; ///< Base control block, or null.
+				T* m_object; ///< Typed address observed, or null.
 		};
+
+		/**
+		 * @class EnableSharedFromThis
+		 * @brief Base that can recover a @ref Shared from an object owned by one.
+		 * @tparam T Most derived type used with @ref MakeShared.
+		 *
+		 * @ref MakeShared links the embedded observer after construction. Calling @ref SharedFromThis before that link throws @ref ExpiredWeakPointerError.
+		 */
+		template<class T>
+		class STORMBYTE_PUBLIC_TYPE EnableSharedFromThis {
+			public:
+				/**
+				 * @brief Construct an unlinked base.
+				 */
+				EnableSharedFromThis() noexcept = default;
+
+				/**
+				 * @brief Copy does not copy the observer.
+				 * @param other Ignored.
+				 */
+				EnableSharedFromThis(const EnableSharedFromThis& other) noexcept;
+
+				/**
+				 * @brief Move does not move the observer.
+				 * @param other Ignored.
+				 */
+				EnableSharedFromThis(EnableSharedFromThis&& other) noexcept;
+
+				/**
+				 * @brief Assignment does not replace the observer.
+				 * @param other Ignored.
+				 * @return This base.
+				 */
+				EnableSharedFromThis& operator=(const EnableSharedFromThis& other) noexcept;
+
+				/**
+				 * @brief Move assignment does not replace the observer.
+				 * @param other Ignored.
+				 * @return This base.
+				 */
+				EnableSharedFromThis& operator=(EnableSharedFromThis&& other) noexcept;
+
+				/**
+				 * @brief Destroy the embedded observer.
+				 */
+				~EnableSharedFromThis() = default;
+
+			protected:
+				/**
+				 * @brief Recover an owner of this object.
+				 * @return Owner sharing the control block created by @ref MakeShared.
+				 * @throws ExpiredWeakPointerError This object is not currently owned by a @ref Shared.
+				 */
+				Shared<T> SharedFromThis() const;
+
+			private:
+				template<class U, class... Args>
+				friend Shared<U> MakeShared(Args&&...);
+
+				mutable Weak<T> m_weak; ///< Observer linked by @ref MakeShared.
+		};
+
+		/**
+		 * @class AtomicShared
+		 * @brief Atomic publication of a @ref Shared.
+		 * @tparam T Pointee type.
+		 *
+		 * Load, store, exchange and compare-exchange adjust the same Base control block. The lock lives in this object, so two modules can publish a @ref Shared without a `libc++` control block.
+		 */
+		template<class T>
+		class STORMBYTE_PUBLIC_TYPE AtomicShared {
+			public:
+				/**
+				 * @brief Construct an empty atomic owner.
+				 */
+				AtomicShared() noexcept;
+
+				/**
+				 * @brief Construct from an owner.
+				 * @param owner Owner to publish.
+				 */
+				explicit AtomicShared(Shared<T> owner) noexcept;
+
+				/**
+				 * @brief Copy constructor. Deleted.
+				 * @param other Ignored.
+				 */
+				AtomicShared(const AtomicShared& other) = delete;
+
+				/**
+				 * @brief Destroy the published owner.
+				 */
+				~AtomicShared();
+
+				/**
+				 * @brief Copy assignment. Deleted.
+				 * @param other Ignored.
+				 * @return This atomic owner.
+				 */
+				AtomicShared& operator=(const AtomicShared& other) = delete;
+
+				/**
+				 * @brief Publish an owner.
+				 * @param owner Owner to publish.
+				 * @return This atomic owner.
+				 */
+				AtomicShared& operator=(Shared<T> owner) noexcept;
+
+				/**
+				 * @brief Test whether an owner is published.
+				 * @return Whether the published pointer is non-null.
+				 */
+				explicit operator bool() const noexcept;
+
+				/**
+				 * @brief Copy the published owner.
+				 * @return Owner sharing the published control block.
+				 */
+				Shared<T> load() const noexcept;
+
+				/**
+				 * @brief Replace the published owner.
+				 * @param owner Owner to publish.
+				 */
+				void store(Shared<T> owner) noexcept;
+
+				/**
+				 * @brief Replace the published owner and return the previous one.
+				 * @param owner Owner to publish.
+				 * @return Previous owner.
+				 */
+				Shared<T> exchange(Shared<T> owner) noexcept;
+
+				/**
+				 * @brief Replace the published owner when it compares equal by address.
+				 * @param expected Expected owner. Replaced with the current owner when the exchange fails.
+				 * @param desired Owner to publish.
+				 * @return Whether the exchange happened.
+				 */
+				bool compare_exchange_strong(Shared<T>& expected, Shared<T> desired) noexcept;
+
+				/**
+				 * @brief Replace the published owner when it compares equal by address.
+				 * @param expected Expected owner. Replaced with the current owner when the exchange fails.
+				 * @param desired Owner to publish.
+				 * @return Whether the exchange happened. May fail spuriously.
+				 */
+				bool compare_exchange_weak(Shared<T>& expected, Shared<T> desired) noexcept;
+
+			private:
+				/**
+				 * @brief Lock the publication.
+				 */
+				void Lock() const noexcept;
+
+				/**
+				 * @brief Unlock the publication.
+				 */
+				void Unlock() const noexcept;
+
+				mutable std::atomic_flag m_lock; ///< Publication lock.
+				Detail::Control* m_control; ///< Published control block, or null.
+				T* m_object; ///< Published typed address, or null.
+		};
+
+		/**
+		 * @brief Construct @p T on Base's heap and share it.
+		 * @tparam T Object type.
+		 * @tparam Args Constructor argument types.
+		 * @param args Arguments forwarded to @p T.
+		 * @return Owning @ref Shared.
+		 * @throws AllocationError The block could not be allocated.
+		 */
+		template<class T, class... Args>
+		Shared<T> MakeShared(Args&&... args);
+
+		/**
+		 * @brief Construct @p T on Base's heap and own it.
+		 * @tparam T Object type.
+		 * @tparam Args Constructor argument types.
+		 * @param args Arguments forwarded to @p T.
+		 * @return Owning @ref Unique.
+		 * @throws AllocationError The block could not be allocated.
+		 */
+		template<class T, class... Args>
+		Unique<T> MakeUnique(Args&&... args);
 
 		/**
 		 * @brief `static_cast` of the stored pointer. The control block stays.
@@ -876,9 +795,7 @@ namespace StormByte {
 		 * @return Owner of the cast pointer.
 		 */
 		template<class T, class U>
-		Shared<T> StaticPointerCast(const Shared<U>& from) noexcept {
-			return Shared<T>(std::static_pointer_cast<T>(std::shared_ptr<U>(from)));
-		}
+		Shared<T> StaticPointerCast(const Shared<U>& from) noexcept;
 
 		/**
 		 * @brief `dynamic_cast` of the stored pointer. Empty when the cast fails.
@@ -888,9 +805,7 @@ namespace StormByte {
 		 * @return Owner of the cast pointer, or empty.
 		 */
 		template<class T, class U>
-		Shared<T> DynamicPointerCast(const Shared<U>& from) noexcept {
-			return Shared<T>(std::dynamic_pointer_cast<T>(std::shared_ptr<U>(from)));
-		}
+		Shared<T> DynamicPointerCast(const Shared<U>& from) noexcept;
 
 		/**
 		 * @brief `const_cast` of the stored pointer. The control block stays.
@@ -900,9 +815,7 @@ namespace StormByte {
 		 * @return Owner of the cast pointer.
 		 */
 		template<class T, class U>
-		Shared<T> ConstPointerCast(const Shared<U>& from) noexcept {
-			return Shared<T>(std::const_pointer_cast<T>(std::shared_ptr<U>(from)));
-		}
+		Shared<T> ConstPointerCast(const Shared<U>& from) noexcept;
 
 		/**
 		 * @brief `reinterpret_cast` of the stored pointer. The control block stays.
@@ -912,31 +825,103 @@ namespace StormByte {
 		 * @return Owner of the cast pointer.
 		 */
 		template<class T, class U>
-		Shared<T> ReinterpretPointerCast(const Shared<U>& from) noexcept {
-			return Shared<T>(std::reinterpret_pointer_cast<T>(std::shared_ptr<U>(from)));
-		}
+		Shared<T> ReinterpretPointerCast(const Shared<U>& from) noexcept;
 
+		/**
+		 * @brief Same stored pointer.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param right Owner.
+		 * @return Whether both hold the same address.
+		 */
 		template<class T>
-		Shared<T>::Shared(const Weak<T>& weak): m_ptr(weak.m_weak.lock()) {
-			if (!m_ptr)
-				Heap::ThrowExpiredWeakPointer();
-		}
+		bool operator==(const Shared<T>& left, const Shared<T>& right) noexcept;
 
+		/**
+		 * @brief Order of the stored pointers.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param right Owner.
+		 * @return Three-way comparison of the addresses.
+		 */
 		template<class T>
-		template<class U>
-		bool Shared<T>::owner_before(const Weak<U>& other) const noexcept {
-			return m_ptr.owner_before(other.m_weak);
-		}
+		std::strong_ordering operator<=>(const Shared<T>& left, const Shared<T>& right) noexcept;
+
+		/**
+		 * @brief Compare an owner with null.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param null Null pointer constant.
+		 * @return Whether @p left is empty.
+		 */
+		template<class T>
+		bool operator==(const Shared<T>& left, std::nullptr_t null) noexcept;
+
+		/**
+		 * @brief Same stored pointer.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param right Owner.
+		 * @return Whether both hold the same address.
+		 */
+		template<class T>
+		bool operator==(const Unique<T>& left, const Unique<T>& right) noexcept;
+
+		/**
+		 * @brief Order of the stored pointers.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param right Owner.
+		 * @return Three-way comparison of the addresses.
+		 */
+		template<class T>
+		std::strong_ordering operator<=>(const Unique<T>& left, const Unique<T>& right) noexcept;
+
+		/**
+		 * @brief Compare an owner with null.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param null Null pointer constant.
+		 * @return Whether @p left is empty.
+		 */
+		template<class T>
+		bool operator==(const Unique<T>& left, std::nullptr_t null) noexcept;
+
+		/**
+		 * @brief Exchange two owners.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param right Owner.
+		 */
+		template<class T>
+		void swap(Shared<T>& left, Shared<T>& right) noexcept;
+
+		/**
+		 * @brief Exchange two owners.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param right Owner.
+		 */
+		template<class T>
+		void swap(Unique<T>& left, Unique<T>& right) noexcept;
+
+		/**
+		 * @brief Exchange two observers.
+		 * @tparam T Pointee.
+		 * @param left Observer.
+		 * @param right Observer.
+		 */
+		template<class T>
+		void swap(Weak<T>& left, Weak<T>& right) noexcept;
 	}
 }
-
 
 template<class T>
 struct std::hash<StormByte::Safe::Shared<T>> {
 	/**
-	 * @brief Hashes the stored address.
+	 * @brief Hash the stored address.
 	 * @param value Owner.
-	 * @return Hash.
+	 * @return Hash of the stored pointer.
 	 */
 	std::size_t operator()(const StormByte::Safe::Shared<T>& value) const noexcept {
 		return std::hash<T*>{}(value.get());
@@ -946,9 +931,9 @@ struct std::hash<StormByte::Safe::Shared<T>> {
 template<class T>
 struct std::hash<StormByte::Safe::Unique<T>> {
 	/**
-	 * @brief Hashes the stored address.
+	 * @brief Hash the stored address.
 	 * @param value Owner.
-	 * @return Hash.
+	 * @return Hash of the stored pointer.
 	 */
 	std::size_t operator()(const StormByte::Safe::Unique<T>& value) const noexcept {
 		return std::hash<T*>{}(value.get());

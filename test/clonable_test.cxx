@@ -95,77 +95,84 @@ namespace {
 // -------------------
 
 int test_shared_clone_copies() {
+	constexpr const char* test = "test_shared_clone_copies";
 	int result = 0;
 	SharedItem original(42);
 	SharedItem::PointerType clone = original.Clone();
-	ASSERT_TRUE("test_shared_clone_copies", clone != nullptr);
-	ASSERT_EQUAL("test_shared_clone_copies", 42, clone->value);
-	ASSERT_TRUE("test_shared_clone_copies", clone.get() != &original);
-	RETURN_TEST("test_shared_clone_copies", result);
+	ASSERT_TRUE(test, clone != nullptr);
+	ASSERT_EQUAL(test, 42, clone->value);
+	ASSERT_TRUE(test, clone.get() != &original);
+	RETURN_TEST(test, result);
 }
 
 int test_shared_clone_is_independent() {
+	constexpr const char* test = "test_shared_clone_is_independent";
 	int result = 0;
 	SharedItem original(1);
 	SharedItem::PointerType clone = original.Clone();
 	clone->value = 99;
-	ASSERT_EQUAL("test_shared_clone_is_independent", 1, original.value);
-	ASSERT_EQUAL("test_shared_clone_is_independent", 99, clone->value);
-	RETURN_TEST("test_shared_clone_is_independent", result);
+	ASSERT_EQUAL(test, 1, original.value);
+	ASSERT_EQUAL(test, 99, clone->value);
+	RETURN_TEST(test, result);
 }
 
 int test_shared_converts_to_std_shared_ptr() {
+	constexpr const char* test = "test_shared_converts_to_std_shared_ptr";
 	int result = 0;
 	SharedItem original(11);
 	SharedItem::PointerType item = original.Clone();
-	std::shared_ptr<SharedItem> as_std = item;
-	ASSERT_TRUE("test_shared_converts_to_std_shared_ptr", as_std != nullptr);
-	ASSERT_EQUAL("test_shared_converts_to_std_shared_ptr", 11, as_std->value);
-	ASSERT_TRUE("test_shared_converts_to_std_shared_ptr", as_std.get() == item.get());
-	ASSERT_EQUAL("test_shared_converts_to_std_shared_ptr", 11, consume_shared_ptr(item));
-	RETURN_TEST("test_shared_converts_to_std_shared_ptr", result);
+	std::shared_ptr<SharedItem> as_std = static_cast<std::shared_ptr<SharedItem>>(item);
+	ASSERT_TRUE(test, as_std != nullptr);
+	ASSERT_EQUAL(test, 11, as_std->value);
+	ASSERT_TRUE(test, as_std.get() == item.get());
+	ASSERT_EQUAL(test, 11, consume_shared_ptr(static_cast<std::shared_ptr<SharedItem>>(item)));
+	RETURN_TEST(test, result);
 }
 
 int test_shared_make_pointer() {
+	constexpr const char* test = "test_shared_make_pointer";
 	int result = 0;
 	SharedItem::PointerType pointer = SharedItem::MakePointer<SharedItem>(8);
-	ASSERT_TRUE("test_shared_make_pointer", pointer != nullptr);
-	ASSERT_EQUAL("test_shared_make_pointer", 8, pointer->value);
-	ASSERT_TRUE("test_shared_make_pointer", pointer.use_count() == 1);
-	RETURN_TEST("test_shared_make_pointer", result);
+	ASSERT_TRUE(test, pointer != nullptr);
+	ASSERT_EQUAL(test, 8, pointer->value);
+	ASSERT_TRUE(test, pointer.use_count() == 1);
+	RETURN_TEST(test, result);
 }
 
 int test_shared_move() {
+	constexpr const char* test = "test_shared_move";
 	int result = 0;
 	SharedItem original(7);
 	SharedItem::PointerType moved = original.Move();
-	ASSERT_TRUE("test_shared_move", moved != nullptr);
-	ASSERT_EQUAL("test_shared_move", 7, moved->value);
-	ASSERT_TRUE("test_shared_move", moved.get() != &original);
-	RETURN_TEST("test_shared_move", result);
+	ASSERT_TRUE(test, moved != nullptr);
+	ASSERT_EQUAL(test, 7, moved->value);
+	ASSERT_TRUE(test, moved.get() != &original);
+	RETURN_TEST(test, result);
 }
 
 int test_shared_pointer_storage() {
+	constexpr const char* test = "test_shared_pointer_storage";
 	int result = 0;
 	SharedItem original(4);
 	SharedItem::PointerType first = original.Clone();
 	SharedItem::PointerType second = first;
-	ASSERT_EQUAL("test_shared_pointer_storage", 4, first->value);
-	ASSERT_EQUAL("test_shared_pointer_storage", 4, second->value);
-	ASSERT_TRUE("test_shared_pointer_storage", first.get() == second.get());
+	ASSERT_EQUAL(test, 4, first->value);
+	ASSERT_EQUAL(test, 4, second->value);
+	ASSERT_TRUE(test, first.get() == second.get());
 	second->value = 20;
-	ASSERT_EQUAL("test_shared_pointer_storage", 20, first->value);
-	RETURN_TEST("test_shared_pointer_storage", result);
+	ASSERT_EQUAL(test, 20, first->value);
+	RETURN_TEST(test, result);
 }
 
 int test_shared_pointer_type() {
+	constexpr const char* test = "test_shared_pointer_type";
 	int result = 0;
 	static_assert(Type::SameAs<SharedItem::PointerType, Shared<SharedItem>>);
 	static_assert(ValidSmartPointer<SharedItem::PointerType, SharedItem>);
 	static_assert(!ValidSmartPointer<std::shared_ptr<SharedItem>, SharedItem>);
 	SharedItem::PointerType clone = SharedItem(3).Clone();
-	ASSERT_TRUE("test_shared_pointer_type", clone != nullptr);
-	RETURN_TEST("test_shared_pointer_type", result);
+	ASSERT_TRUE(test, clone != nullptr);
+	RETURN_TEST(test, result);
 }
 
 // -------------------
@@ -173,81 +180,89 @@ int test_shared_pointer_type() {
 // -------------------
 
 int test_unique_clone_copies() {
+	constexpr const char* test = "test_unique_clone_copies";
 	int result = 0;
 	UniqueItem original(42);
 	UniqueItem::PointerType clone = original.Clone();
-	ASSERT_TRUE("test_unique_clone_copies", clone != nullptr);
-	ASSERT_EQUAL("test_unique_clone_copies", 42, clone->value);
-	ASSERT_TRUE("test_unique_clone_copies", clone.get() != &original);
-	RETURN_TEST("test_unique_clone_copies", result);
+	ASSERT_TRUE(test, clone != nullptr);
+	ASSERT_EQUAL(test, 42, clone->value);
+	ASSERT_TRUE(test, clone.get() != &original);
+	RETURN_TEST(test, result);
 }
 
 int test_unique_clone_is_independent() {
+	constexpr const char* test = "test_unique_clone_is_independent";
 	int result = 0;
 	UniqueItem original(1);
 	UniqueItem::PointerType clone = original.Clone();
 	clone->value = 99;
-	ASSERT_EQUAL("test_unique_clone_is_independent", 1, original.value);
-	ASSERT_EQUAL("test_unique_clone_is_independent", 99, clone->value);
-	RETURN_TEST("test_unique_clone_is_independent", result);
+	ASSERT_EQUAL(test, 1, original.value);
+	ASSERT_EQUAL(test, 99, clone->value);
+	RETURN_TEST(test, result);
 }
 
 int test_unique_converts_to_std_unique_ptr() {
+	constexpr const char* test = "test_unique_converts_to_std_unique_ptr";
 	int result = 0;
 	UniqueItem original(11);
 	UniqueItem::PointerType item = original.Clone();
 	std::unique_ptr<UniqueItem, Heap::ObjectDeleter> as_std = std::move(item);
-	ASSERT_TRUE("test_unique_converts_to_std_unique_ptr", as_std != nullptr);
-	ASSERT_EQUAL("test_unique_converts_to_std_unique_ptr", 11, as_std->value);
-	ASSERT_EQUAL("test_unique_converts_to_std_unique_ptr", 11, consume_unique_ptr(as_std));
-	RETURN_TEST("test_unique_converts_to_std_unique_ptr", result);
+	ASSERT_TRUE(test, as_std != nullptr);
+	ASSERT_EQUAL(test, 11, as_std->value);
+	ASSERT_EQUAL(test, 11, consume_unique_ptr(as_std));
+	RETURN_TEST(test, result);
 }
 
 int test_unique_make_pointer() {
+	constexpr const char* test = "test_unique_make_pointer";
 	int result = 0;
 	UniqueItem::PointerType pointer = UniqueItem::MakePointer<UniqueItem>(8);
-	ASSERT_TRUE("test_unique_make_pointer", pointer != nullptr);
-	ASSERT_EQUAL("test_unique_make_pointer", 8, pointer->value);
-	RETURN_TEST("test_unique_make_pointer", result);
+	ASSERT_TRUE(test, pointer != nullptr);
+	ASSERT_EQUAL(test, 8, pointer->value);
+	RETURN_TEST(test, result);
 }
 
 int test_unique_move() {
+	constexpr const char* test = "test_unique_move";
 	int result = 0;
 	UniqueItem original(7);
 	UniqueItem::PointerType moved = original.Move();
-	ASSERT_TRUE("test_unique_move", moved != nullptr);
-	ASSERT_EQUAL("test_unique_move", 7, moved->value);
-	ASSERT_TRUE("test_unique_move", moved.get() != &original);
-	RETURN_TEST("test_unique_move", result);
+	ASSERT_TRUE(test, moved != nullptr);
+	ASSERT_EQUAL(test, 7, moved->value);
+	ASSERT_TRUE(test, moved.get() != &original);
+	RETURN_TEST(test, result);
 }
 
 int test_unique_pointer_storage() {
+	constexpr const char* test = "test_unique_pointer_storage";
 	int result = 0;
 	UniqueItem original(4);
 	UniqueItem::PointerType item = original.Clone();
-	ASSERT_EQUAL("test_unique_pointer_storage", 4, item->value);
+	ASSERT_EQUAL(test, 4, item->value);
 	item->value = 20;
-	ASSERT_EQUAL("test_unique_pointer_storage", 20, item->value);
-	RETURN_TEST("test_unique_pointer_storage", result);
+	ASSERT_EQUAL(test, 20, item->value);
+	RETURN_TEST(test, result);
 }
 
 int test_unique_pointer_type() {
+	constexpr const char* test = "test_unique_pointer_type";
 	int result = 0;
 	static_assert(Type::SameAs<UniqueItem::PointerType, Unique<UniqueItem>>);
 	static_assert(ValidSmartPointer<UniqueItem::PointerType, UniqueItem>);
 	static_assert(!ValidSmartPointer<std::unique_ptr<UniqueItem>, UniqueItem>);
 	UniqueItem::PointerType clone = UniqueItem(3).Clone();
-	ASSERT_TRUE("test_unique_pointer_type", clone != nullptr);
-	RETURN_TEST("test_unique_pointer_type", result);
+	ASSERT_TRUE(test, clone != nullptr);
+	RETURN_TEST(test, result);
 }
 
 int test_unique_reset_releases() {
+	constexpr const char* test = "test_unique_reset_releases";
 	int result = 0;
 	UniqueItem::PointerType pointer = UniqueItem::MakePointer<UniqueItem>(5);
-	ASSERT_TRUE("test_unique_reset_releases", pointer != nullptr);
+	ASSERT_TRUE(test, pointer != nullptr);
 	pointer.reset();
-	ASSERT_TRUE("test_unique_reset_releases", pointer == nullptr);
-	RETURN_TEST("test_unique_reset_releases", result);
+	ASSERT_TRUE(test, pointer == nullptr);
+	RETURN_TEST(test, result);
 }
 
 // -------------------
@@ -255,38 +270,41 @@ int test_unique_reset_releases() {
 // -------------------
 
 int test_module_typeinfo_is_shared() {
+	constexpr const char* test = "test_module_typeinfo_is_shared";
 	int result = 0;
-	ASSERT_TRUE("test_module_typeinfo_is_shared", typeid(Clonable<PluginItem>) == PluginClonableType());
+	ASSERT_TRUE(test, typeid(Clonable<PluginItem>) == PluginClonableType());
 #ifdef LINUX
 	// ELF interposition merges the copies into one object; Mach-O and PE may keep one per image.
-	ASSERT_TRUE("test_module_typeinfo_is_shared", &typeid(Clonable<PluginItem>) == &PluginClonableType());
+	ASSERT_TRUE(test, &typeid(Clonable<PluginItem>) == &PluginClonableType());
 #endif
-	RETURN_TEST("test_module_typeinfo_is_shared", result);
+	RETURN_TEST(test, result);
 }
 
 int test_module_dynamic_cast() {
+	constexpr const char* test = "test_module_dynamic_cast";
 	int result = 0;
 	PluginItem::PointerType item = MakePluginItem(7);
 	Clonable<PluginItem>* base = PluginAsClonable(*item);
-	ASSERT_TRUE("test_module_dynamic_cast", dynamic_cast<PluginItem*>(base) == item.get());
-	RETURN_TEST("test_module_dynamic_cast", result);
+	ASSERT_TRUE(test, dynamic_cast<PluginItem*>(base) == item.get());
+	RETURN_TEST(test, result);
 }
 
 int test_module_clone_and_move() {
+	constexpr const char* test = "test_module_clone_and_move";
 	int result = 0;
 	PluginItem::PointerType item = MakePluginItem(12);
 	PluginItem::PointerType clone = item->Clone();
-	ASSERT_TRUE("test_module_clone_and_move", clone != nullptr);
-	ASSERT_TRUE("test_module_clone_and_move", clone.get() != item.get());
-	ASSERT_EQUAL("test_module_clone_and_move", 12, clone->value);
+	ASSERT_TRUE(test, clone != nullptr);
+	ASSERT_TRUE(test, clone.get() != item.get());
+	ASSERT_EQUAL(test, 12, clone->value);
 	PluginItem::PointerType moved = clone->Move();
-	ASSERT_EQUAL("test_module_clone_and_move", 12, moved->value);
-	std::shared_ptr<PluginItem> as_std = moved;
+	ASSERT_EQUAL(test, 12, moved->value);
+	std::shared_ptr<PluginItem> as_std = static_cast<std::shared_ptr<PluginItem>>(moved);
 	item.reset();
 	clone.reset();
 	moved.reset();
-	ASSERT_EQUAL("test_module_clone_and_move", 12, as_std->value);
-	RETURN_TEST("test_module_clone_and_move", result);
+	ASSERT_EQUAL(test, 12, as_std->value);
+	RETURN_TEST(test, result);
 }
 
 int main() {
