@@ -1,4 +1,4 @@
 [submodule "SDS"]
-	path = lib/private/StormByte/sds
+	path = thirdparty/sds
 	url = https://github.com/StormBytePP/sds.git
 	branch = full_windows_support

@@ -37,7 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include "../sds/sds.h"
+#include <sds.h>
 
 size_t stormbyte_sdslen(const sds s) {
 	return sdslen(s);

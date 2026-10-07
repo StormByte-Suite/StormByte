@@ -2,7 +2,7 @@ include(GNUInstallDirs)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 
-file(GLOB_RECURSE STORMBYTE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/*.cxx" "${CMAKE_CURRENT_LIST_DIR}/*.c")
+file(GLOB_RECURSE STORMBYTE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/*.cxx" "${CMAKE_CURRENT_LIST_DIR}/*.c" "${CMAKE_SOURCE_DIR}/thirdparty/sds/*.c")
 
 if(BUILD_SHARED_LIBS)
 	add_library(StormByte SHARED ${STORMBYTE_SOURCES})
@@ -40,4 +40,5 @@ endif()
 target_include_directories(StormByte
 	SYSTEM BEFORE PUBLIC "${CMAKE_CURRENT_LIST_DIR}/public"
 	PRIVATE "${CMAKE_CURRENT_LIST_DIR}/private"
+	PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/sds"
 )
