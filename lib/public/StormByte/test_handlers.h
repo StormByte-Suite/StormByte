@@ -209,6 +209,21 @@ namespace StormByte::Test::Detail {
 } while (false)
 
 /**
+ * @def ASSERT_NOT_CONTAINS
+ * @brief Fails when @p haystack contains @p needle.
+ * @param haystack Text that must not contain the needle.
+ * @param needle Text that must be absent.
+ */
+#define ASSERT_NOT_CONTAINS(haystack, needle) do { \
+	const auto& stormbyte_haystack = (haystack); \
+	const auto& stormbyte_needle = (needle); \
+	if (stormbyte_haystack.find(stormbyte_needle) != std::string_view::npos) { \
+		std::cerr << __func__ << ": Assertion failed at " << __FILE__ << ":" << __LINE__ << ": expected text not to contain \"" << stormbyte_needle << "\"" << std::endl; \
+		return 1; \
+	} \
+} while (false)
+
+/**
  * @def ASSERT_NOT_NULL
  * @brief Fails when @p pointer is null.
  * @param pointer Pointer that must not be null.
@@ -218,4 +233,73 @@ namespace StormByte::Test::Detail {
 		std::cerr << __func__ << ": Assertion failed at " << __FILE__ << ":" << __LINE__ << ": pointer is null" << std::endl; \
 		return 1; \
 	} \
+} while (false)
+
+/**
+ * @def ASSERT_NULL
+ * @brief Fails when @p pointer is not null.
+ * @param pointer Pointer that must be null.
+ */
+#define ASSERT_NULL(pointer) do { \
+	if ((pointer) != nullptr) { \
+		std::cerr << __func__ << ": Assertion failed at " << __FILE__ << ":" << __LINE__ << ": pointer is not null" << std::endl; \
+		return 1; \
+	} \
+} while (false)
+
+/**
+ * @def ASSERT_EMPTY
+ * @brief Fails when @p container is not empty.
+ * @param container Container with `empty()` and `size()`.
+ */
+#define ASSERT_EMPTY(container) do { \
+	const auto& stormbyte_container = (container); \
+	if (!stormbyte_container.empty()) { \
+		std::cerr << __func__ << ": Assertion failed at " << __FILE__ << ":" << __LINE__ << ": expected empty, size is "; \
+		::StormByte::Test::Detail::PrintValue(std::cerr, stormbyte_container.size()); \
+		std::cerr << std::endl; \
+		return 1; \
+	} \
+} while (false)
+
+/**
+ * @def ASSERT_NOT_EMPTY
+ * @brief Fails when @p container is empty.
+ * @param container Container with `empty()`.
+ */
+#define ASSERT_NOT_EMPTY(container) do { \
+	const auto& stormbyte_container = (container); \
+	if (stormbyte_container.empty()) { \
+		std::cerr << __func__ << ": Assertion failed at " << __FILE__ << ":" << __LINE__ << ": expected not empty" << std::endl; \
+		return 1; \
+	} \
+} while (false)
+
+/**
+ * @def ASSERT_SIZE
+ * @brief Fails when @p container `size()` is not @p expected.
+ * @param container Container with `size()`.
+ * @param expected Expected size.
+ */
+#define ASSERT_SIZE(container, expected) do { \
+	const auto& stormbyte_container = (container); \
+	const auto stormbyte_expected = (expected); \
+	if (!(stormbyte_container.size() == stormbyte_expected)) { \
+		std::cerr << __func__ << ": Assertion failed at " << __FILE__ << ":" << __LINE__ << ": expected size \""; \
+		::StormByte::Test::Detail::PrintValue(std::cerr, stormbyte_expected); \
+		std::cerr << "\", got \""; \
+		::StormByte::Test::Detail::PrintValue(std::cerr, stormbyte_container.size()); \
+		std::cerr << "\"" << std::endl; \
+		return 1; \
+	} \
+} while (false)
+
+/**
+ * @def ASSERT_FAIL
+ * @brief Fails the test. For a branch that must not be reached.
+ * @param reason Text written to the log.
+ */
+#define ASSERT_FAIL(reason) do { \
+	std::cerr << __func__ << ": Assertion failed at " << __FILE__ << ":" << __LINE__ << ": " << (reason) << std::endl; \
+	return 1; \
 } while (false)
