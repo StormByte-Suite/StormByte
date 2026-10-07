@@ -9,7 +9,7 @@
 
 This repository is **StormByte Base**: the C++26 foundation of the StormByte suite.
 
-It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, `Safe::String` / `Safe::WString`, opaque `Safe::Iterable`, its `Safe::Vector` / `Safe::Map` aliases, `Safe::Pair`, `Safe::Optional` and `Safe::Queue`, `BinaryData`, `Size`, `ByteSize`, UUID v4, bitmasks, DLL-safe owners and clonable types (`StormByte::Safe`), a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
+It is the module every other StormByte library links. Public headers live under `StormByte/` and cover exceptions, `Expected`, little-endian serialization, the `StormByte::Safe` value types, `Size`, `ByteSize`, UUID v4, bitmasks, a reentrant `ThreadLock`, and the `StormByte::Type` concepts.
 
 The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multimedia, Network and System are **other repositories**. They depend on this one; this one does not implement them.
 
@@ -18,15 +18,12 @@ The suite is split on purpose. Buffer, Config, Crypto, Database, Logger, Multime
 - **Exceptions** — `StormByte::Exception`. `what()` is `StormByte: …`, or `StormByte.Crypto.Crypter: …` when a parent passes the segments under `StormByte`. The text is a `Safe::String`. A final leaf adds no segment.
 - **Error** — `Domain`, `Category`, `Code` and `Fault` for `std::error_code`. `Fault` is not thrown; its text is a `Safe::String`.
 - **Expected** — `Expected<T, E>` on top of `std::expected`. The error is a `Safe::Shared<E>` on Base's heap. It converts to `std::shared_ptr<E>`. `Unexpected<E>("… {}", arg)` stays as it is.
-- **Serialization** — `Serializable<T>` to `BinaryData`, always little-endian, no BOM and no version tag. Optional / pair / container / trivial / `Detail::Codec<T>`. On-wire lengths are `ByteSize`.
-- **Safe::String / Safe::WString** — owned UTF-8 and wide text with private PIMPL `std::string` / `std::wstring` storage allocated and destroyed in Base's CRT. View inputs are copied with their full length, including embedded NUL code units. `Bytes()` returns a non-owning `const char*` / `const wchar_t*`.
-- **BinaryData** — owned contiguous `std::byte` sequence, safe to use across a DLL boundary. Same kind of API as `std::vector<std::byte>`. Lengths and indices use `ByteSize`. `HexDump` prints offset + hex + ASCII; column count is `std::size_t`.
+- **Serialization** — `Serializable<T>` to `Safe::Binary`, always little-endian, no BOM and no version tag. Optional / pair / container / trivial / `Detail::Codec<T>`. On-wire lengths are `ByteSize`.
+- **Safe** — text, bytes, collections, optional, pair, variant, hash, owners and callbacks whose storage lives on Base's heap. A value can be created in one module and destroyed in another when those modules do not share a C++ runtime. See [Safe](#safe).
 - **Size** — abstract unit count (`uint64_t` storage), same width on every host and safe across a DLL. Implicit only to `std::size_t`. Character counts, iteration counts, “how many items”.
 - **ByteSize** — octet length (`uint64_t` storage). Implicit only to `std::size_t`. IEC / SI units (`1 * KiB`), human-readable `Safe::String` (`1.00 KiB`). Area products are deleted.
-- **UUID** — RFC 4122 version 4 (`GenerateUUIDv4`).
+- **UUID** — RFC 4122 version 4 (`GenerateUUIDv4`), returned as `Safe::String`.
 - **Bitmask** — CRTP flags over `Type::UnsignedEnum`.
-- **Safe pointers** — `Safe::Shared<T>`, `Safe::Unique<T>` and `Safe::Weak<T>` (`StormByte/safe/pointers.hxx`) complement `std::shared_ptr`, `std::unique_ptr` and `std::weak_ptr`. They do not replace them: use the standard pointers unless the object must be freed on Base's heap. `Shared` converts implicitly to `std::shared_ptr<T>` (deleter stays Base). `Unique` converts on move only to `std::unique_ptr<T, Safe::Heap::ObjectDeleter>`. No `release`, and no constructor from a raw or standard pointer. The `Heap` implementation is not installed.
-- **Clonable** — `Safe::Clonable` (`StormByte/safe/clonable.hxx`), polymorphic `Clone` / `Move`. Not an owner: the result is a `Shared` or a `Unique`. Safe to derive from in another DLL.
 - **ThreadLock** — owner-thread reentry; `Unlock` from a non-owner is a no-op.
 - **Type concepts** — `StormByte::Type::*` (`String`, `Container`, `Optional`, `Pair`, `Numeral`, `Array`, …). `Numeral` includes `Size` and `ByteSize`. No `enable_if` / `void_t` next to them.
 - **Platform / visibility** — `WINDOWS` / `LINUX` / `MACOS`, `BIT32` / `BIT64`, `CLANG` / `GCC` / `MSVC` (clang-cl is `CLANG`, not `MSVC`).
@@ -56,27 +53,34 @@ Public Base APIs do not take or return a raw `std::size_t` / `std::uint64_t` whe
 - [Exceptions](#exceptions)
 - [Expected](#expected)
 - [Error](#error)
-- [Safe text and buffers](#safe-text-and-buffers)
-- [Safe DLL boundaries](#safe-dll-boundaries)
-- [BinaryData](#binarydata)
+- [Safe](#safe)
+- [Contract](#contract)
+- [STORMBYTE_DECLARE_MAYBE_SAFE](#stormbyte_declare_maybe_safe)
+- [Text](#text)
+- [Binary](#binary)
+- [Collections](#collections)
+- [Optional, Pair, Variant](#optional-pair-variant)
+- [Hash](#hash)
+- [Pointers and Clonable](#pointers-and-clonable)
+- [Callbacks and owners](#callbacks-and-owners)
 - [Size](#size)
 - [ByteSize](#bytesize)
 - [Serialization](#serialization)
 - [UUID](#uuid)
 - [ThreadLock](#threadlock)
-- [Clonable](#clonable)
 - [Type concepts](#type-concepts)
 - [Bitmask](#bitmask)
 - [Telemetry](#telemetry)
 - [Contributing](#contributing)
 - [License](#license)
+- [Support](#support)
 
 ## Installation
 
 Needs a C++26 compiler and CMake 3.28 or newer.
 
 ```sh
-git clone https://github.com/StormBytePP/StormByte.git
+git clone --recurse-submodules https://github.com/StormBytePP/StormByte.git
 cd StormByte
 cmake -S . -B build
 cmake --build build
@@ -85,6 +89,8 @@ cmake --build build
 Shared vs static follows CMake `BUILD_SHARED_LIBS` (declared in `lib/`, default ON). A plain configure builds the shared library. `-DBUILD_SHARED_LIBS=OFF` builds a static archive; on Windows the headers then do not use `dllimport`.
 
 A shared build keeps this library as its own `.so` / `.dll`. Under the LGPL that is usually the simpler way to ship: the user can replace that file. A static archive is folded into your binary. The LGPL still applies to this code; you must give the recipient a way to relink your product with a different build of this library. If that does not fit how you distribute the final product, a commercial license is available from the copyright holder (see [License](#license)).
+
+`thirdparty/sds` is a private submodule compiled into StormByte. It is not installed.
 
 ## Usage
 
@@ -96,9 +102,9 @@ Base owns the exception system other modules inherit. A throw of `Exception` rea
 
 A final leaf inherits the parent constructors and adds no segment, so `EncryptException("bad key {}", id)` reads `StormByte.Crypto.Crypter: bad key …`. `DeserializeError`, `OutOfBoundsError` and `Base64Error` are leaves of the root: `StormByte: …`.
 
-`AllocationError` reports allocation failure with a static message and a non-allocating default constructor. `ExpiredWeakPointerError` reports promotion of an empty or expired `Safe::Weak`. `OperationError` wraps other foreign failures. Each named exception has its destructor defined in Base. `Safe::Heap::Allocate`, Safe pointer factories, text buffer allocation and named clock creation translate the identified standard failures to StormByte exceptions. Factories preserve an existing StormByte exception's dynamic type. Inside an active exception handler, modules can call `Safe::Heap::RethrowException()` to preserve a StormByte exception, translate `std::bad_alloc` to `AllocationError`, or translate another foreign exception to `OperationError`.
+`AllocationError` reports allocation failure with a static message and a non-allocating default constructor. `ExpiredWeakPointerError` reports promotion of an empty or expired `Safe::Weak`. `OperationError` wraps other foreign failures. `BadOptionalAccess` and `BadVariantAccess` take their message from the constructor. Each named exception has its destructor defined in Base. `Safe::Heap::Allocate`, Safe pointer factories, text buffer allocation and named clock creation translate the identified standard failures to StormByte exceptions. Factories preserve an existing StormByte exception's dynamic type. Inside an active exception handler, modules can call `Safe::Heap::RethrowException()` to preserve a StormByte exception, translate `std::bad_alloc` to `AllocationError`, or translate another foreign exception to `OperationError`.
 
-This translation is a boundary policy, not a guarantee about arbitrary STL operations or caller-owned conversions. Modules must translate foreign exceptions at their own throwing API boundaries and contain them in `noexcept` paths. Throwing from a `noexcept` API still terminates; changing the exception type does not change that contract.
+This translation is a boundary policy, not a guarantee about arbitrary STL operations or caller-owned conversions. Modules must translate foreign exceptions at their own throwing API boundaries and contain them in `noexcept` paths. Throwing from a `noexcept` API still terminates; changing the exception type does not change that contract. A Safe value may cross libstdc++ and libc++. An exception thrown by the other runtime may not.
 
 Each named type defines its destructor in that module's `.cxx`. That keeps one `typeinfo`, so `catch` matches across a DLL.
 
@@ -192,19 +198,66 @@ int main() {
 
 A module adds its own enum, specializes `Error::Domain`, and puts `make_error_code` next to the enum so ADL fills `std::error_code`. The category singleton lives in that module’s `.cxx`.
 
-### Safe Text and Buffers
+### Safe
 
-`Safe::String` and `Safe::WString` are the owned text types used by Base APIs (`<StormByte/safe/string.hxx>` and `<StormByte/safe/wstring.hxx>`). Each owns an opaque PIMPL containing `std::string` / `std::wstring`; allocation, size-changing modifiers and destruction run inside Base's CRT. No caller STL allocation or allocator state is adopted or exposed across the DLL boundary.
+`StormByte::Safe` is the set of values a public signature can hand across a module boundary.
 
-Construct from `const char*` / `const wchar_t*` for NUL-terminated input (null stays null), or from `std::string_view` / `std::wstring_view` for length-bearing input. Views copy every code unit, including embedded NULs. Pass a view of an STL string rather than transferring its storage. An empty view creates valid empty text; a default-constructed object is null, and `operator bool` distinguishes those states.
+Inside one module, `std::string`, `std::vector` and the rest of the standard library are the right tools. They are faster, they are more complete, and a function that never leaves the translation unit should keep them. Safe exists for the other case: a string, a buffer or a container created in a plugin and destroyed in the host, or the other way around.
 
-Their `size()` / `length()` observers return `Size` and count the complete stored sequence, not the first C-string prefix. Implicit view conversion, ranges, comparisons, hashing and explicit STL-string exports use the full stored length. `Bytes()` returns a borrowed NUL-terminated `const char*` / `const wchar_t*`; a C API that ignores length will stop at the first embedded NUL. Borrowed pointers, views and iterators must not outlive their owner or an operation that invalidates its storage. Explicit conversion to `std::string` / `std::wstring` allocates in the caller's CRT.
+#### Contract
 
-`capacity()` / `reserve(Size)` count UTF-8 bytes or wide code units excluding the trailing terminator. Reserve never shrinks. Mutable contiguous ranges support in-place algorithms over existing code units; size-changing modifiers (`assign`, `append`, `+=`, `insert`, `erase`, `replace`, `resize`, `push_back`, `pop_back`, `clear`) operate on the private Base-owned STL storage and retain reserved capacity.
+A standard container allocates with the C++ runtime that compiled the caller. On Windows the debug CRT and the release CRT are different heaps: a `std::string` built in a release DLL and destroyed in a debug EXE is a heap mismatch, and the other direction is the same failure. On Linux and macOS the libc is usually shared, but libstdc++ and libc++ do not share allocators, and an address-comparing runtime does not share `typeinfo`. Handing the object across that boundary is enough to crash.
+
+Safe keeps the heap in Base. `Safe::Heap::Allocate` and `Safe::Heap::Free` own every block. Construction, growth and destruction of a Safe value run there. A move from `std::vector` or `std::string` does not steal the pointer: the elements are copied onto the Base heap and the source is then cleared. An explicit conversion back is `STORMBYTE_FORCE_INLINE`, so the caller runtime allocates that copy and later frees it. Peak use during the transfer is two copies.
+
+The surface is std-like (`begin`, `size`, `push_back`, brace initialization) so a call site changes the type and little else. It is not binary-compatible with the STL. There is no `Safe` alias of `std::vector` on non-Windows hosts. `<algorithm>` and `std::ranges` work through the public iterators. They do not see a node owned by the other module.
+
+What the contract covers:
+
+- A Safe value may be created with libstdc++ and destroyed with libc++, or the other way around.
+- On Windows it may cross a debug CRT and a release CRT.
+- Both sides use the same C++ ABI, packing and calling convention.
+- Base, and every module that owns a callback or a `MaybeSafe` value, stay loaded until that value is gone.
+- `Size` and `ByteSize` are the crossable counts. Conversion to `std::size_t` is explicit in the sense that only that destination is implicit; every other integral destination is `explicit`.
+
+What it does not cover:
+
+- Catching an exception thrown by the other runtime. StormByte exceptions are anchored in Base. A foreign exception is not.
+- Matching `std::hash` of another STL. `Safe::Hash` is the cross-module hash. `std::hash` specializations delegate to it inside one module.
+- A faster or more complete container than the STL. Inside one module, keep the STL.
+
+#### STORMBYTE_DECLARE_MAYBE_SAFE
+
+`Type::IsSafe<T>` means Base already knows the type and backs this contract. `Safe::String`, `Safe::Vector<int>`, `Size` and `Exception` are in that set. A consumer does not specialize `IsSafe` or `IsMaybeSafe`.
+
+`Type::MaybeSafe<T>` is the opt-in for a type Base cannot see into. After the type is complete, at global namespace scope:
+
+```cpp
+STORMBYTE_DECLARE_MAYBE_SAFE(my::plugin::Record);
+```
+
+The macro is a registration, not a proof. C++ cannot inspect private members, and it cannot tell whether a destructor is defined out of line. The provider asserts that the type is safe to copy, move, assign and destroy across the boundary. Base then checks the operations the chosen wrapper needs and propagates the level: a composition of `IsSafe` types stays `IsSafe`; one `MaybeSafe` member makes the composition `MaybeSafe`.
+
+The type must meet all of this:
+
+- Copy, move, assignment and destruction free every resource with the allocator and the module that allocated it. A `std::string` or `std::vector` member does not meet that. Store a `Safe::String` or a `Safe::Vector`, or define the special members out of line in the provider so the STL operation runs in the module that owns the CRT.
+- Resource-bearing classes define the relevant constructors, assignments and the destructor in the provider `.cxx`. The header-only special member would run in the consumer.
+- The provider module stays loaded for every live value.
+- The type is not a raw pointer, a reference, a standard container or string, a standard smart pointer, `std::function`, or a standard tuple / optional / variant. Base rejects those even if someone registers them. The veto applies through `Safe::Shared`, `Safe::Unique`, `Safe::Weak` and Safe collections. Use the Safe counterpart.
+- A `MaybeSafe` element also meets the construction, copy, assignment and movement requirements of the wrapper that stores it. `Safe::Unique<T>` and `Safe::Weak<T>` are not collection values. `Safe::Shared<T>` is, and that does not certify the pointee.
+
+Base cannot find a banned member hidden inside a user class. That stays on the provider who wrote the macro. A wrong registration compiles and fails at the boundary.
+
+Derived exceptions are `MaybeSafe` for the same reason: define each named destructor out of line in its module so the `typeinfo` has one anchor. `Exception` itself is `IsSafe`.
+
+#### Text
+
+`Safe::String` and `Safe::WString` (`StormByte/safe/string.hxx`, `StormByte/safe/wstring.hxx`) are owned UTF-8 and wide text. Storage is a private SDS / wide buffer with SSO, not a `std::string` member. Allocation, mutation and destruction run in Base.
+
+Construct from a literal, `const char*` / `const wchar_t*` (null stays null), or `std::string_view` / `std::wstring_view`. Those constructors are implicit, so `Safe::Map<Safe::String, int>{{"a", 1}}` works. Views copy every code unit, including embedded NULs. `size()` is a `Size` and counts the stored sequence, not the first C-string prefix. `Bytes()` is a borrowed NUL-terminated pointer; a C API that ignores length stops at the first embedded NUL. `capacity()` / `reserve(Size)` exclude the trailing NUL and never shrink. Explicit conversion to `std::string` / `std::wstring` allocates in the caller.
 
 ```cpp
 #include <StormByte/safe/string.hxx>
-#include <StormByte/size.hxx>
 #include <StormByte/safe/wstring.hxx>
 #include <iostream>
 #include <string>
@@ -227,109 +280,29 @@ int main() {
 }
 ```
 
-### Safe Containers
+#### Binary
 
-`Safe::Iterable<Container>` is the common opaque owner for Safe sequence and ordered-map adapters. Its sequence specialization provides random-access proxy iterators for classic `<algorithm>` and `std::ranges`; its map specialization provides ordered bidirectional proxies with immutable keys, writable mapped values, and `Safe::Pair` entry values. `Safe::Vector<T>` and `Safe::Map<K, V>` are aliases of those specializations. `Safe::Optional<T>` is a zero-or-one-element range backed by the sequence adapter. It supports direct Safe-value and enum construction/assignment, `std::nullopt`, `value_or`, comparisons, in-place construction, `swap`, and the `and_then` / `transform` / `or_else` operations. Mutable `operator*` returns an Optional-specific callback proxy: conversion reads a value copy and assignment writes through the creator callback. Const `operator*` and `value()` return copies. `operator->` calls const members through a caller-owned snapshot; the snapshot pointer is valid only for the full expression, and changes are not written back. Constructing an empty Optional may allocate its callback owner and therefore may throw. `Safe::Vector` exposes insertion/emplacement, removal, resize and capacity requests when supported by its underlying sequence. `Safe::Map` adds comparator-aware ordered bounds, insertion, range erase and arrow proxies; arrow entries own their snapshot and mapped writes still use callbacks. Map iterators retain key identity across insertions or erasure of other keys; erasing the iterated key invalidates that iterator. A moved-from map with a stateful comparator cannot be reused or exported because retaining that comparator state would require retaining foreign allocator state; those operations are rejected rather than changing its ordering. Iterators never expose owner-module nodes or references. `Safe::Queue<T>` preserves FIFO `push` / `pop` operations while exposing random-access iterators for `<algorithm>` and `std::ranges`. Mutable iterators and `front` / `back` use callback-backed proxies; they read caller-owned snapshots and write through to creator-owned deque storage without exposing node references. Structural mutations invalidate iterators and proxies. `erase` supports erase-remove workflows, and deserialization rejects counts above 1,048,576 to bound resource use.
+`Safe::Binary` (`StormByte/safe/binary.hxx`) is the owned raw-byte container. Use it wherever a module would otherwise put `std::vector<std::byte>` in a public signature. `BinaryData` is the old name.
 
-Each adapter has an explicit constructor from its corresponding STL container and an explicit conversion back. Lvalue imports copy elements. Rvalue imports move elements and leave the source container valid and empty, but never adopt its allocation or allocator state. Export is `STORMBYTE_FORCE_INLINE`, so the returned `std::vector`, `std::map`, `std::optional` or `std::queue` is allocated and destroyed in the caller's CRT.
+Bytes live in `Safe::Vector<std::byte>` on Base's heap. Lengths and indices are `ByteSize`. `at()` throws `OutOfBoundsError`. `operator[]` is unchecked. Iterators are `std::byte*`, so `<algorithm>`, `std::ranges` and `std::span` see a contiguous range. `std::iota` does not apply: `std::byte` has no `operator++`, the same limit as `std::vector<std::byte>`.
 
-`Safe::String::Split` and `Safe::WString::Split` can fill a `Safe::Vector`; their `Explode` counterparts can fill a `Safe::Queue`. These overloads return `Safe::Status` and replace the destination only on success. Existing caller-local `std::vector` / `std::queue` overloads remain available. Use the Safe overload when tokens need to cross a DLL boundary.
+Build from a `span`, a pointer plus `ByteSize`, a range, an initializer list, a `string_view`, or a caller-owned `std::vector<std::byte>`. An lvalue copies and leaves the vector. An rvalue copies onto Base's heap and then clears the vector: it looks like a move, it is not a heap steal. Implicit `span` views the bytes. `explicit operator std::vector<std::byte>` copies into the caller runtime. `append(Binary&&)` is a real same-heap move when `*this` is empty.
 
-These types require a compatible C++ ABI, packing and calling convention, and their creator module plus Base must remain loaded until all instances are destroyed. They isolate container allocations across CRTs; they do not make C++ templates independent of toolchain ABI.
-
-```cpp
-#include <StormByte/safe/queue.hxx>
-#include <StormByte/safe/string.hxx>
-#include <vector>
-
-using namespace StormByte;
-
-std::vector<Safe::String> source{Safe::String("one"), Safe::String("two")};
-Safe::Vector<Safe::String> safeValues(source);
-std::vector<Safe::String> callerValues = static_cast<std::vector<Safe::String>>(safeValues);
-
-Safe::Queue<Safe::String> tokens;
-const auto status = Safe::String("a|b").Explode('|', tokens);
-```
-
-### Safe DLL Boundaries
-
-`StormByte::Type::IsSafe<T>` means Base recognizes the type and backs its documented DLL-boundary contract. The guarantee is conditional on compatible C++ ABI, packing and calling convention, and keeping Base and every provider module loaded while values, owners or callbacks remain alive. It does not promise ABI independence from the compiler, standard library, or STL implementation.
-
-`StormByte::Type::MaybeSafe<T>` means the type is admitted under explicit provider responsibility. Consumers must not specialize `IsSafe` or `IsMaybeSafe` directly. After a complete consumer type is declared, register it at global namespace scope with `STORMBYTE_DECLARE_MAYBE_SAFE(fully::qualified::Type)`. Base checks the operations needed by the selected Safe wrapper and propagates the level through known Safe compositions: all-`IsSafe` components remain `IsSafe`; a composition containing a `MaybeSafe` component is `MaybeSafe`.
-
-The registration is an assertion, not reflection or proof. C++ cannot inspect a class's private fields or determine whether a destructor or special member is defined out-of-line. The provider must ensure that owned resources are copied, moved, assigned and destroyed with the allocator and module that own them. For resource-bearing classes crossing a DLL, define the relevant constructors, assignments and destructor out-of-line in the provider module; keep its ABI compatible and its module loaded. Base can reject known incompatible standard-library values even if someone tries to register them: raw pointers/references, standard containers and strings/views, standard smart pointers, `std::function`, and standard tuple/optional/variant wrappers. Use the corresponding Safe type instead. The veto applies recursively through `Safe::Shared`, `Safe::Unique`, `Safe::Weak` and Safe collections. Base cannot discover a banned member hidden inside a user class; that remains part of the provider's registration responsibility.
-
-`Safe::Vector`, `Safe::Map`, `Safe::Optional`, `Safe::Queue` and `Safe::Pair` accept admitted `SafeValue`s. A `MaybeSafe` element must also meet the construction, copy, assignment and movement requirements of the particular wrapper. `Safe::Unique<T>` and `Safe::Weak<T>` are not collection values; ownership classification does not make a move-only owner copyable. `Safe::Shared<T>` and `Safe::Unique<T>` recurse into `T` for their classification and do not certify its fields or behavior. `Safe::Shared` still wraps `std::shared_ptr`, so compatible STL ABI is required. `StormByte::Expected` remains an alias of `std::expected` and is `MaybeSafe` only when its contained types are admitted; it also requires compatible STL ABI.
-
-`StormByte::Exception` is `IsSafe`: its message is `Safe::String`, its virtual destructor is defined in Base, and producer/consumer tests verify cross-DLL catching. Derived exceptions are `MaybeSafe`; define each named derived destructor out-of-line in its owning module so its RTTI/vtable has a module anchor. `Safe::Function` lets typed callbacks propagate `StormByte::Exception`; non-Safe exceptions are caught and become `Status::Failure`.
-
-#### Typed callbacks
-
-`Safe::Callback` and `Safe::Function<Signature>` own callback contexts in the provider module and are copyable as well as movable. Copying invokes the provider's `noexcept Clone` function to create an independent context; a null result reports failure through `StormByte::Exception`. Release remains in the provider through a `noexcept` function. Typed `Function` arguments are passed by value or as `const` lvalue references borrowed for the duration of the call. Raw pointers, mutable references and types outside the IsSafe/MaybeSafe contracts are rejected.
-
-Void callbacks return `Safe::Status` from `Call`. Value-returning signatures use an explicit output parameter; the callback writes to a temporary and publishes it only on `Success`:
+`HexDump()` and `HexDump(Size columns)` return a `Safe::String`: 8-digit offset, hex row, ASCII (non-printable as `.`). `columns` is a row width. `0` prints every byte on one line. The default is 16.
 
 ```cpp
-using Progress = StormByte::Safe::Function<void(double)>;
-using SelectSize = StormByte::Safe::Function<StormByte::Size(StormByte::Size)>;
-
-Progress progress(context, &InvokeProgress, &CloneContext, &ReleaseContext);
-const auto status = progress.Call(37.5);
-
-SelectSize select(context, &InvokeSelect, &CloneContext, &ReleaseContext);
-StormByte::Size selected{};
-const auto selectStatus = select.Call(selected, StormByte::Size{80});
-```
-
-`Invoke` returns `Status`. A thrown `StormByte::Exception` crosses unchanged; any other exception becomes `Status::Failure`. Provider release callbacks must not throw. The default C++ calling convention and a compatible C++ ABI are required. The provider must keep its module loaded while callbacks exist; synchronization, reentrancy and avoiding self-destruction during invocation remain provider responsibilities.
-
-#### Opaque owners
-
-`StormByte::Safe::Owner` (declared in `StormByte/safe/owner.hxx`) is a copyable opaque state owner. The state is created by the provider; copying invokes its `Clone` callback there, and destroying/replacing invokes `Destroy` there. A null clone reports copy failure through `StormByte::Exception`; `Clone` and `Destroy` callbacks must be `noexcept`, and `Destroy` must release the state with its creating module's allocator. Move transfers ownership and empties the source. The provider and Base must remain loaded for every live owner.
-
-`Owner::Get()` is only a borrowed state pointer for the typed provider facade to interpret. It is invalid after that owner is moved from, replaced or destroyed; never retain the pointer independently. `Owner` cannot inspect the object's members or prove that the callbacks are correct, so it is `MaybeSafe`, not an unconditional certificate. Store it in a Safe collection when an opaque owner value is useful; expose typed operations from the provider facade rather than treating an arbitrary `void*` as a checked object handle.
-
-An `Owner` holding a pointer to a registry object owns only its callback state, not the pointed-to object. The provider must either retain a lifetime token that keeps the referent valid, or document the registry lifetime and the exact invalidation event. Copies must preserve that token or reference contract; `Get()` never extends a borrowed referent's lifetime.
-
-### BinaryData
-
-`BinaryData` is the suite’s owned raw-byte container. Use it wherever a module would otherwise put `std::vector<std::byte>` in a public signature.
-
-`std::vector` is not a safe ABI type between two copies of a C++ runtime. A vector allocated in the application and grown, returned or destroyed inside a StormByte shared library (or the other way around) uses two heaps. On Windows that is a hard crash when CRTs differ; on Unix it fails when libc++ and libstdc++ mix.
-
-`BinaryData` owns its storage on StormByte Base’s heap. Construction, growth and destruction always run in this library. Other suite modules can carry payloads, encoded blobs, file images or wire fragments without exporting `std::vector<std::byte>`.
-
-It is not text (`Safe::String`) and not a structured document. Lengths and indices are `StormByte::ByteSize`. Member names stay lowercase to match the STL.
-
-For `<algorithm>` and `std::ranges` it supports everything `std::vector<std::byte>` supports on a contiguous sequence of bytes: copy / transform / sort / reverse / rotate / unique / remove / replace / partition / heap / set operations / binary search / permutations, plus iterators, `std::span` and insert / erase / assign / append / `operator+=` / emplace. `std::iota` is the exception that is *also* true of `std::vector<std::byte>`: `std::byte` is an enum class and has no `operator++`.
-
-`at()` throws `OutOfBoundsError`. `operator[]` is unchecked, like `std::vector`, and takes `ByteSize`.
-
-Compare with another `BinaryData` or with `std::span<const std::byte>` (`==`, `!=`, `<=>`, both operand orders).
-
-**Hex dump.** `HexDump()` and `HexDump(Size columns)` return a `Safe::String`. Each line is an 8-digit offset, a row of hex bytes, and the same bytes as ASCII (non-printable as `.`). `columns` is a **row width**, not a byte length. `0` prints every byte on one line. The default is 16 columns.
-
-**`std::vector` and `std::span`.** You can build a `BinaryData` from a `span` or from a caller-owned `vector`. You can view the bytes as a `span` (implicit). You can copy them out to a `vector` (`explicit operator std::vector<std::byte>`). The rvalue overloads *look* like a move: the source is emptied after the copy. They are not a heap steal. Base cannot donate its pointer to a foreign `vector`, and it cannot adopt a caller `vector` pointer. Peak usage is two copies during the transfer.
-
-`append(BinaryData&&)` / `operator+=(BinaryData&&)` is different: both sides live on Base’s heap, so that move is real when `*this` is empty.
-
-`Serializable<BinaryData>` uses the container path. The wire is the same as `std::vector<std::byte>`: `uint64` little-endian count, then the payload.
-
-```cpp
-#include <StormByte/binary_data.hxx>
+#include <StormByte/safe/binary.hxx>
 #include <StormByte/byte_size.hxx>
 #include <StormByte/serializable.hxx>
 #include <algorithm>
 #include <iostream>
 #include <ranges>
-#include <span>
 #include <vector>
 
 using namespace StormByte;
 
 int main() {
-	BinaryData payload{std::byte{0xDE}, std::byte{0xAD}, std::byte{0xBE}, std::byte{0xEF}};
+	Safe::Binary payload{std::byte{0xDE}, std::byte{0xAD}, std::byte{0xBE}, std::byte{0xEF}};
 	payload.push_back(std::byte{0x00});
 	payload += payload.span().first(2);
 
@@ -345,33 +318,88 @@ int main() {
 	std::cout << payload.HexDump(8) << std::endl;
 
 	std::vector<std::byte> caller = static_cast<std::vector<std::byte>>(payload);
-	BinaryData back{std::move(caller)};
+	Safe::Binary back{std::move(caller)};
 
-	BinaryData extra{std::byte{0xFF}};
+	Safe::Binary extra{std::byte{0xFF}};
 	back += std::move(extra);
 
-	auto blob = Serializable<BinaryData>(back).Serialize();
-	auto loaded = Serializable<BinaryData>::Deserialize(blob);
+	auto blob = Serializable<Safe::Binary>(back).Serialize();
+	auto loaded = Serializable<Safe::Binary>::Deserialize(blob);
 	if (loaded)
 		std::cout << (loaded.value() == back) << std::endl;
 }
 ```
 
+#### Collections
+
+`Safe::Vector`, `Safe::List`, `Safe::Queue`, `Safe::Map` and `Safe::UnorderedMap` own their nodes on the Base heap. They are not aliases of `std::vector` or of `Safe::Iterable`. `Safe::Iterable` is a cursor for a consumer that does not want to write one (`Tracks : Iterable<Vector<Track>>`). Binary does not use it: Binary needs `std::byte*` and a `ByteSize` size.
+
+Iterators and mutable proxies are callback-backed. `<algorithm>` and `std::ranges` do not see a creator-owned node. A move leaves the source valid and empty and keeps the creator-module callbacks. Lvalue import copies. Rvalue import moves elements and leaves the STL source valid and empty; it does not adopt the allocator. Export is `STORMBYTE_FORCE_INLINE`.
+
+`Vector` borrows as `std::span`. `List` has splice, merge, unique, sort and reverse. `Map` is ordered, with bounds, `node_type`, extract and merge. A moved-from map with a stateful comparator cannot be reused. `UnorderedMap` is keyed through `Safe::Hash`. `Queue` keeps FIFO `push` / `pop` and still exposes random-access iterators. `Split` fills a `Vector`. `Explode` fills a `Queue`.
+
 ```cpp
-#include <StormByte/binary_data.hxx>
-#include <algorithm>
-#include <array>
+#include <StormByte/safe/map.hxx>
+#include <StormByte/safe/string.hxx>
+#include <StormByte/safe/vector.hxx>
 
 using namespace StormByte;
 
-BinaryData from_range() {
-	const std::array<unsigned char, 4> raw{1, 2, 3, 4};
-	BinaryData data(raw);
-	data.insert(data.begin() + 1, std::byte{9});
-	data.erase(data.begin() + 2);
-	return data;
+Safe::Map<Safe::String, int> scores{{"a", 1}, {"b", 2}};
+Safe::Vector<Safe::String> names{"one", "two"};
+```
+
+#### Optional, Pair, Variant
+
+`Safe::Optional` is zero or one value on the Base heap. It accepts Safe values, enums and `std::optional`, plus `value_or`, comparisons, `swap` and the monadic operations. Mutable `operator*` is a callback proxy. `operator->` uses a caller-owned snapshot valid for the full expression only. A wrong read throws `BadOptionalAccess`.
+
+`Safe::Pair` value-initializes both members, supports structured bindings, and copies to and from `std::pair`.
+
+`Safe::Variant` stores the active alternative on the Base heap. It is not a `std::variant` member. `Safe::Monostate` is the empty alternative. A move leaves the source valueless. `emplace` builds the replacement first. `get`, `get_if`, `visit` and `holds_alternative` are found by argument lookup. `std::get` and `std::visit` do not accept this type. Conversion to `std::variant` is explicit and does not steal. A wrong alternative throws `BadVariantAccess`.
+
+#### Hash
+
+`Safe::Hash` is a cross-module FNV-1a. Integral, enumeration, floating-point and pointer keys are closed in `hash.hxx`. `String`, `WString`, `Binary`, `Size`, `ByteSize`, `Pair`, `Optional`, `Variant` and `Monostate` are closed next to the type. A type without a specialization is not a key of `UnorderedMap`. The call does not throw. `long double` hashes its payload, not the padding. `std::hash` specializations delegate to it. It is not the standard library hash, and it is not required to match `std::hash<int>` in another STL.
+
+#### Pointers and Clonable
+
+`Shared<T>`, `Unique<T>` and `Weak<T>` (`StormByte/safe/pointers.hxx`) complement the standard smart pointers. They do not replace them. Use the standard pointers when the object does not cross a module. Use these when it must be freed on Base's heap.
+
+`Safe::Heap::MakeShared<T>(args…)` / `Safe::Heap::MakeUnique<T>(args…)` construct `T`. `MakePointer<Derived>` constructs a derived object and owns it as the base. For `Unique`, `~Base` must be virtual in that case. There is no constructor from a raw pointer or from a standard smart pointer, and `Unique` has no `release`. `AtomicShared` default-constructs its flag.
+
+`Shared` converts implicitly to `std::shared_ptr<T>` and keeps Base's deleter. There is no conversion back. `Unique` converts on move only to `std::unique_ptr<T, Safe::Heap::ObjectDeleter>`. `Weak` is built from a `Shared`, and `lock` returns a `Shared`.
+
+`Safe::Clonable` (`StormByte/safe/clonable.hxx`) is not an owner. `Clonable<T>` stores a `Shared<T>`. `Clonable<T, Unique<T>>` stores a `Unique<T>`. `std::shared_ptr` and `std::unique_ptr` are not accepted as that parameter. `MakePointer` forwards to the pointer factory, so the allocation is written once. A class in another DLL may derive from `Clonable`. The Safe types carry `STORMBYTE_PUBLIC_TYPE`, so `typeid` and `dynamic_cast` agree even when the deriving module builds with `-fvisibility=hidden`. The module that defines the dynamic type must stay loaded.
+
+```cpp
+#include <StormByte/safe/clonable.hxx>
+#include <memory>
+
+using namespace StormByte::Safe;
+
+class Shape : public Clonable<Shape> {
+public:
+	PointerType Clone() const override {
+		return MakePointer<Shape>(*this);
+	}
+
+	PointerType Move() override {
+		return MakePointer<Shape>(std::move(*this));
+	}
+};
+
+void use(const Shape& shape) {
+	Shape::PointerType copy = shape.Clone();
+	std::shared_ptr<Shape> as_std = copy;
+	(void)as_std;
 }
 ```
+
+#### Callbacks and owners
+
+`Safe::Callback` and `Safe::Function<Signature>` own their context in the provider module and are copyable when the provider supplies a `noexcept Clone`. A failed clone throws `StormByte::Exception`. A thrown StormByte exception crosses unchanged; any other exception becomes `Status::Failure`. Arguments are by value or `const` lvalue reference for the duration of the call. Raw pointers and mutable references are rejected.
+
+`Safe::Owner` is a copyable opaque state owner. Copy invokes the provider `Clone`. Destroy invokes `Destroy` in the provider. `Get()` is a borrowed pointer, invalid after move or destroy. `Owner` is `MaybeSafe`: the registration is an assertion, not a proof of the private members. An `Owner` that points at a registry object owns the callback state, not the referent. The provider keeps that referent alive, or documents the exact invalidation.
 
 ### Size
 
@@ -440,11 +468,11 @@ int main() {
 
 ### Serialization
 
-Wire is little-endian. `Serialize()` returns `BinaryData`. `Deserialize` reads a prefix; leftover bytes stay with the caller. Custom types specialize `StormByte::Detail::Codec<T>` (`Size` returns `ByteSize` / `Write` / `Read`), not `Serializable<T>`.
+Wire is little-endian. `Serialize()` returns `Safe::Binary`. `Deserialize` reads a prefix; leftover bytes stay with the caller. Custom types specialize `StormByte::Detail::Codec<T>` (`Size` returns `ByteSize` / `Write` / `Read`), not `Serializable<T>`.
 
 Built-in generic serialization supports `std::optional` and `Safe::Optional` with identical presence/value framing, pair-like values including `Safe::Pair`, iterable containers including `Safe::Vector` and `Safe::Map`, and FIFO queues including `Safe::Queue` (count followed by values in pop order). Safe collection iterators are snapshotted into their declared `value_type`; decoding uses each type's public insertion API. `Safe::Shared`, `Safe::Unique`, `Safe::Weak`, `Safe::Callback` and `Safe::Clonable` are not generically serializable: pointer identity, callback context and dynamic ownership have no portable value encoding.
 
-`BinaryData` is a `Type::Container` of `std::byte`. No `Codec` specialization is required; the container path writes the same layout as `std::vector<std::byte>`.
+`Safe::Binary` is a `Type::Container` of `std::byte`. No `Codec` specialization is required; the container path writes the same layout as `std::vector<std::byte>`.
 
 ```cpp
 #include <StormByte/serializable.hxx>
@@ -471,7 +499,7 @@ int main() {
 }
 ```
 
-`wstring` / `u16string` / `u32string` travel as `uint64` UTF-8 length + UTF-8 bytes. Host `wchar_t` width never appears on the wire.
+`wstring` / `u16string` / `u32string` travel as `uint64` UTF-8 length + UTF-8 bytes. Host `wchar_t` width never appears on the wire. `Safe::String` and `Safe::WString` keep embedded NULs and use the same string wire.
 
 ### UUID
 
@@ -488,61 +516,10 @@ int main() {
 
 The owner may `Lock()` again. Another thread blocks. `Unlock()` from a non-owner does nothing.
 
-### Safe pointers
-
-`Shared<T>`, `Unique<T>` and `Weak<T>` live in `StormByte::Safe` (`StormByte/safe/pointers.hxx`) and complement the standard smart pointers. They do not replace them. Use `std::shared_ptr`, `std::unique_ptr` and `std::weak_ptr` when the object does not cross a DLL. Use these when the object must be freed on Base's heap. The heap implementation is private and is not installed.
-
-`Safe::Heap::MakeShared<T>(args…)` / `Safe::Heap::MakeUnique<T>(args…)` construct `T`. `MakePointer<Derived>` constructs a derived object and owns it as the base. For `Unique`, `~Base` must be virtual in that case. There is no constructor from a raw pointer or from a standard smart pointer, and `Unique` has no `release`.
-
-The daily operations match the standard ones, so a port is a signature change. `Shared` also converts implicitly to `std::shared_ptr<T>` and keeps Base's deleter, so a parameter that is already `std::shared_ptr<T>` does not have to change. There is no conversion back. `Unique` converts on move only to `std::unique_ptr<T, Safe::Heap::ObjectDeleter>`. A `std::unique_ptr<T>` parameter has to change. `Weak` is built from a `Shared`, and `lock` returns a `Shared`.
-
-### Clonable
-
-`Safe::Clonable` (`StormByte/safe/clonable.hxx`) is not an owner and it is not a smart pointer. `Shared` and `Unique` own the object. `Clonable` is the polymorphic interface: from a base you can `Clone` or `Move` and get the dynamic type back, without naming the derived class. `MakePointer` forwards to `Shared::MakePointer` or `Unique::MakePointer`, so the allocation is written once.
-
-`Clonable<T>` stores a `Shared<T>`. `Clonable<T, Unique<T>>` stores a `Unique<T>`. `std::shared_ptr` and `std::unique_ptr` are not accepted as that parameter. `~T` is virtual because `Clone` and `Move` are.
-
-A class in another DLL may derive from `Clonable`. Storage always goes through Base's exported heap, and the `Safe` types carry `STORMBYTE_PUBLIC_TYPE` so their `typeinfo` and vtables have default visibility on Linux and macOS: every module agrees on `typeid` and `dynamic_cast`, even when the deriving module builds with `-fvisibility=hidden`. Export `T` from its own module (`class MYLIB_PUBLIC Shape : public Safe::Clonable<Shape>`). The module that defines the dynamic type must stay loaded while any of its objects exist.
-
-```cpp
-#include <StormByte/safe/clonable.hxx>
-#include <memory>
-
-using namespace StormByte::Safe;
-
-class Shape : public Clonable<Shape> {
-public:
-	PointerType Clone() const override {
-		return MakePointer<Shape>(*this);
-	}
-
-	PointerType Move() override {
-		return MakePointer<Shape>(std::move(*this));
-	}
-};
-
-class Token : public Clonable<Token, Unique<Token>> {
-public:
-	PointerType Clone() const override {
-		return MakePointer<Token>(*this);
-	}
-
-	PointerType Move() override {
-		return MakePointer<Token>(std::move(*this));
-	}
-};
-
-void use(const Shape& shape) {
-	Shape::PointerType copy = shape.Clone();
-	std::shared_ptr<Shape> as_std = copy;
-	(void)as_std;
-}
-```
-
 ### Type concepts
 
 ```cpp
-#include <StormByte/binary_data.hxx>
+#include <StormByte/safe/binary.hxx>
 #include <StormByte/byte_size.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/type_traits.hxx>
@@ -553,9 +530,10 @@ void use(const Shape& shape) {
 using namespace StormByte;
 
 static_assert(Type::String<std::string>);
+static_assert(Type::String<Safe::String>);
 static_assert(Type::Container<std::vector<int>>);
-static_assert(Type::Container<BinaryData>);
-static_assert(Type::Sized<BinaryData>);
+static_assert(Type::Container<Safe::Binary>);
+static_assert(Type::Sized<Safe::Binary>);
 static_assert(Type::Numeral<Size>);
 static_assert(Type::Numeral<ByteSize>);
 static_assert(Type::Optional<std::optional<int>>);
