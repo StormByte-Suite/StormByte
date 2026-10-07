@@ -58,6 +58,10 @@ add_executable(StringTests string_test.cxx)
 target_link_libraries(StringTests StormByte)
 add_test(NAME StringTests COMMAND StringTests)
 
+add_executable(UnorderedMapTests unordered_map_test.cxx)
+target_link_libraries(UnorderedMapTests StormByte)
+add_test(NAME UnorderedMapTests COMMAND UnorderedMapTests)
+
 add_executable(VectorTests vector_test.cxx)
 target_link_libraries(VectorTests StormByte)
 add_test(NAME VectorTests COMMAND VectorTests)
