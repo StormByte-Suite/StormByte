@@ -1,3 +1,7 @@
+add_executable(AtomicTests atomic_test.cxx)
+target_link_libraries(AtomicTests StormByte)
+add_test(NAME AtomicTests COMMAND AtomicTests)
+
 add_executable(BinaryTests binary_test.cxx)
 target_link_libraries(BinaryTests StormByte)
 add_test(NAME BinaryTests COMMAND BinaryTests)
@@ -9,6 +13,10 @@ add_test(NAME CallbackTests COMMAND CallbackTests)
 add_executable(ClonableTests clonable_test.cxx)
 target_link_libraries(ClonableTests StormByte)
 add_test(NAME ClonableTests COMMAND ClonableTests)
+
+add_executable(ConditionVariableTests condition_variable_test.cxx)
+target_link_libraries(ConditionVariableTests StormByte)
+add_test(NAME ConditionVariableTests COMMAND ConditionVariableTests)
 
 add_executable(SafeExceptionTests exception_test.cxx)
 target_link_libraries(SafeExceptionTests StormByte)
@@ -38,6 +46,10 @@ add_executable(MapTests map_test.cxx)
 target_link_libraries(MapTests StormByte)
 add_test(NAME MapTests COMMAND MapTests)
 
+add_executable(MutexTests mutex_test.cxx)
+target_link_libraries(MutexTests StormByte)
+add_test(NAME MutexTests COMMAND MutexTests)
+
 add_executable(OptionalTests optional_test.cxx)
 target_link_libraries(OptionalTests StormByte)
 add_test(NAME OptionalTests COMMAND OptionalTests)
@@ -65,6 +77,10 @@ add_test(NAME SetTests COMMAND SetTests)
 add_executable(StringTests string_test.cxx)
 target_link_libraries(StringTests StormByte)
 add_test(NAME StringTests COMMAND StringTests)
+
+add_executable(UniqueLockTests unique_lock_test.cxx)
+target_link_libraries(UniqueLockTests StormByte)
+add_test(NAME UniqueLockTests COMMAND UniqueLockTests)
 
 add_executable(UnorderedMapTests unordered_map_test.cxx)
 target_link_libraries(UnorderedMapTests StormByte)
