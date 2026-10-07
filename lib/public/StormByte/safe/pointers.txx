@@ -112,7 +112,7 @@ namespace StormByte {
 
 		template<class T>
 		template<class U>
-		requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
+		requires Type::ConvertibleTo<U*, T*>
 		Shared<T>::Shared(const Shared<U>& other) noexcept: m_control(other.m_control), m_object(other.m_object) {
 			if (m_control != nullptr)
 				m_control->Strong.fetch_add(1, std::memory_order_relaxed);
@@ -120,7 +120,7 @@ namespace StormByte {
 
 		template<class T>
 		template<class U>
-		requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
+		requires Type::ConvertibleTo<U*, T*>
 		Shared<T>::Shared(Shared<U>&& other) noexcept: m_control(other.m_control), m_object(other.m_object) {
 			other.m_control = nullptr;
 			other.m_object = nullptr;
@@ -178,8 +178,9 @@ namespace StormByte {
 		}
 
 		template<class T>
-		T& Shared<T>::operator*() const noexcept {
-			return *m_object;
+		std::add_lvalue_reference_t<T> Shared<T>::operator*() const noexcept {
+			if constexpr (!std::is_void_v<T>)
+				return *m_object;
 		}
 
 		template<class T>
@@ -246,7 +247,7 @@ namespace StormByte {
 
 		template<class T>
 		template<class U>
-		requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
+		requires Type::ConvertibleTo<U*, T*>
 		Unique<T>::Unique(Unique<U>&& other) noexcept: m_object(other.m_object), m_destroy(other.m_destroy) {
 			other.m_object = nullptr;
 			other.m_destroy = nullptr;
@@ -281,8 +282,9 @@ namespace StormByte {
 		}
 
 		template<class T>
-		T& Unique<T>::operator*() const noexcept {
-			return *m_object;
+		std::add_lvalue_reference_t<T> Unique<T>::operator*() const noexcept {
+			if constexpr (!std::is_void_v<T>)
+				return *m_object;
 		}
 
 		template<class T>
@@ -328,7 +330,7 @@ namespace StormByte {
 
 		template<class T>
 		template<class U>
-		requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
+		requires Type::ConvertibleTo<U*, T*>
 		Weak<T>::Weak(const Shared<U>& owner) noexcept: m_control(owner.m_control), m_object(owner.m_object) {
 			if (m_control != nullptr)
 				m_control->Weak.fetch_add(1, std::memory_order_relaxed);
@@ -603,36 +605,6 @@ namespace StormByte {
 			Shared<T> casted(from.m_control, reinterpret_cast<T*>(from.get()));
 			casted.m_control->Strong.fetch_add(1, std::memory_order_relaxed);
 			return casted;
-		}
-
-		template<class T>
-		bool operator==(const Shared<T>& left, const Shared<T>& right) noexcept {
-			return left.get() == right.get();
-		}
-
-		template<class T>
-		std::strong_ordering operator<=>(const Shared<T>& left, const Shared<T>& right) noexcept {
-			return std::compare_three_way{}(left.get(), right.get());
-		}
-
-		template<class T>
-		bool operator==(const Shared<T>& left, std::nullptr_t) noexcept {
-			return !left;
-		}
-
-		template<class T>
-		bool operator==(const Unique<T>& left, const Unique<T>& right) noexcept {
-			return left.get() == right.get();
-		}
-
-		template<class T>
-		std::strong_ordering operator<=>(const Unique<T>& left, const Unique<T>& right) noexcept {
-			return std::compare_three_way{}(left.get(), right.get());
-		}
-
-		template<class T>
-		bool operator==(const Unique<T>& left, std::nullptr_t) noexcept {
-			return !left;
 		}
 
 		template<class T>

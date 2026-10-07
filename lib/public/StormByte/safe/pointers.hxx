@@ -50,6 +50,7 @@
 #include <cstdint>
 #include <memory>
 #include <new>
+#include <type_traits>
 #include <utility>
 
 /**
@@ -124,7 +125,7 @@ namespace StormByte {
 		/**
 		 * @class Shared
 		 * @brief Shared owner of an object allocated on Base's heap.
-		 * @tparam T Pointee type.
+		 * @tparam T Pointee type. `void` is allowed, as in `std::shared_ptr<void>`.
 		 *
 		 * The control block is a @ref Detail::Control allocated with @ref Heap::Allocate. Copying a @ref Shared copies that pointer. There is no `std::shared_ptr` inside. There is no constructor from a raw pointer, from `std::shared_ptr` or from `std::unique_ptr`.
 		 */
@@ -147,20 +148,20 @@ namespace StormByte {
 
 				/**
 				 * @brief Share ownership with another owner.
-				 * @tparam U Pointee convertible to @p T.
+				 * @tparam U Source pointee. `U*` must convert to `T*`.
 				 * @param other Owner to share.
 				 */
 				template<class U>
-				requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
+				requires Type::ConvertibleTo<U*, T*>
 				Shared(const Shared<U>& other) noexcept;
 
 				/**
 				 * @brief Take ownership from another owner.
-				 * @tparam U Pointee convertible to @p T.
+				 * @tparam U Source pointee. `U*` must convert to `T*`.
 				 * @param other Owner to take.
 				 */
 				template<class U>
-				requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
+				requires Type::ConvertibleTo<U*, T*>
 				Shared(Shared<U>&& other) noexcept;
 
 				/**
@@ -209,9 +210,9 @@ namespace StormByte {
 
 				/**
 				 * @brief Dereference the stored pointer.
-				 * @return Pointee.
+				 * @return Pointee. `void` when @p T is `void`, so the class can be formed.
 				 */
-				T& operator*() const noexcept;
+				std::add_lvalue_reference_t<T> operator*() const noexcept;
 
 				/**
 				 * @brief Access a member of the pointee.
@@ -334,7 +335,7 @@ namespace StormByte {
 		/**
 		 * @class Unique
 		 * @brief Unique owner of an object allocated on Base's heap.
-		 * @tparam T Pointee type.
+		 * @tparam T Pointee type. `void` is allowed when the concrete destructor was stored by the source.
 		 *
 		 * The object and its concrete destructor live on Base's heap. There is no `release` and no constructor from a raw pointer.
 		 */
@@ -358,11 +359,11 @@ namespace StormByte {
 
 				/**
 				 * @brief Take ownership from another owner.
-				 * @tparam U Pointee convertible to @p T.
+				 * @tparam U Source pointee. `U*` must convert to `T*`.
 				 * @param other Owner to take. Left empty.
 				 */
 				template<class U>
-				requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
+				requires Type::ConvertibleTo<U*, T*>
 				Unique(Unique<U>&& other) noexcept;
 
 				/**
@@ -404,9 +405,9 @@ namespace StormByte {
 
 				/**
 				 * @brief Dereference the stored pointer.
-				 * @return Pointee.
+				 * @return Pointee. `void` when @p T is `void`, so the class can be formed.
 				 */
-				T& operator*() const noexcept;
+				std::add_lvalue_reference_t<T> operator*() const noexcept;
 
 				/**
 				 * @brief Access a member of the pointee.
@@ -447,7 +448,7 @@ namespace StormByte {
 				 * @brief Move the owner into caller-owned STL storage.
 				 * @return A `std::unique_ptr` whose deleter still frees Base's block. There is no conversion back.
 				 */
-				operator std::unique_ptr<T, Heap::ObjectDeleter>() && noexcept {
+				STORMBYTE_FORCE_INLINE operator std::unique_ptr<T, Heap::ObjectDeleter>() && noexcept {
 					Heap::ObjectDeleter deleter{m_destroy};
 					T* object = m_object;
 					m_object = nullptr;
@@ -476,7 +477,7 @@ namespace StormByte {
 		/**
 		 * @class Weak
 		 * @brief Non-owning observer of a @ref Shared control block.
-		 * @tparam T Pointee type.
+		 * @tparam T Pointee type. `void` is allowed.
 		 *
 		 * Construct it only from a @ref Shared. @ref lock returns a @ref Shared, or an empty owner when the object is gone.
 		 */
@@ -498,11 +499,11 @@ namespace StormByte {
 
 				/**
 				 * @brief Observe an owner.
-				 * @tparam U Pointee convertible to @p T.
+				 * @tparam U Source pointee. `U*` must convert to `T*`.
 				 * @param owner Owner to watch.
 				 */
 				template<class U>
-				requires Type::SameAs<U, T> || Type::DerivedFrom<U, T>
+				requires Type::ConvertibleTo<U*, T*>
 				Weak(const Shared<U>& owner) noexcept;
 
 				/**
@@ -830,23 +831,29 @@ namespace StormByte {
 
 		/**
 		 * @brief Same stored pointer.
-		 * @tparam T Pointee.
+		 * @tparam T Left pointee.
+		 * @tparam U Right pointee.
 		 * @param left Owner.
 		 * @param right Owner.
 		 * @return Whether both hold the same address.
 		 */
-		template<class T>
-		bool operator==(const Shared<T>& left, const Shared<T>& right) noexcept;
+		template<class T, class U>
+		STORMBYTE_FORCE_INLINE bool operator==(const Shared<T>& left, const Shared<U>& right) noexcept {
+			return left.get() == right.get();
+		}
 
 		/**
 		 * @brief Order of the stored pointers.
-		 * @tparam T Pointee.
+		 * @tparam T Left pointee.
+		 * @tparam U Right pointee.
 		 * @param left Owner.
 		 * @param right Owner.
 		 * @return Three-way comparison of the addresses.
 		 */
-		template<class T>
-		std::strong_ordering operator<=>(const Shared<T>& left, const Shared<T>& right) noexcept;
+		template<class T, class U>
+		STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Shared<T>& left, const Shared<U>& right) noexcept {
+			return std::compare_three_way{}(left.get(), right.get());
+		}
 
 		/**
 		 * @brief Compare an owner with null.
@@ -856,27 +863,47 @@ namespace StormByte {
 		 * @return Whether @p left is empty.
 		 */
 		template<class T>
-		bool operator==(const Shared<T>& left, std::nullptr_t null) noexcept;
+		STORMBYTE_FORCE_INLINE bool operator==(const Shared<T>& left, std::nullptr_t null) noexcept {
+			return left.get() == null;
+		}
+
+		/**
+		 * @brief Order an owner against null.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param null Null pointer constant.
+		 * @return Three-way comparison of the stored pointer and null.
+		 */
+		template<class T>
+		STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Shared<T>& left, std::nullptr_t null) noexcept {
+			return std::compare_three_way{}(left.get(), static_cast<T*>(null));
+		}
 
 		/**
 		 * @brief Same stored pointer.
-		 * @tparam T Pointee.
+		 * @tparam T Left pointee.
+		 * @tparam U Right pointee.
 		 * @param left Owner.
 		 * @param right Owner.
 		 * @return Whether both hold the same address.
 		 */
-		template<class T>
-		bool operator==(const Unique<T>& left, const Unique<T>& right) noexcept;
+		template<class T, class U>
+		STORMBYTE_FORCE_INLINE bool operator==(const Unique<T>& left, const Unique<U>& right) noexcept {
+			return left.get() == right.get();
+		}
 
 		/**
 		 * @brief Order of the stored pointers.
-		 * @tparam T Pointee.
+		 * @tparam T Left pointee.
+		 * @tparam U Right pointee.
 		 * @param left Owner.
 		 * @param right Owner.
 		 * @return Three-way comparison of the addresses.
 		 */
-		template<class T>
-		std::strong_ordering operator<=>(const Unique<T>& left, const Unique<T>& right) noexcept;
+		template<class T, class U>
+		STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Unique<T>& left, const Unique<U>& right) noexcept {
+			return std::compare_three_way{}(left.get(), right.get());
+		}
 
 		/**
 		 * @brief Compare an owner with null.
@@ -886,7 +913,21 @@ namespace StormByte {
 		 * @return Whether @p left is empty.
 		 */
 		template<class T>
-		bool operator==(const Unique<T>& left, std::nullptr_t null) noexcept;
+		STORMBYTE_FORCE_INLINE bool operator==(const Unique<T>& left, std::nullptr_t null) noexcept {
+			return left.get() == null;
+		}
+
+		/**
+		 * @brief Order an owner against null.
+		 * @tparam T Pointee.
+		 * @param left Owner.
+		 * @param null Null pointer constant.
+		 * @return Three-way comparison of the stored pointer and null.
+		 */
+		template<class T>
+		STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Unique<T>& left, std::nullptr_t null) noexcept {
+			return std::compare_three_way{}(left.get(), static_cast<T*>(null));
+		}
 
 		/**
 		 * @brief Exchange two owners.
