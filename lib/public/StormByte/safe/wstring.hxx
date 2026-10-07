@@ -123,13 +123,13 @@ namespace StormByte {
 				 * @brief Copies a wide C string. A null pointer becomes empty.
 				 * @param str Source; may be null.
 				 */
-				explicit WString(const wchar_t* str) noexcept;
+				WString(const wchar_t* str) noexcept;
 
 				/**
 				 * @brief Copies a view into owned storage.
 				 * @param str Source. Embedded NUL counts.
 				 */
-				explicit WString(std::wstring_view str) noexcept;
+				WString(std::wstring_view str) noexcept;
 
 				/**
 				 * @brief Construct @p count copies of @p character.
