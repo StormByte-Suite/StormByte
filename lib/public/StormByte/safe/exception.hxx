@@ -334,5 +334,61 @@ namespace StormByte {
 				 */
 				const char* what() const noexcept override;
 		};
+
+		/**
+		 * @class BadVariantAccess
+		 * @brief A variant was read with the wrong alternative, or while valueless.
+		 *
+		 * The message is the body only. The path `Safe` is applied by @ref Exception.
+		 */
+		class STORMBYTE_PUBLIC BadVariantAccess: public Exception {
+			public:
+				/**
+				 * @brief Copy a body into `StormByte.Safe: message`.
+				 * @param message Body. Not a path and not a format string.
+				 */
+				explicit BadVariantAccess(std::string_view message);
+
+				/**
+				 * @brief Format a body into `StormByte.Safe: formatted`.
+				 * @tparam Args Format argument types.
+				 * @param fmt Format string. Body only.
+				 * @param args Format arguments.
+				 */
+				template <typename... Args>
+				BadVariantAccess(std::format_string<Args...> fmt, Args&&... args)
+					: Exception(fmt, std::forward<Args>(args)...) {}
+
+				/**
+				 * @brief Copy constructor. Defined in the Base DLL.
+				 * @param other Exception to copy.
+				 */
+				BadVariantAccess(const BadVariantAccess& other);
+
+				/**
+				 * @brief Move constructor. Defined in the Base DLL.
+				 * @param other Exception to take.
+				 */
+				BadVariantAccess(BadVariantAccess&& other) noexcept;
+
+				/**
+				 * @brief Destructor. Defined in the Base DLL so `catch` matches across modules.
+				 */
+				~BadVariantAccess() noexcept override;
+
+				/**
+				 * @brief Copy assignment. Defined in the Base DLL.
+				 * @param other Exception to copy.
+				 * @return This exception.
+				 */
+				BadVariantAccess& operator=(const BadVariantAccess& other);
+
+				/**
+				 * @brief Move assignment. Defined in the Base DLL.
+				 * @param other Exception to take.
+				 * @return This exception.
+				 */
+				BadVariantAccess& operator=(BadVariantAccess&& other) noexcept;
+		};
 	}
 }

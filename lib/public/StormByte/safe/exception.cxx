@@ -113,3 +113,16 @@ BadOptionalAccess& BadOptionalAccess::operator=(BadOptionalAccess&& other) noexc
 const char* BadOptionalAccess::what() const noexcept {
 	return "StormByte.Safe: Optional has no value";
 }
+
+BadVariantAccess::BadVariantAccess(std::string_view message)
+	: Exception(message) {}
+
+BadVariantAccess::BadVariantAccess(const BadVariantAccess& other) = default;
+
+BadVariantAccess::BadVariantAccess(BadVariantAccess&& other) noexcept = default;
+
+BadVariantAccess::~BadVariantAccess() noexcept = default;
+
+BadVariantAccess& BadVariantAccess::operator=(const BadVariantAccess& other) = default;
+
+BadVariantAccess& BadVariantAccess::operator=(BadVariantAccess&& other) noexcept = default;
