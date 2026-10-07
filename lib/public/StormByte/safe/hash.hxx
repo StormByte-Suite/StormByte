@@ -43,6 +43,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <limits>
 #include <span>
 #include <type_traits>
 
@@ -118,7 +120,7 @@ namespace StormByte {
 		};
 
 		/**
-		 * @brief Hash of a floating-point value. The object representation is hashed, including the sign bit.
+		 * @brief Hash of a floating-point value. The sign bit is included. Padding is not.
 		 * @tparam T Floating-point type.
 		 */
 		template<class T>
@@ -130,7 +132,12 @@ namespace StormByte {
 			 * @return Hash.
 			 */
 			STORMBYTE_FORCE_INLINE std::size_t operator()(T value) const noexcept {
-				return HashBytes(std::as_bytes(std::span<const T>(&value, 1)));
+				unsigned char bytes[sizeof(T)] = {};
+				std::size_t used = sizeof(T);
+				if constexpr (std::is_same_v<T, long double> && sizeof(long double) > 10 && std::numeric_limits<long double>::digits == 64)
+					used = 10;
+				std::memcpy(bytes, &value, used);
+				return HashBytes(std::span<const std::byte>(reinterpret_cast<const std::byte*>(bytes), used));
 			}
 		};
 

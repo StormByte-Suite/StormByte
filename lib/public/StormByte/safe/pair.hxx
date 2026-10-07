@@ -81,7 +81,7 @@ namespace StormByte {
 				/**
 				 * @brief Value-initialize both members.
 				 */
-				Pair() = default;
+				Pair(): first(), second() {}
 
 				/**
 				 * @brief Copy two values into the pair.
