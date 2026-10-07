@@ -157,7 +157,7 @@ namespace StormByte {
 					(!Type::SameAs<U, std::nullopt_t>) &&
 					(!Type::SameAs<U, std::in_place_t>) &&
 					Type::ConstructibleFrom<T, U>
-				explicit(!Type::ConvertibleTo<U, T>) Optional(U&& value): Optional() {
+				explicit((!Type::ConvertibleTo<U, T>)) Optional(U&& value): Optional() {
 					emplace(std::forward<U>(value));
 				}
 
@@ -183,7 +183,7 @@ namespace StormByte {
 				 */
 				template<class U>
 				requires (!Type::SameAs<U, T>) && Type::ConstructibleFrom<T, const U&>
-				explicit(!Type::ConvertibleTo<const U&, T>) Optional(const std::optional<U>& value): Optional() {
+				explicit((!Type::ConvertibleTo<const U&, T>)) Optional(const std::optional<U>& value): Optional() {
 					if (value)
 						emplace(T(*value));
 				}
@@ -196,7 +196,7 @@ namespace StormByte {
 				 */
 				template<class U>
 				requires (!Type::SameAs<U, T>) && Type::ConstructibleFrom<T, U>
-				explicit(!Type::ConvertibleTo<U, T>) Optional(std::optional<U>&& value): Optional() {
+				explicit((!Type::ConvertibleTo<U, T>)) Optional(std::optional<U>&& value): Optional() {
 					if (value)
 						emplace(T(std::move(*value)));
 				}

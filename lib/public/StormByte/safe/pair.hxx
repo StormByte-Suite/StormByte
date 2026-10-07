@@ -105,7 +105,7 @@ namespace StormByte {
 				 */
 				template<class U, class V>
 				requires Type::ConstructibleFrom<First, U> && Type::ConstructibleFrom<Second, V>
-				explicit(!Type::ConvertibleTo<U, First> || !Type::ConvertibleTo<V, Second>)
+				explicit((!Type::ConvertibleTo<U, First> || !Type::ConvertibleTo<V, Second>))
 				Pair(U&& firstValue, V&& secondValue);
 
 				/**
@@ -128,7 +128,7 @@ namespace StormByte {
 				template<class OtherFirst, class OtherSecond>
 				requires Type::ConstructibleFrom<First, const OtherFirst&> &&
 					Type::ConstructibleFrom<Second, const OtherSecond&>
-				explicit(!Type::ConvertibleTo<const OtherFirst&, First> || !Type::ConvertibleTo<const OtherSecond&, Second>)
+				explicit((!Type::ConvertibleTo<const OtherFirst&, First> || !Type::ConvertibleTo<const OtherSecond&, Second>))
 				Pair(const std::pair<OtherFirst, OtherSecond>& other);
 
 				/**
@@ -140,7 +140,7 @@ namespace StormByte {
 				template<class OtherFirst, class OtherSecond>
 				requires Type::ConstructibleFrom<First, OtherFirst> &&
 					Type::ConstructibleFrom<Second, OtherSecond>
-				explicit(!Type::ConvertibleTo<OtherFirst, First> || !Type::ConvertibleTo<OtherSecond, Second>)
+				explicit((!Type::ConvertibleTo<OtherFirst, First> || !Type::ConvertibleTo<OtherSecond, Second>))
 				Pair(std::pair<OtherFirst, OtherSecond>&& other);
 
 				/**
@@ -152,7 +152,7 @@ namespace StormByte {
 				template<class OtherFirst, class OtherSecond>
 				requires Type::ConstructibleFrom<First, const OtherFirst&> &&
 					Type::ConstructibleFrom<Second, const OtherSecond&>
-				explicit(!Type::ConvertibleTo<const OtherFirst&, First> || !Type::ConvertibleTo<const OtherSecond&, Second>)
+				explicit((!Type::ConvertibleTo<const OtherFirst&, First> || !Type::ConvertibleTo<const OtherSecond&, Second>))
 				Pair(const Pair<OtherFirst, OtherSecond>& other);
 
 				/**
@@ -164,7 +164,7 @@ namespace StormByte {
 				template<class OtherFirst, class OtherSecond>
 				requires Type::ConstructibleFrom<First, OtherFirst> &&
 					Type::ConstructibleFrom<Second, OtherSecond>
-				explicit(!Type::ConvertibleTo<OtherFirst, First> || !Type::ConvertibleTo<OtherSecond, Second>)
+				explicit((!Type::ConvertibleTo<OtherFirst, First> || !Type::ConvertibleTo<OtherSecond, Second>))
 				Pair(Pair<OtherFirst, OtherSecond>&& other);
 
 				/**

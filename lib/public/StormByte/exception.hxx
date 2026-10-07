@@ -63,7 +63,7 @@ namespace StormByte {
 	 *
 	 * A parent prepends its own segment and forwards the format and the arguments. It does not format. A final leaf adds no segment: it inherits the parent constructors. Copy, move and the destructor of each named type are defined in that module's `.cxx`, so the `typeinfo` is unique across a DLL.
 	 *
-	 * A leaf that must not allocate uses the empty constructor and overrides @ref what. That leaf does not fill @ref m_what.
+	 * A leaf that must not allocate uses the empty constructor and overrides @ref what. That leaf does not fill `m_what`.
 	 */
 	class STORMBYTE_PUBLIC Exception {
 		public:
@@ -156,7 +156,7 @@ namespace StormByte {
 			 * @param path Segments under `StormByte`.
 			 * @param fmt Format string. The body only, not the path.
 			 * @param args Format arguments.
-			 * @note With zero arguments the format string is the message as-is. The body is appended to @ref m_what. No `std::string` is created.
+			 * @note With zero arguments the format string is the message as-is. The body is appended to `m_what`. No `std::string` is created.
 			 */
 			template <typename... Args>
 			Exception(Path path, std::format_string<Args...> fmt, Args&&... args) {

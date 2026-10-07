@@ -141,7 +141,7 @@ namespace StormByte {
 				 * @param other Source callback.
 				 * @throws StormByte::Exception Context cloning failed.
 				 */
-				Function(const Function&) = default;
+				Function(const Function& other) = default;
 
 				/**
 				 * @brief Deep-copy provider context with the strong guarantee.
@@ -149,7 +149,7 @@ namespace StormByte {
 				 * @return This callback.
 				 * @throws StormByte::Exception Context cloning failed.
 				 */
-				Function& operator=(const Function&) = default;
+				Function& operator=(const Function& other) = default;
 
 				/**
 				 * @brief Transfer callback context.

@@ -493,7 +493,6 @@ namespace StormByte {
 				/**
 				 * @brief Reserve storage for at least @p new_capacity UTF-8 bytes.
 				 * @param new_capacity Requested byte capacity, excluding the NUL.
-				 * @return Nothing.
 				 * @throw OutOfBoundsError The request cannot be represented, including a trailing NUL.
 				 * @throw AllocationError The size is representable but the SDS allocation failed.
 				 * @note Requests at or below capacity do not shrink or reallocate.
