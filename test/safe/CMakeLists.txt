@@ -58,6 +58,10 @@ add_executable(QueueTests queue_test.cxx)
 target_link_libraries(QueueTests StormByte)
 add_test(NAME QueueTests COMMAND QueueTests)
 
+add_executable(SetTests set_test.cxx)
+target_link_libraries(SetTests StormByte)
+add_test(NAME SetTests COMMAND SetTests)
+
 add_executable(StringTests string_test.cxx)
 target_link_libraries(StringTests StormByte)
 add_test(NAME StringTests COMMAND StringTests)
