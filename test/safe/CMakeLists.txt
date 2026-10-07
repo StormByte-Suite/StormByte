@@ -14,6 +14,10 @@ add_executable(ClonableTests clonable_test.cxx)
 target_link_libraries(ClonableTests StormByte)
 add_test(NAME ClonableTests COMMAND ClonableTests)
 
+add_executable(ConditionVariableAnyTests condition_variable_any_test.cxx)
+target_link_libraries(ConditionVariableAnyTests StormByte)
+add_test(NAME ConditionVariableAnyTests COMMAND ConditionVariableAnyTests)
+
 add_executable(ConditionVariableTests condition_variable_test.cxx)
 target_link_libraries(ConditionVariableTests StormByte)
 add_test(NAME ConditionVariableTests COMMAND ConditionVariableTests)
@@ -73,6 +77,14 @@ add_test(NAME QueueTests COMMAND QueueTests)
 add_executable(SetTests set_test.cxx)
 target_link_libraries(SetTests StormByte)
 add_test(NAME SetTests COMMAND SetTests)
+
+add_executable(SharedLockTests shared_lock_test.cxx)
+target_link_libraries(SharedLockTests StormByte)
+add_test(NAME SharedLockTests COMMAND SharedLockTests)
+
+add_executable(SharedMutexTests shared_mutex_test.cxx)
+target_link_libraries(SharedMutexTests StormByte)
+add_test(NAME SharedMutexTests COMMAND SharedMutexTests)
 
 add_executable(StringTests string_test.cxx)
 target_link_libraries(StringTests StormByte)

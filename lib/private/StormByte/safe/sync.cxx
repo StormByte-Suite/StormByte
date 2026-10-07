@@ -38,13 +38,17 @@
  */
 
 #include <StormByte/safe/condition_variable.hxx>
+#include <StormByte/safe/condition_variable_any.hxx>
 #include <StormByte/safe/heap.hxx>
 #include <StormByte/safe/mutex.hxx>
+#include <StormByte/safe/shared_mutex.hxx>
 
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
 #include <new>
+#include <shared_mutex>
 
 using namespace StormByte;
 
@@ -53,7 +57,16 @@ namespace {
 		std::mutex mutex;
 	};
 
+	struct SharedGate {
+		std::shared_mutex mutex;
+	};
+
 	struct Signal {
+		std::condition_variable condition;
+	};
+
+	struct AnyGate {
+		std::mutex mutex;
 		std::condition_variable condition;
 	};
 }
@@ -83,6 +96,49 @@ bool Safe::Mutex::try_lock() noexcept {
 
 void Safe::Mutex::unlock() noexcept {
 	static_cast<Gate*>(m_gate)->mutex.unlock();
+}
+
+Safe::SharedMutex::SharedMutex()
+:	m_gate{nullptr} {
+	void* raw = Safe::Heap::Allocate(sizeof(SharedGate));
+	m_gate = new (raw) SharedGate;
+}
+
+Safe::SharedMutex::~SharedMutex() noexcept {
+	static_cast<SharedGate*>(m_gate)->~SharedGate();
+	Safe::Heap::Free(m_gate);
+}
+
+void Safe::SharedMutex::lock() {
+	try {
+		static_cast<SharedGate*>(m_gate)->mutex.lock();
+	} catch (...) {
+		Safe::Heap::RethrowException();
+	}
+}
+
+bool Safe::SharedMutex::try_lock() noexcept {
+	return static_cast<SharedGate*>(m_gate)->mutex.try_lock();
+}
+
+void Safe::SharedMutex::unlock() noexcept {
+	static_cast<SharedGate*>(m_gate)->mutex.unlock();
+}
+
+void Safe::SharedMutex::lock_shared() {
+	try {
+		static_cast<SharedGate*>(m_gate)->mutex.lock_shared();
+	} catch (...) {
+		Safe::Heap::RethrowException();
+	}
+}
+
+bool Safe::SharedMutex::try_lock_shared() noexcept {
+	return static_cast<SharedGate*>(m_gate)->mutex.try_lock_shared();
+}
+
+void Safe::SharedMutex::unlock_shared() noexcept {
+	static_cast<SharedGate*>(m_gate)->mutex.unlock_shared();
 }
 
 Safe::ConditionVariable::ConditionVariable()
@@ -138,6 +194,68 @@ Safe::CvStatus Safe::ConditionVariable::WaitFor(UniqueLock& lock, std::int64_t n
 	} catch (...) {
 		gate.mutex.lock();
 		lock.Claim();
+		Safe::Heap::RethrowException();
+	}
+}
+
+Safe::ConditionVariableAny::ConditionVariableAny()
+:	m_gate{nullptr} {
+	void* raw = Safe::Heap::Allocate(sizeof(AnyGate));
+	m_gate = new (raw) AnyGate;
+}
+
+Safe::ConditionVariableAny::~ConditionVariableAny() noexcept {
+	static_cast<AnyGate*>(m_gate)->~AnyGate();
+	Safe::Heap::Free(m_gate);
+}
+
+void Safe::ConditionVariableAny::notify_one() noexcept {
+	AnyGate& gate = *static_cast<AnyGate*>(m_gate);
+	std::lock_guard<std::mutex> held(gate.mutex);
+	gate.condition.notify_one();
+}
+
+void Safe::ConditionVariableAny::notify_all() noexcept {
+	AnyGate& gate = *static_cast<AnyGate*>(m_gate);
+	std::lock_guard<std::mutex> held(gate.mutex);
+	gate.condition.notify_all();
+}
+
+void Safe::ConditionVariableAny::Enter() {
+	try {
+		static_cast<AnyGate*>(m_gate)->mutex.lock();
+	} catch (...) {
+		Safe::Heap::RethrowException();
+	}
+}
+
+void Safe::ConditionVariableAny::Leave() noexcept {
+	static_cast<AnyGate*>(m_gate)->mutex.unlock();
+}
+
+void Safe::ConditionVariableAny::Park() {
+	AnyGate& gate = *static_cast<AnyGate*>(m_gate);
+	try {
+		std::unique_lock<std::mutex> adopted(gate.mutex, std::adopt_lock);
+		gate.condition.wait(adopted);
+		adopted.release();
+	} catch (...) {
+		gate.mutex.lock();
+		Safe::Heap::RethrowException();
+	}
+}
+
+Safe::CvStatus Safe::ConditionVariableAny::ParkFor(std::int64_t nanos) {
+	AnyGate& gate = *static_cast<AnyGate*>(m_gate);
+	try {
+		std::unique_lock<std::mutex> adopted(gate.mutex, std::adopt_lock);
+		const auto status = gate.condition.wait_for(adopted, std::chrono::nanoseconds(nanos));
+		adopted.release();
+		if (status == std::cv_status::timeout)
+			return CvStatus::Timeout;
+		return CvStatus::NoTimeout;
+	} catch (...) {
+		gate.mutex.lock();
 		Safe::Heap::RethrowException();
 	}
 }

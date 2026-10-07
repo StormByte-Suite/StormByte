@@ -73,8 +73,11 @@ Public Base APIs do not take or return a raw `std::size_t` / `std::uint64_t` whe
     - [Callbacks and owners](#callbacks-and-owners)
     - [Wait](#wait)
       - [Mutex](#mutex)
+      - [SharedMutex](#sharedmutex)
       - [UniqueLock](#uniquelock)
+      - [SharedLock](#sharedlock)
       - [ConditionVariable](#conditionvariable)
+      - [ConditionVariableAny](#conditionvariableany)
       - [Atomic](#atomic)
   - [Size](#size)
   - [ByteSize](#bytesize)
@@ -219,7 +222,7 @@ Inside one module, `std::string`, `std::vector` and the rest of the standard lib
 
 #### Contract
 
-A standard container allocates with the C++ runtime that compiled the caller. On Windows the debug CRT and the release CRT are different heaps: a `std::string` built in a release DLL and destroyed in a debug EXE is a heap mismatch, and the other direction is the same failure. On Linux and macOS the libc is usually shared, but libstdc++ and libc++ do not share allocators, and an address-comparing runtime does not share `typeinfo`. Handing the object across that boundary is enough to crash. A `std::mutex` or a `std::condition_variable` is the same kind of object: the wait runs in the runtime that constructed it.
+A standard container allocates with the C++ runtime that compiled the caller. On Windows the debug CRT and the release CRT are different heaps: a `std::string` built in a release DLL and destroyed in a debug EXE is a heap mismatch, and the other direction is the same failure. On Linux and macOS the libc is usually shared, but libstdc++ and libc++ do not share allocators, and an address-comparing runtime does not share `typeinfo`. Handing the object across that boundary is enough to crash. A `std::mutex`, a `std::shared_mutex` or a `std::condition_variable` is the same kind of object: the wait runs in the runtime that constructed it.
 
 Safe keeps the heap in Base. `Safe::Heap::Allocate` and `Safe::Heap::Free` own every block. Construction, growth and destruction of a Safe value run there. A move from `std::vector` or `std::string` does not steal the pointer: the elements are copied onto the Base heap and the source is then cleared. An explicit conversion back is `STORMBYTE_FORCE_INLINE`, so the caller runtime allocates that copy and later frees it. Peak use during the transfer is two copies.
 
@@ -232,14 +235,14 @@ What the contract covers:
 - Both sides use the same C++ ABI, packing and calling convention.
 - Base, and every module that owns a callback or a `MaybeSafe` value, stay loaded until that value is gone.
 - `Size` and `ByteSize` are the crossable counts. Conversion to `std::size_t` is explicit in the sense that only that destination is implicit; every other integral destination is `explicit`.
-- A `Safe::Mutex`, a `Safe::ConditionVariable` and a `Safe::Atomic<T>` may be waited on in one module and notified in another. The gate, the signal and the word live on Base's heap.
+- A `Safe::Mutex`, a `Safe::SharedMutex`, a `Safe::ConditionVariable`, a `Safe::ConditionVariableAny` and a `Safe::Atomic<T>` may be waited on in one module and notified in another. The gate, the shared gate, the signal and the word live on Base's heap.
 
 What it does not cover:
 
 - Catching an exception thrown by the other runtime. StormByte exceptions are anchored in Base. A foreign exception is not.
 - Matching `std::hash` of another STL. `Safe::Hash` is the cross-module hash. `std::hash` specializations delegate to it inside one module.
 - A faster or more complete container than the STL. Inside one module, keep the STL.
-- `std::thread`, `std::shared_mutex`, `std::once_flag` and `std::future`. A thread created and joined inside one `.cxx` does not cross. Those types are not added.
+- `std::thread`, `std::once_flag` and `std::future`. A thread created and joined inside one `.cxx` does not cross. Those types are not added.
 
 #### STORMBYTE_DECLARE_MAYBE_SAFE
 
@@ -450,19 +453,29 @@ void use(const Shape& shape) {
 
 #### Wait
 
-The wait primitives are Safe values. The call looks like the standard one. The object is not a `std::mutex`, a `std::condition_variable` or a `std::atomic`, and it is not an alias of any of them. The gate, the signal and the word are allocated on Base's heap, so one module can wait and another can notify without sharing a CRT. Public headers do not include `<mutex>`, `<condition_variable>` or `<atomic>`.
+The wait primitives are Safe values. The call looks like the standard one. The object is not a `std::mutex`, a `std::shared_mutex`, a `std::condition_variable` or a `std::atomic`, and it is not an alias of any of them. The gate, the shared gate, the signal and the word are allocated on Base's heap, so one module can wait and another can notify without sharing a CRT. Public headers do not include `<mutex>`, `<shared_mutex>`, `<condition_variable>` or `<atomic>`.
 
-`Thread`, `shared_mutex`, `once_flag` and `future` do not cross that boundary and are not added. A `std::thread` created and joined inside one `.cxx` does not cross. `ThreadLock` stays the reentrant lock of one owner thread. It is not this wait.
+`Thread`, `once_flag` and `future` do not cross that boundary and are not added. A `std::thread` created and joined inside one `.cxx` does not cross. `ThreadLock` stays the reentrant lock of one owner thread. It is not this wait.
 
 ##### Mutex
 
 `Safe::Mutex` (`StormByte/safe/mutex.hxx`) is not recursive. `lock`, `try_lock` and `unlock` are the surface. `unlock` without ownership is undefined, as it is for `std::mutex`. The gate is constructed and destroyed in Base. The type is not copyable or movable.
 
+##### SharedMutex
+
+`Safe::SharedMutex` (`StormByte/safe/shared_mutex.hxx`) is not recursive. One exclusive owner, or several shared owners. `lock`, `try_lock` and `unlock` are the exclusive surface. `lock_shared`, `try_lock_shared` and `unlock_shared` are the shared surface. `unlock` or `unlock_shared` without that ownership is undefined. The gate is constructed and destroyed in Base. The type is not copyable or movable.
+
 ##### UniqueLock
 
-`Safe::UniqueLock` (`StormByte/safe/unique_lock.hxx`) owns at most one `Mutex`. It is header-only: a pointer and an ownership flag, not a standard lock. The wait drops that ownership and takes it back.
+`Safe::UniqueLock` (`StormByte/safe/unique_lock.hxx`) owns at most one `Mutex`. It is header-only: a pointer and an ownership flag, not a standard lock. The wait drops that ownership and takes it back. It does not lock a `SharedMutex`.
 
 `defer_lock` associates the mutex and does not lock it. `try_to_lock` tries once. `adopt_lock` assumes the calling thread already owns it. `release` drops the association without unlocking. `swap` exchanges two locks. There is no `LockGuard`.
+
+##### SharedLock
+
+`Safe::SharedLock` (`StormByte/safe/shared_lock.hxx`) owns at most one shared hold of a `SharedMutex`. It is header-only: a pointer and an ownership flag, not a standard lock. `lock` and `unlock` take and drop that shared hold, so `ConditionVariableAny` can wait on it. The exclusive hold stays on `SharedMutex::lock`.
+
+`defer_lock`, `try_to_lock`, `adopt_lock`, `release` and `swap` match `UniqueLock`. The destructor drops the shared hold when this lock owns it.
 
 ##### ConditionVariable
 
@@ -470,24 +483,33 @@ The wait primitives are Safe values. The call looks like the standard one. The o
 
 The predicate overloads stay in the header. The callable is evaluated in the caller and never enters Base. A timed wait converts the caller's clock to nanoseconds in the caller. The result is `Safe::CvStatus` (`NoTimeout` or `Timeout`), not `std::cv_status`.
 
+##### ConditionVariableAny
+
+`Safe::ConditionVariableAny` (`StormByte/safe/condition_variable_any.hxx`) is not a `ConditionVariable`. It accepts any lock with `lock()` and `unlock()`, including `UniqueLock` and `SharedLock`. The surface is the same: `wait`, `wait_for`, `wait_until`, `notify_one` and `notify_all`. A spurious wake is valid. The predicate stays in the caller.
+
+The signal keeps its own gate on Base's heap. A notify takes that gate before signalling, so the wake is not lost between dropping the caller's lock and parking. The caller's lock is dropped and retaken in the header. No standard lock type is exported.
+
 ##### Atomic
 
 `Safe::Atomic<T>` (`StormByte/safe/atomic.hxx`) is a word of one, two, four or eight bytes. `T` is a trivially copyable integer, `bool`, enum or object pointer. The template copies bytes in the caller. The word lives on Base's heap.
 
-`load`, `store`, `exchange`, `compare_exchange_weak`, `compare_exchange_strong`, `wait`, `notify_one`, `notify_all` and `is_lock_free` are the common surface. Integral `T` also has `fetch_add`, `fetch_sub`, `fetch_and`, `fetch_or`, `fetch_xor` and the matching operators. An object pointer adds and subtracts elements. `void*` does not. Orders are `Safe::MemoryOrder`. A release or acq-rel failure order is promoted to acquire. `wait(captured)` has no predicate: the caller loops. `is_lock_free` reports the Base word, not a `std::atomic` in the caller.
+`load`, `store`, `exchange`, `compare_exchange_weak`, `compare_exchange_strong`, `wait`, `notify_one`, `notify_all` and `is_lock_free` are the common surface. An omitted order is sequential consistency. Integral `T` also has `fetch_add`, `fetch_sub`, `fetch_and`, `fetch_or`, `fetch_xor` and the matching operators. An object pointer adds and subtracts elements. `void*` does not. Orders are `Safe::MemoryOrder`. A release or acq-rel failure order is promoted to acquire. `wait(captured)` has no predicate: the caller loops. `is_lock_free` reports the Base word, not a `std::atomic` in the caller.
 
 ```cpp
 #include <StormByte/safe/atomic.hxx>
 #include <StormByte/safe/condition_variable.hxx>
+#include <StormByte/safe/condition_variable_any.hxx>
 #include <StormByte/safe/mutex.hxx>
+#include <StormByte/safe/shared_lock.hxx>
+#include <StormByte/safe/shared_mutex.hxx>
 #include <StormByte/safe/unique_lock.hxx>
 #include <chrono>
 
 using namespace StormByte;
 
 void wait_for_generation(Safe::Atomic<std::size_t>& generation) {
-	const auto captured = generation.load(Safe::MemoryOrder::Acquire);
-	generation.wait(captured, Safe::MemoryOrder::Acquire);
+	const auto captured = generation.load();
+	generation.wait(captured);
 }
 
 void publish(Safe::Atomic<std::size_t>& generation) {
@@ -503,6 +525,11 @@ void wait_until_ready(Safe::Mutex& mutex, Safe::ConditionVariable& condition, bo
 bool wait_a_while(Safe::Mutex& mutex, Safe::ConditionVariable& condition, bool& ready) {
 	Safe::UniqueLock lock(mutex);
 	return condition.wait_for(lock, std::chrono::milliseconds(40), [&]() { return ready; });
+}
+
+void wait_shared(Safe::SharedMutex& mutex, Safe::ConditionVariableAny& condition, bool& ready) {
+	Safe::SharedLock lock(mutex);
+	condition.wait(lock, [&]() { return ready; });
 }
 ```
 
