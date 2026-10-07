@@ -246,10 +246,6 @@ String& String::operator+=(char character) {
 	return append(Size{1}, character);
 }
 
-String& String::operator+=(const String& text) {
-	return append(static_cast<std::string_view>(text));
-}
-
 void String::push_back(char character) {
 	append(Size{1}, character);
 }

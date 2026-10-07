@@ -446,7 +446,7 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Append a wide view.
+				 * @brief Append a wide view. A WString converts to this view.
 				 * @param text Text to append.
 				 * @return This string.
 				 */
@@ -458,14 +458,6 @@ namespace StormByte {
 				 * @return This string.
 				 */
 				WString& operator+=(wchar_t character);
-
-				/**
-				 * @brief Append another Safe wide string.
-				 * @param text Text to append.
-				 * @return This string.
-				 * @throws AllocationError The long path could not be allocated.
-				 */
-				WString& operator+=(const WString& text);
 
 				/**
 				 * @brief Append one wide code unit.
@@ -1324,39 +1316,13 @@ namespace StormByte {
 		}
 
 		/**
-		 * @brief Concatenate two texts.
+		 * @brief Concatenate two texts. A literal or a view converts to WString.
 		 * @param left Left text.
 		 * @param right Right text.
 		 * @return New text owned by Base.
 		 * @throws AllocationError The long path could not be allocated.
 		 */
 		inline WString operator+(const WString& left, const WString& right) {
-			WString result(left);
-			result += right;
-			return result;
-		}
-
-		/**
-		 * @brief Concatenate a text and a view.
-		 * @param left Left text.
-		 * @param right Right view.
-		 * @return New text owned by Base.
-		 * @throws AllocationError The long path could not be allocated.
-		 */
-		inline WString operator+(const WString& left, std::wstring_view right) {
-			WString result(left);
-			result += right;
-			return result;
-		}
-
-		/**
-		 * @brief Concatenate a view and a text.
-		 * @param left Left view.
-		 * @param right Right text.
-		 * @return New text owned by Base.
-		 * @throws AllocationError The long path could not be allocated.
-		 */
-		inline WString operator+(std::wstring_view left, const WString& right) {
 			WString result(left);
 			result += right;
 			return result;

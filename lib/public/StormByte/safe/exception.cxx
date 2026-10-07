@@ -46,9 +46,6 @@ Exception::Exception() noexcept = default;
 Exception::Exception(std::string_view message)
 	: StormByte::Exception(StormByte::Exception::Path{"Safe"}, "{}", message) {}
 
-Exception::Exception(const String& message)
-	: StormByte::Exception(StormByte::Exception::Path{"Safe"}, "{}", static_cast<std::string_view>(message)) {}
-
 Exception::Exception(const Exception& other) = default;
 
 Exception::Exception(Exception&& other) noexcept = default;
@@ -78,9 +75,6 @@ const char* AllocationError::what() const noexcept {
 ExpiredWeakPointerError::ExpiredWeakPointerError(std::string_view message)
 	: Exception(message) {}
 
-ExpiredWeakPointerError::ExpiredWeakPointerError(const String& message)
-	: Exception(message) {}
-
 ExpiredWeakPointerError::ExpiredWeakPointerError(const ExpiredWeakPointerError& other) = default;
 
 ExpiredWeakPointerError::ExpiredWeakPointerError(ExpiredWeakPointerError&& other) noexcept = default;
@@ -92,9 +86,6 @@ ExpiredWeakPointerError& ExpiredWeakPointerError::operator=(const ExpiredWeakPoi
 ExpiredWeakPointerError& ExpiredWeakPointerError::operator=(ExpiredWeakPointerError&& other) noexcept = default;
 
 OutOfBoundsError::OutOfBoundsError(std::string_view message)
-	: Exception(message) {}
-
-OutOfBoundsError::OutOfBoundsError(const String& message)
 	: Exception(message) {}
 
 OutOfBoundsError::OutOfBoundsError(const OutOfBoundsError& other) = default;

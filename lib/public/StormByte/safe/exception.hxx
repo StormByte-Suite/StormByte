@@ -61,7 +61,7 @@ namespace StormByte {
 		 * @class Exception
 		 * @brief Base exception for Safe. Leaf text is `StormByte.Safe: message`.
 		 *
-		 * The body does not include the path. This type applies the `Safe` segment. Copy, move and the destructor are defined in the Base DLL. A leaf that must not allocate uses the empty constructor and overrides `what()`.
+		 * The body does not include the path. This type applies the `Safe` segment. Copy, move and the destructor are defined in the Base DLL. A leaf that must not allocate uses the empty constructor and overrides `what()`. The message constructor takes a view. A @ref String converts to that view.
 		 */
 		class STORMBYTE_PUBLIC Exception: public StormByte::Exception {
 			public:
@@ -70,12 +70,6 @@ namespace StormByte {
 				 * @param message Body. Not a path and not a format string.
 				 */
 				explicit Exception(std::string_view message);
-
-				/**
-				 * @brief Copy an owned body into `StormByte.Safe: message`.
-				 * @param message Body. Not a path and not a format string.
-				 */
-				explicit Exception(const String& message);
 
 				/**
 				 * @brief Format a body into `StormByte.Safe: formatted`.
@@ -193,12 +187,6 @@ namespace StormByte {
 				explicit ExpiredWeakPointerError(std::string_view message);
 
 				/**
-				 * @brief Copy an owned body into `StormByte.Safe: message`.
-				 * @param message Body. Not a path and not a format string.
-				 */
-				explicit ExpiredWeakPointerError(const String& message);
-
-				/**
 				 * @brief Format a body into `StormByte.Safe: formatted`.
 				 * @tparam Args Format argument types.
 				 * @param fmt Format string. Body only.
@@ -253,12 +241,6 @@ namespace StormByte {
 				 * @param message Body. Not a path and not a format string.
 				 */
 				explicit OutOfBoundsError(std::string_view message);
-
-				/**
-				 * @brief Copy an owned body into `StormByte.Safe: message`.
-				 * @param message Body. Not a path and not a format string.
-				 */
-				explicit OutOfBoundsError(const String& message);
 
 				/**
 				 * @brief Format a body into `StormByte.Safe: formatted`.

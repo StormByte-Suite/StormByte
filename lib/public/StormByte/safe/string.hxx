@@ -455,7 +455,7 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Append a view.
+				 * @brief Append a view. A String converts to this view.
 				 * @param text Text to append.
 				 * @return This string.
 				 */
@@ -467,14 +467,6 @@ namespace StormByte {
 				 * @return This string.
 				 */
 				String& operator+=(char character);
-
-				/**
-				 * @brief Append another Safe string.
-				 * @param text Text to append.
-				 * @return This string.
-				 * @throws AllocationError The long path could not be allocated.
-				 */
-				String& operator+=(const String& text);
 
 				/**
 				 * @brief Append one byte.
@@ -1333,39 +1325,13 @@ namespace StormByte {
 		}
 
 		/**
-		 * @brief Concatenate two texts.
+		 * @brief Concatenate two texts. A literal or a view converts to String.
 		 * @param left Left text.
 		 * @param right Right text.
 		 * @return New text owned by Base.
 		 * @throws AllocationError The long path could not be allocated.
 		 */
 		inline String operator+(const String& left, const String& right) {
-			String result(left);
-			result += right;
-			return result;
-		}
-
-		/**
-		 * @brief Concatenate a text and a view.
-		 * @param left Left text.
-		 * @param right Right view.
-		 * @return New text owned by Base.
-		 * @throws AllocationError The long path could not be allocated.
-		 */
-		inline String operator+(const String& left, std::string_view right) {
-			String result(left);
-			result += right;
-			return result;
-		}
-
-		/**
-		 * @brief Concatenate a view and a text.
-		 * @param left Left view.
-		 * @param right Right text.
-		 * @return New text owned by Base.
-		 * @throws AllocationError The long path could not be allocated.
-		 */
-		inline String operator+(std::string_view left, const String& right) {
 			String result(left);
 			result += right;
 			return result;

@@ -48,9 +48,6 @@ Exception::Exception(std::string_view message) {
 	m_what.append(message);
 }
 
-Exception::Exception(const Safe::String& message)
-	: Exception(static_cast<std::string_view>(message)) {}
-
 Exception::Exception(const Exception& other) = default;
 
 Exception::Exception(Exception&& other) noexcept = default;
@@ -68,9 +65,6 @@ const char* Exception::what() const noexcept {
 DeserializeError::DeserializeError(std::string_view message)
 	: Exception(message) {}
 
-DeserializeError::DeserializeError(const Safe::String& message)
-	: Exception(message) {}
-
 DeserializeError::DeserializeError(const DeserializeError& other) = default;
 
 DeserializeError::DeserializeError(DeserializeError&& other) noexcept = default;
@@ -84,9 +78,6 @@ DeserializeError& DeserializeError::operator=(DeserializeError&& other) noexcept
 OperationError::OperationError(std::string_view message)
 	: Exception(message) {}
 
-OperationError::OperationError(const Safe::String& message)
-	: Exception(message) {}
-
 OperationError::OperationError(const OperationError& other) = default;
 
 OperationError::OperationError(OperationError&& other) noexcept = default;
@@ -98,9 +89,6 @@ OperationError& OperationError::operator=(const OperationError& other) = default
 OperationError& OperationError::operator=(OperationError&& other) noexcept = default;
 
 Base64Error::Base64Error(std::string_view message)
-	: Exception(message) {}
-
-Base64Error::Base64Error(const Safe::String& message)
 	: Exception(message) {}
 
 Base64Error::Base64Error(const Base64Error& other) = default;

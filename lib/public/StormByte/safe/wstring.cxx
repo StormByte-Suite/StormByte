@@ -255,10 +255,6 @@ WString& WString::operator+=(wchar_t character) {
 	return append(Size{1}, character);
 }
 
-WString& WString::operator+=(const WString& text) {
-	return append(static_cast<std::wstring_view>(text));
-}
-
 void WString::push_back(wchar_t character) {
 	append(Size{1}, character);
 }

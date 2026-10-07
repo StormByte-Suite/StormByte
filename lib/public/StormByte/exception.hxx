@@ -42,7 +42,6 @@
 #include <StormByte/safe/string.hxx>
 #include <StormByte/visibility.h>
 
-#include <cstddef>
 #include <format>
 #include <iterator>
 #include <string_view>
@@ -63,21 +62,15 @@ namespace StormByte {
 	 *
 	 * A parent prepends its own segment and forwards the format and the arguments. It does not format. A final leaf adds no segment: it inherits the parent constructors. Copy, move and the destructor of each named type are defined in that module's `.cxx`, so the `typeinfo` is unique across a DLL.
 	 *
-	 * A leaf that must not allocate uses the empty constructor and overrides @ref what. That leaf does not fill `m_what`.
+	 * A leaf that must not allocate uses the empty constructor and overrides @ref what. That leaf does not fill `m_what`. The message constructor takes a view. A @ref Safe::String converts to that view, so a second constructor would be ambiguous with a literal.
 	 */
 	class STORMBYTE_PUBLIC Exception {
 		public:
 			/**
 			 * @brief Copies text into `StormByte: message`.
-			 * @param message Exception text. Not a format string.
+			 * @param message Exception text. Not a format string. A @ref Safe::String converts to this view.
 			 */
 			explicit Exception(std::string_view message);
-
-			/**
-			 * @brief Copies owned text into `StormByte: message`.
-			 * @param message Exception text. Not a format string.
-			 */
-			explicit Exception(const Safe::String& message);
 
 			/**
 			 * @brief Constructs with `std::format_to`. Text is `StormByte: formatted`.
@@ -212,12 +205,6 @@ namespace StormByte {
 			explicit DeserializeError(std::string_view message);
 
 			/**
-			 * @brief Copy an owned body into `StormByte: message`.
-			 * @param message Body. Not a path and not a format string.
-			 */
-			explicit DeserializeError(const Safe::String& message);
-
-			/**
 			 * @brief Format a body into `StormByte: formatted`.
 			 * @tparam Args Format argument types.
 			 * @param fmt Format string. Body only.
@@ -274,12 +261,6 @@ namespace StormByte {
 			explicit OperationError(std::string_view message);
 
 			/**
-			 * @brief Copy an owned body into `StormByte: message`.
-			 * @param message Body. Not a path and not a format string.
-			 */
-			explicit OperationError(const Safe::String& message);
-
-			/**
 			 * @brief Format a body into `StormByte: formatted`.
 			 * @tparam Args Format argument types.
 			 * @param fmt Format string. Body only.
@@ -334,12 +315,6 @@ namespace StormByte {
 			 * @param message Body. Not a path and not a format string.
 			 */
 			explicit Base64Error(std::string_view message);
-
-			/**
-			 * @brief Copy an owned body into `StormByte: message`.
-			 * @param message Body. Not a path and not a format string.
-			 */
-			explicit Base64Error(const Safe::String& message);
 
 			/**
 			 * @brief Format a body into `StormByte: formatted`.
