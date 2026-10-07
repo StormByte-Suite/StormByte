@@ -39,8 +39,8 @@
 
 #pragma once
 
-// Out-of-line implementation of StormByte::Serializable, included by serializable.hxx.
-// See serializable.hxx for documentation of each member.
+#include <algorithm>
+#include <vector>
 
 namespace StormByte {
 	template<typename T>
@@ -93,7 +93,7 @@ namespace StormByte {
 		} else if constexpr (Type::Container<T>) {
 			return SizeContainer(data);
 		} else if constexpr (Type::TriviallyCopyable<T>) {
-			return ByteSize{sizeof(data)};
+			return ByteSize{sizeof(DecayedT)};
 		} else {
 			return Detail::Codec<DecayedT>::Size(data);
 		}
@@ -103,9 +103,11 @@ namespace StormByte {
 	template<typename U>
 	Safe::Binary Serializable<T>::SerializeTrivial() const noexcept
 	requires Type::TriviallyCopyable<U> {
-		DecayedT value = m_data;
-
-		if constexpr (!Type::SameAs<DecayedT, bool> &&
+		if constexpr (Type::SameAs<T, bool>) {
+			return Safe::Binary(ByteSize{1}, std::byte{m_data ? std::byte{1} : std::byte{0}});
+		}
+		auto value = m_data;
+		if constexpr (std::is_integral_v<T> && sizeof(T) > 1 &&
 				std::endian::native != std::endian::little) {
 			value = Type::Detail::swap_endian(value);
 		}
@@ -122,10 +124,25 @@ namespace StormByte {
 		Safe::Binary buffer = Serializable<std::uint64_t>(size).Serialize();
 		buffer.reserve(ByteSize{static_cast<std::size_t>(buffer.size())} + SizeContainer(m_data));
 		using ElementT = typename DecayedT::value_type;
-		for (const auto& element : m_data) {
-			ElementT snapshot = element;
-			Serializable<ElementT> element_serial(snapshot);
-			append_bytes(buffer, element_serial.Serialize());
+		if constexpr (requires { typename DecayedT::hasher; }) {
+			std::vector<const ElementT*> ordered;
+			ordered.reserve(m_data.size());
+			for (const auto& element : m_data)
+				ordered.push_back(&element);
+			std::sort(ordered.begin(), ordered.end(), [](const ElementT* left, const ElementT* right) {
+				if constexpr (requires { left->first < right->first; })
+					return left->first < right->first;
+				else
+					return *left < *right;
+			});
+			for (const ElementT* element : ordered)
+				append_bytes(buffer, Serializable<ElementT>(*element).Serialize());
+		} else {
+			for (const auto& element : m_data) {
+				ElementT snapshot = element;
+				Serializable<ElementT> element_serial(snapshot);
+				append_bytes(buffer, element_serial.Serialize());
+			}
 		}
 		return buffer;
 	}

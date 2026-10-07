@@ -70,6 +70,10 @@ add_executable(UnorderedMapTests unordered_map_test.cxx)
 target_link_libraries(UnorderedMapTests StormByte)
 add_test(NAME UnorderedMapTests COMMAND UnorderedMapTests)
 
+add_executable(UnorderedSetTests unordered_set_test.cxx)
+target_link_libraries(UnorderedSetTests StormByte)
+add_test(NAME UnorderedSetTests COMMAND UnorderedSetTests)
+
 add_executable(VariantTests variant_test.cxx)
 target_link_libraries(VariantTests StormByte)
 add_test(NAME VariantTests COMMAND VariantTests)
