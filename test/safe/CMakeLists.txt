@@ -30,6 +30,10 @@ add_executable(IterableTests iterable_test.cxx)
 target_link_libraries(IterableTests StormByte)
 add_test(NAME IterableTests COMMAND IterableTests)
 
+add_executable(ListTests list_test.cxx)
+target_link_libraries(ListTests StormByte)
+add_test(NAME ListTests COMMAND ListTests)
+
 add_executable(MapTests map_test.cxx)
 target_link_libraries(MapTests StormByte)
 add_test(NAME MapTests COMMAND MapTests)
