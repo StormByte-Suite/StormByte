@@ -444,10 +444,10 @@ namespace StormByte {
 		}
 
 		template<class T>
-		AtomicShared<T>::AtomicShared() noexcept: m_lock(false), m_control(nullptr), m_object(nullptr) {}
+		AtomicShared<T>::AtomicShared() noexcept: m_lock(), m_control(nullptr), m_object(nullptr) {}
 
 		template<class T>
-		AtomicShared<T>::AtomicShared(Shared<T> owner) noexcept: m_lock(false), m_control(owner.m_control), m_object(owner.m_object) {
+		AtomicShared<T>::AtomicShared(Shared<T> owner) noexcept: m_lock(), m_control(owner.m_control), m_object(owner.m_object) {
 			owner.m_control = nullptr;
 			owner.m_object = nullptr;
 		}
