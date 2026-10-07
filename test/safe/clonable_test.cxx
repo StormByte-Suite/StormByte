@@ -37,32 +37,53 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include "clonable_plugin.hxx"
+#include <StormByte/safe/clonable.hxx>
+#include <StormByte/safe/pointers.hxx>
+#include <StormByte/test_handlers.h>
 
+#include <iostream>
 #include <utility>
 
-using namespace StormByte::Safe;
+using namespace StormByte;
 
-PluginItem::PluginItem(int value): value(value) {}
-
-PluginItem::~PluginItem() noexcept = default;
-
-PluginItem::PointerType PluginItem::Clone() const {
-	return MakePointer<PluginItem>(*this);
+namespace {
+	struct Item: Safe::Clonable<Item> {
+		int value;
+		explicit Item(int n): value(n) {}
+		PointerType Clone() const override { return MakePointer<Item>(value); }
+		PointerType Move() override { return MakePointer<Item>(std::exchange(value, 0)); }
+	};
 }
 
-PluginItem::PointerType PluginItem::Move() {
-	return MakePointer<PluginItem>(std::move(*this));
+// -------------------
+// Life
+// -------------------
+
+int test_clone_shared_and_unique() {
+	auto shared = Item::MakePointer<Item>(3);
+	auto cloned = shared->Clone();
+	ASSERT_TRUE(shared.get() != cloned.get());
+	ASSERT_EQUAL(3, cloned->value);
+	ASSERT_EQUAL(3, shared->value);
+	auto moved = shared->Move();
+	ASSERT_EQUAL(3, moved->value);
+	ASSERT_EQUAL(0, shared->value);
+	auto unique = Item::MakePointer<Item>(5);
+	ASSERT_EQUAL(5, unique->value);
+	RETURN_TEST(0);
 }
 
-PluginItem::PointerType MakePluginItem(int value) {
-	return PluginItem::MakePointer<PluginItem>(value);
-}
+int main() {
+	int result = 0;
 
-const std::type_info& PluginClonableType() noexcept {
-	return typeid(Clonable<PluginItem>);
-}
+	// -------------------
+	// Life
+	// -------------------
+	result += test_clone_shared_and_unique();
 
-Clonable<PluginItem>* PluginAsClonable(PluginItem& item) noexcept {
-	return &item;
+	if (result == 0)
+		std::cout << "All tests passed!" << std::endl;
+	else
+		std::cout << result << " tests failed." << std::endl;
+	return result;
 }

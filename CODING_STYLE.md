@@ -1,22 +1,24 @@
 # StormByte coding style
 
-This is the flavor used in Base. Other suite modules follow it unless their own file says otherwise. Match the files already in the tree when something here is silent.
+This is how Base is written. Other suite modules follow it unless their own file says otherwise. If this file is silent, copy the nearest file that already does the thing you are doing.
 
 ## Files
 
-Headers are `.hxx`, sources `.cxx`, template bodies `.txx` included at the bottom of the header. Start every C or C++ file with `#pragma once` in the header and with the license banner used in this repository, unchanged. CMake and Markdown do not take that banner.
+C++ headers are `.hxx`. Sources are `.cxx`. Template bodies that would dirty the header go in a `.txx`, included at the bottom of the header. A private C helper is `.h` and `.c`, compiled as C, and is not installed.
 
-Include `StormByte/…` first, then a blank line, then the standard library. Do not `using namespace` in a header. `using namespace StormByte;` in a `.cxx` after the includes is fine.
+Every C and C++ file starts with the license banner already used in the tree, unchanged, then `#pragma once` on a header. CMake and Markdown do not take the banner.
 
-Indent with tabs. Spaces for indentation are wrong. Do not mix them to line up code; Doxygen `///<` on members may share a column by using tabs.
+Includes are the project's own headers, a blank line, then the standard library. A header does not contain `using namespace`. A `.cxx` may say `using namespace StormByte;` after the includes, or name the few symbols it actually uses.
 
-## Shape
+Indent with tabs. A space used to indent is wrong. Do not pad with spaces to line columns up. A trailing `///<` on a member may be tabbed to the same column as its neighbours.
 
-Braces are K&R: the `{` sits on the same line as `class`, `struct`, `enum`, `namespace`, `if`, `for`, `while` or the function signature. `public:` / `private:` are one tab in; members one more.
+## Layout
 
-A single-statement `if` / `else` / `else if` has no braces. Put `else` and `else if` on their own line, not on the same line as a closing `}`.
+Braces are K&R. The `{` stays on the line of `class`, `struct`, `enum`, `namespace`, `if`, `for`, `while` and the function signature. `public:` and `private:` are one tab in. Members are one more.
 
-```
+A single-statement `if`, `else` or `else if` has no braces. `else` and `else if` go on their own line.
+
+```cpp
 if (unit == 0 || remainder == 0)
 	std::snprintf(...);
 else {
@@ -24,74 +26,83 @@ else {
 }
 ```
 
-Pointers and references bind to the type: `const char* str`, `Safe::String& other`, `operator const char*()`. Not `char *str`.
+`*` and `&` bind to the type: `const char* text`, `String& other`. Not `char *text`.
 
-Types, enumerations and functions are PascalCase (`Base64Encode`, `Length`, `Fault`). Macros are `SCREAMING_SNAKE` (`STORMBYTE_PUBLIC`, `WINDOWS`). One statement per line.
+One statement per line. No anonymous namespace in a public header.
+
+## Names
+
+Types, enumerations and functions are PascalCase: `Base64Encode`, `Length`, `Fault`. Macros are `SCREAMING_SNAKE`: `STORMBYTE_PUBLIC`, `WINDOWS`.
+
+Snake case is reserved for a type that is deliberately std-like. `Safe::String::push_back` stays snake case because the point of that type is that a reader already knows the name. A helper that is not part of that emulated surface is PascalCase, including private ones. Do not mix the two on the same surface.
+
+A test function is snake case and starts with `test_`. The first line of the function is a `constexpr` with that same name, and every assert uses it. Do not repeat the function name as a string literal.
+
+## Classes
+
+A class that owns or is copied is written in canonical order, and none of those six is omitted:
+
+1. constructor
+2. copy constructor
+3. move constructor
+4. destructor
+5. copy assignment
+6. move assignment
+
+`= default` and `= delete` are written out in that position. They are not left for the compiler to invent, and they are not hidden in the class body as an afterthought. Extra constructors go with the first constructor, not between the assignment operators.
+
+A converting constructor is `explicit` unless the type documents an implicit conversion. `Safe::String` to `std::string_view` is that case. A conversion to an STL container is explicit.
+
+Mark `noexcept` only when it is true. Prefer `constexpr` when there is no heap and no I/O. A function that builds a `Safe::String` inside the library is not `constexpr`.
 
 ## Language
 
-C++26. RAII: no bare `new` / `delete` in new code. Use Safe owners for module-owned resources.
+The dialect is C++26. New code does not call bare `new` or `delete`. Owned memory goes through `Safe::Heap`, or through a Safe owner.
 
-Public templates use `StormByte::Type` concepts. Do not put `std::enable_if`, `void_t` or a raw `std::is_*` next to those concepts.
+Public templates are constrained with `StormByte::Type`. Do not put `std::enable_if`, `void_t` or a raw `std::is_*` next to a concept that already says the same thing.
 
-`enum class` only. Converting constructors are `explicit` unless the type already documents an implicit conversion (`Safe::String` to `std::string_view` is that case). STL-string exports are explicit and allocate in the caller's CRT. Mark `noexcept` only when it is true. Prefer `constexpr` when there is no heap and no I/O; a conversion that builds a `Safe::String` inside the DLL is not `constexpr`.
+`enum class` only. Platform tests are `#ifdef WINDOWS`, `#elifdef MACOS`, `#else`. Not `#if defined(WINDOWS)`.
 
-Precondition failures (`operator[]` out of range, a negative `Size`) are undefined and `assert` when assertions are on. Do not `throw` for those.
+A precondition failure, such as `operator[]` out of range, is undefined and `assert` when assertions are on. Do not throw for it. A checked access that is part of the type's contract throws a StormByte exception.
 
-Platform tests are `#ifdef WINDOWS`, `#elifdef MACOS`, `#else`. Not `#if defined(WINDOWS)`.
+## Concepts
 
-No anonymous namespace in a public header.
+All concepts must follow "StormByte flavor" which are the concepts and traits defined in type_traits/*, example: `Type::SameAs` instead of `std::same_as`
 
 ## DLL boundary
 
-`STORMBYTE_PUBLIC` comes **first** on a function declaration. clang-cl rejects `__declspec` after a reference return type.
+`STORMBYTE_PUBLIC` comes first on a function declaration. clang-cl rejects `__declspec` after a reference return type.
 
-```
+```cpp
 STORMBYTE_PUBLIC Safe::String GenerateUUIDv4() noexcept;
 STORMBYTE_PUBLIC const Category<Code>& category() noexcept;
-static STORMBYTE_PUBLIC std::size_t Size(const std::string& data) noexcept;
 ```
 
-Do not write `Safe::String STORMBYTE_PUBLIC Foo();`.
+Do not write `Safe::String STORMBYTE_PUBLIC Foo();`. On a class the attribute stays on the type: `class STORMBYTE_PUBLIC Fault`. Do not repeat it on an ordinary `.cxx` definition.
 
-A class keeps the attribute on the type: `class STORMBYTE_PUBLIC Fault`.
+An exported template is split. The header has the `extern template` with `STORMBYTE_PUBLIC`. The `.cxx` has the body with `STORMBYTE_INSTANTIATE`. Never put `STORMBYTE_INSTANTIATE` on the `extern` line, and never write `STORMBYTE_PUBLIC extern template`.
 
-Exported templates are split:
-
-```
-// header — ELF export + MSVC import/export of the declaration
-extern template class STORMBYTE_PUBLIC Serializable<int>;
-extern template STORMBYTE_PUBLIC Size operator*<int>(int, Unit) noexcept;
-extern template STORMBYTE_PUBLIC Size::Size(int) noexcept;
-
-// .cxx — the body lives only here; consumers must not instantiate
-template class STORMBYTE_INSTANTIATE Serializable<int>;
-template STORMBYTE_INSTANTIATE Size operator*<int>(int, Unit) noexcept;
-template STORMBYTE_INSTANTIATE Size::Size(int) noexcept;
-```
-
-`STORMBYTE_INSTANTIATE` is `dllexport` on Windows and empty on ELF (so GCC does not warn `-Wattributes`). Never put it on the `extern` line. Never write `STORMBYTE_PUBLIC extern template`.
-
-Do not repeat `STORMBYTE_PUBLIC` on an ordinary `.cxx` definition.
-
-Values that leave the shared library are `Safe::String`, `Safe::WString`, `Size`, `Fault`, or a borrowed `const char*` owned by this library. Do not return `std::string` or `std::size_t` as the object that crosses the boundary. Safe text keeps STL storage private behind a PIMPL, allocated and destroyed in Base's CRT. Length-bearing views preserve embedded NUL code units; pointer-only C-string inputs end at the first NUL.
+A value that leaves the shared library is a Safe type, or a borrowed `const char*` owned by this library. It is not a `std::string`, a `std::vector` or a `std::function`. A conversion to one of those is `STORMBYTE_FORCE_INLINE` in the header, so the STL object is born in the caller. A private C helper is not exported.
 
 ## Doxygen
 
-Document every public declaration except `= delete`. Large classes use `@name` groups. `@ref` uses the qualified name (`StormByte::Type::Container`, `StormByte::Error::Domain`). Align member `///<` comments to the same column when they fit.
+Every declaration a reader can trip over is documented: types, functions, data members, template parameters. `= delete` does not need a paragraph. A one-line `///<` is enough for a member whose name already says what it is. A function gets `@brief`, and `@param`, `@return` or `@throws` when it has them. Do not compress several functions into one block.
 
-Wrap `extern template` noise in `/// @cond` / `/// @endcond` so it does not show up as a page of instantiations.
+`@ref` uses the qualified name. Large classes may use `@name` groups. Wrap a list of `extern template` in `/// @cond` and `/// @endcond` so it does not become a page of instantiations.
 
-## Commits and tests
+Namespace, class and function comments say what the thing is for. They do not repeat the signature.
 
-Conventional Commits in English (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`). One topic per commit.
+## Tests
 
-Test section banners are identical in the test body and in `main`:
+Sections are alphabetical. Functions inside a section are alphabetical. The banner is the same in the test body and in `main`:
 
-```
+```cpp
 // -------------------
 // Construct
 // -------------------
 ```
+This section header must be present as well in the main function grouping test function calls.
 
-Do not invent `=== Construct ===` or print section titles with `cout`.
+## Commits
+
+Conventional Commits, in English: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`. One topic per commit. The subject says what changed, not the file that changed.

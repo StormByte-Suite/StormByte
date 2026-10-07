@@ -37,11 +37,15 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
 #include <StormByte/uuid.hxx>
 
 #include <set>
 #include <string>
+#include <string_view>
+#include <thread>
+#include <vector>
 
 using namespace StormByte;
 
@@ -53,75 +57,98 @@ namespace {
 	bool IsVariant(char c) {
 		return c == '8' || c == '9' || c == 'a' || c == 'b';
 	}
-}
 
-// -------------------
-// Generate
-// -------------------
-
-int test_generate_not_null() {
-	int result = 0;
-	const auto uuid = GenerateUUIDv4();
-	ASSERT_TRUE("test_generate_not_null", static_cast<bool>(uuid));
-	ASSERT_EQUAL("test_generate_not_null", 36u, uuid.size());
-	RETURN_TEST("test_generate_not_null", result);
-}
-
-int test_generate_implicit_string() {
-	int result = 0;
-	const std::string text = static_cast<std::string>(GenerateUUIDv4());
-	ASSERT_EQUAL("test_generate_implicit_string", 36u, text.size());
-	RETURN_TEST("test_generate_implicit_string", result);
+	bool IsRfc4122(std::string_view text) {
+		if (text.size() != 36)
+			return false;
+		if (text[8] != '-' || text[13] != '-' || text[18] != '-' || text[23] != '-')
+			return false;
+		if (text[14] != '4' || !IsVariant(text[19]))
+			return false;
+		for (std::size_t i = 0; i < text.size(); ++i) {
+			if (i == 8 || i == 13 || i == 18 || i == 23)
+				continue;
+			if (!IsHex(text[i]))
+				return false;
+		}
+		return true;
+	}
 }
 
 // -------------------
 // Format
 // -------------------
 
-int test_format_hyphens() {
-	int result = 0;
+int test_format_hex_lowercase() {
 	const auto uuid = GenerateUUIDv4();
-	ASSERT_EQUAL("test_format_hyphens", '-', uuid[8]);
-	ASSERT_EQUAL("test_format_hyphens", '-', uuid[13]);
-	ASSERT_EQUAL("test_format_hyphens", '-', uuid[18]);
-	ASSERT_EQUAL("test_format_hyphens", '-', uuid[23]);
-	RETURN_TEST("test_format_hyphens", result);
+	for (Size i{0}; i < uuid.size(); i = Size{static_cast<std::size_t>(i) + 1}) {
+		const auto index = static_cast<std::size_t>(i);
+		if (index == 8 || index == 13 || index == 18 || index == 23)
+			continue;
+		ASSERT_TRUE(IsHex(uuid[i]));
+		ASSERT_TRUE(uuid[i] < 'A' || uuid[i] > 'Z');
+	}
+	RETURN_TEST(0);
 }
 
-int test_format_version_is_4() {
-	int result = 0;
+int test_format_hyphens() {
 	const auto uuid = GenerateUUIDv4();
-	ASSERT_EQUAL("test_format_version_is_4", '4', uuid[14]);
-	RETURN_TEST("test_format_version_is_4", result);
+	ASSERT_EQUAL('-', uuid[Size{8}]);
+	ASSERT_EQUAL('-', uuid[Size{13}]);
+	ASSERT_EQUAL('-', uuid[Size{18}]);
+	ASSERT_EQUAL('-', uuid[Size{23}]);
+	RETURN_TEST(0);
 }
 
 int test_format_variant_rfc4122() {
-	int result = 0;
 	const auto uuid = GenerateUUIDv4();
-	ASSERT_TRUE("test_format_variant_rfc4122", IsVariant(uuid[19]));
-	RETURN_TEST("test_format_variant_rfc4122", result);
+	ASSERT_TRUE(IsVariant(uuid[Size{19}]));
+	RETURN_TEST(0);
 }
 
-int test_format_hex_lowercase() {
-	int result = 0;
+int test_format_version_is_4() {
 	const auto uuid = GenerateUUIDv4();
-	for (std::size_t i = 0; i < uuid.size(); ++i) {
-		if (i == 8 || i == 13 || i == 18 || i == 23)
-			continue;
-		ASSERT_TRUE("test_format_hex_lowercase", IsHex(uuid[i]));
-		ASSERT_TRUE("test_format_hex_lowercase", uuid[i] < 'A' || uuid[i] > 'F');
-	}
-	RETURN_TEST("test_format_hex_lowercase", result);
+	ASSERT_EQUAL('4', uuid[Size{14}]);
+	RETURN_TEST(0);
 }
 
-int test_format_rejects_wrong_length_shape() {
-	int result = 0;
+// -------------------
+// Generate
+// -------------------
+
+int test_generate_explicit_std_string() {
+	const std::string text = static_cast<std::string>(GenerateUUIDv4());
+	ASSERT_EQUAL(std::size_t{36}, text.size());
+	ASSERT_TRUE(IsRfc4122(text));
+	RETURN_TEST(0);
+}
+
+int test_generate_implicit_string_view() {
 	const auto uuid = GenerateUUIDv4();
-	ASSERT_FALSE("test_format_rejects_wrong_length_shape", uuid.size() != 36);
-	ASSERT_FALSE("test_format_rejects_wrong_length_shape", uuid[8] != '-');
-	ASSERT_FALSE("test_format_rejects_wrong_length_shape", uuid[14] != '4');
-	ASSERT_FALSE("test_format_rejects_wrong_length_shape", !IsVariant(uuid[19]));
-	RETURN_TEST("test_format_rejects_wrong_length_shape", result);
+	const std::string_view text = uuid;
+	ASSERT_EQUAL(std::size_t{36}, text.size());
+	ASSERT_TRUE(IsRfc4122(text));
+	RETURN_TEST(0);
+}
+
+int test_generate_length_and_not_empty() {
+	const auto uuid = GenerateUUIDv4();
+	ASSERT_NOT_EMPTY(uuid);
+	ASSERT_EQUAL(Size{36}, uuid.size());
+	ASSERT_NOT_NULL(uuid.c_str());
+	RETURN_TEST(0);
+}
+
+int test_generate_noexcept() {
+	static_assert(noexcept(GenerateUUIDv4()));
+	ASSERT_NO_THROW((void)GenerateUUIDv4());
+	RETURN_TEST(0);
+}
+
+int test_generate_samples_match_contract() {
+	for (int i = 0; i < 64; ++i)
+		ASSERT_TRUE(IsRfc4122(GenerateUUIDv4()));
+	RETURN_TEST(0);
 }
 
 // -------------------
@@ -129,40 +156,67 @@ int test_format_rejects_wrong_length_shape() {
 // -------------------
 
 int test_generate_distinct() {
-	int result = 0;
 	std::set<std::string> seen;
 	for (int i = 0; i < 1000; ++i) {
-		const auto uuid = GenerateUUIDv4();
-		const std::string text = static_cast<std::string>(uuid);
-		ASSERT_TRUE("test_generate_distinct", !seen.contains(text));
+		const std::string text = static_cast<std::string>(GenerateUUIDv4());
+		ASSERT_FALSE(seen.contains(text));
 		seen.insert(text);
 	}
-	ASSERT_EQUAL("test_generate_distinct", 1000u, seen.size());
-	RETURN_TEST("test_generate_distinct", result);
+	ASSERT_EQUAL(std::size_t{1000}, seen.size());
+	RETURN_TEST(0);
+}
+
+int test_generate_distinct_across_threads() {
+	constexpr int thread_count = 4;
+	constexpr int per_thread = 100;
+	std::vector<std::vector<std::string>> bags(thread_count);
+	std::vector<std::thread> threads;
+	for (int t = 0; t < thread_count; ++t) {
+		threads.emplace_back([t, &bags]() {
+			bags[t].reserve(per_thread);
+			for (int i = 0; i < per_thread; ++i)
+				bags[t].push_back(static_cast<std::string>(GenerateUUIDv4()));
+		});
+	}
+	for (auto& thread : threads)
+		thread.join();
+	std::set<std::string> seen;
+	for (const auto& bag : bags) {
+		for (const auto& text : bag) {
+			ASSERT_TRUE(IsRfc4122(text));
+			ASSERT_FALSE(seen.contains(text));
+			seen.insert(text);
+		}
+	}
+	ASSERT_EQUAL(std::size_t{thread_count * per_thread}, seen.size());
+	RETURN_TEST(0);
 }
 
 int main() {
 	int result = 0;
 
 	// -------------------
-	// Generate
-	// -------------------
-	result += test_generate_not_null();
-	result += test_generate_implicit_string();
-
-	// -------------------
 	// Format
 	// -------------------
-	result += test_format_hyphens();
-	result += test_format_version_is_4();
-	result += test_format_variant_rfc4122();
 	result += test_format_hex_lowercase();
-	result += test_format_rejects_wrong_length_shape();
+	result += test_format_hyphens();
+	result += test_format_variant_rfc4122();
+	result += test_format_version_is_4();
+
+	// -------------------
+	// Generate
+	// -------------------
+	result += test_generate_explicit_std_string();
+	result += test_generate_implicit_string_view();
+	result += test_generate_length_and_not_empty();
+	result += test_generate_noexcept();
+	result += test_generate_samples_match_contract();
 
 	// -------------------
 	// Uniqueness
 	// -------------------
 	result += test_generate_distinct();
+	result += test_generate_distinct_across_threads();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

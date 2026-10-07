@@ -6,31 +6,9 @@ if(ENABLE_TEST)
 	target_link_libraries(Base64Tests StormByte)
 	add_test(NAME Base64Tests COMMAND Base64Tests)
 
-	add_executable(BinaryDataTests binary_data_test.cxx)
-	target_link_libraries(BinaryDataTests StormByte)
-	add_test(NAME BinaryDataTests COMMAND BinaryDataTests)
-
-	add_executable(BitmaskTests bitmask_test.cxx)
-	target_link_libraries(BitmaskTests StormByte)
-	add_test(NAME BitmaskTests COMMAND BitmaskTests)
-
 	add_executable(ByteSizeTests byte_size_test.cxx)
 	target_link_libraries(ByteSizeTests StormByte)
 	add_test(NAME ByteSizeTests COMMAND ByteSizeTests)
-
-	# Shared and hidden by default, like a consumer DLL deriving from Clonable.
-	add_library(ClonablePlugin SHARED clonable_plugin.cxx)
-	target_link_libraries(ClonablePlugin PUBLIC StormByte)
-	set_target_properties(ClonablePlugin PROPERTIES
-		CXX_VISIBILITY_PRESET hidden
-		VISIBILITY_INLINES_HIDDEN ON
-	)
-
-	add_executable(ClonableTests clonable_test.cxx)
-	target_link_libraries(ClonableTests ClonablePlugin StormByte)
-	# Export the executable's vague-linkage typeinfo so it merges with the plugin's, as between two DLLs.
-	set_target_properties(ClonableTests PROPERTIES ENABLE_EXPORTS ON)
-	add_test(NAME ClonableTests COMMAND ClonableTests)
 
 	add_executable(ErrorTests error_test.cxx)
 	target_link_libraries(ErrorTests StormByte)
@@ -40,66 +18,13 @@ if(ENABLE_TEST)
 	target_link_libraries(ExceptionTests StormByte)
 	add_test(NAME ExceptionTests COMMAND ExceptionTests)
 
-	add_executable(ExpectedTests expected_test.cxx)
-	target_link_libraries(ExpectedTests StormByte)
-	add_test(NAME ExpectedTests COMMAND ExpectedTests)
-
-	add_executable(SafeIterableTests iterable_test.cxx)
-	target_link_libraries(SafeIterableTests StormByte)
-	add_test(NAME SafeIterableTests COMMAND SafeIterableTests)
-
-	add_executable(SafeMapIteratorTests safe_map_iterator_test.cxx)
-	target_link_libraries(SafeMapIteratorTests StormByte)
-	add_test(NAME SafeMapIteratorTests COMMAND SafeMapIteratorTests)
-	set_tests_properties(SafeMapIteratorTests PROPERTIES TIMEOUT 10)
-
-	add_executable(SafeMapDifferenceTypeTests safe_map_difference_type_test.cxx)
-	target_link_libraries(SafeMapDifferenceTypeTests StormByte)
-	add_test(NAME SafeMapDifferenceTypeTests COMMAND SafeMapDifferenceTypeTests)
-	set_tests_properties(SafeMapDifferenceTypeTests PROPERTIES TIMEOUT 10)
-
-	add_executable(SafePointersTests safe_pointers_test.cxx)
-	target_link_libraries(SafePointersTests StormByte)
-	add_test(NAME SafePointersTests COMMAND SafePointersTests)
-
-	add_library(SafeCollectionsProducer SHARED safe_collections_producer.cxx)
-	target_link_libraries(SafeCollectionsProducer PUBLIC StormByte)
-	add_library(SafeCollectionsConsumer SHARED safe_collections_consumer.cxx)
-	target_link_libraries(SafeCollectionsConsumer PUBLIC SafeCollectionsProducer StormByte)
-	set_target_properties(SafeCollectionsProducer SafeCollectionsConsumer PROPERTIES
-		CXX_VISIBILITY_PRESET hidden
-		VISIBILITY_INLINES_HIDDEN ON
-	)
-	if(MSVC)
-		set_target_properties(SafeCollectionsProducer PROPERTIES MSVC_RUNTIME_LIBRARY MultiThreadedDebug)
-		set_target_properties(SafeCollectionsConsumer PROPERTIES MSVC_RUNTIME_LIBRARY MultiThreaded)
-		target_compile_definitions(SafeCollectionsProducer PRIVATE _ITERATOR_DEBUG_LEVEL=2)
-		target_compile_definitions(SafeCollectionsConsumer PRIVATE _ITERATOR_DEBUG_LEVEL=0)
-	endif()
-	add_executable(SafeCollectionsTests safe_collections_test.cxx)
-	target_link_libraries(SafeCollectionsTests SafeCollectionsConsumer StormByte)
-	add_test(NAME SafeCollectionsTests COMMAND SafeCollectionsTests)
-	set_tests_properties(SafeCollectionsTests PROPERTIES TIMEOUT 60)
-
-	add_executable(SerializationTests serialization_test.cxx)
-	target_link_libraries(SerializationTests StormByte)
-	add_test(NAME SerializationTests COMMAND SerializationTests)
+	add_executable(SerializableTests serializable_test.cxx)
+	target_link_libraries(SerializableTests StormByte)
+	add_test(NAME SerializableTests COMMAND SerializableTests)
 
 	add_executable(SizeTests size_test.cxx)
 	target_link_libraries(SizeTests StormByte)
 	add_test(NAME SizeTests COMMAND SizeTests)
-
-	add_executable(StringTests string_test.cxx)
-	target_link_libraries(StringTests StormByte)
-	add_test(NAME StringTests COMMAND StringTests)
-
-	add_executable(WStringTests wstring_test.cxx)
-	target_link_libraries(WStringTests StormByte)
-	add_test(NAME WStringTests COMMAND WStringTests)
-
-	add_executable(TestHandlersTests test_handlers_test.cxx)
-	target_link_libraries(TestHandlersTests StormByte)
-	add_test(NAME TestHandlersTests COMMAND TestHandlersTests)
 
 	add_executable(TelemetryTests telemetry_test.cxx)
 	target_link_libraries(TelemetryTests StormByte)
@@ -109,12 +34,11 @@ if(ENABLE_TEST)
 	target_link_libraries(ThreadLockTests StormByte)
 	add_test(NAME ThreadLockTests COMMAND ThreadLockTests)
 
-	add_executable(TypeTraitsTests type_traits_test.cxx)
-	target_link_libraries(TypeTraitsTests StormByte)
-	add_test(NAME TypeTraitsTests COMMAND TypeTraitsTests)
-
 	add_executable(UUIDTest uuid_test.cxx)
 	target_link_libraries(UUIDTest StormByte)
 	add_test(NAME UUIDTest COMMAND UUIDTest)
+
+	add_subdirectory(safe)
+	add_subdirectory(type_traits)
 
 endif()

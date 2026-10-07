@@ -37,174 +37,224 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/exception.hxx>
 #include <StormByte/safe/exception.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/test_handlers.h>
 
+#include <exception>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 using namespace StormByte;
+
+namespace {
+	class CryptoError: public Exception {
+		public:
+			template <typename... Args>
+			explicit CryptoError(std::format_string<Args...> fmt, Args&&... args)
+				: Exception(Path{"Crypto"}, fmt, std::forward<Args>(args)...) {}
+
+			~CryptoError() override = default;
+
+		protected:
+			template <typename... Args>
+			explicit CryptoError(Path child, std::format_string<Args...> fmt, Args&&... args)
+				: Exception(Path{std::string("Crypto.") + std::string(child.text)}, fmt, std::forward<Args>(args)...) {}
+	};
+
+	class CrypterError: public CryptoError {
+		public:
+			template <typename... Args>
+			explicit CrypterError(std::format_string<Args...> fmt, Args&&... args)
+				: CryptoError(Path{"Crypter"}, fmt, std::forward<Args>(args)...) {}
+
+			~CrypterError() override = default;
+	};
+
+	class EncryptError: public CrypterError {
+		public:
+			using CrypterError::CrypterError;
+			~EncryptError() override = default;
+	};
+}
+
+// -------------------
+// Assign
+// -------------------
+
+int test_assign_copy_and_move() {
+	Exception original("payload");
+	Exception copy("other");
+	copy = original;
+	ASSERT_EQUAL(std::string{"StormByte: payload"}, std::string{copy.what()});
+	ASSERT_EQUAL(std::string{"StormByte: payload"}, std::string{original.what()});
+	Exception taken("empty");
+	taken = std::move(original);
+	ASSERT_EQUAL(std::string{"StormByte: payload"}, std::string{taken.what()});
+	ASSERT_NOT_NULL(original.what());
+	RETURN_TEST(0);
+}
 
 // -------------------
 // Construct
 // -------------------
 
-int test_plain_message_no_args() {
-	int result = 0;
-	Exception e("Key not found in Iterable::operator[]");
-	ASSERT_EQUAL("test_plain_message_no_args", std::string("StormByte: Key not found in Iterable::operator[]"), std::string(e.what()));
-	RETURN_TEST("test_plain_message_no_args", result);
-}
-
 int test_construct_from_lvalue_string() {
-	int result = 0;
 	const std::string message("from lvalue");
-	Exception e(message);
-	ASSERT_EQUAL("test_construct_from_lvalue_string", std::string("StormByte: from lvalue"), std::string(e.what()));
-	ASSERT_EQUAL("test_construct_from_lvalue_string", std::string("from lvalue"), message);
-	RETURN_TEST("test_construct_from_lvalue_string", result);
+	Exception error(message);
+	ASSERT_EQUAL(std::string{"StormByte: from lvalue"}, std::string{error.what()});
+	ASSERT_EQUAL(std::string{"from lvalue"}, message);
+	RETURN_TEST(0);
 }
 
 int test_construct_from_view_and_safe_string() {
-	int result = 0;
 	const std::string source("partial suffix");
 	const std::string_view view(source.data(), 7);
 	const Exception from_view(view);
-	ASSERT_EQUAL("test_construct_from_view_and_safe_string", std::string("StormByte: partial"), std::string(from_view.what()));
+	ASSERT_EQUAL(std::string{"StormByte: partial"}, std::string{from_view.what()});
 	const Safe::String message("owned");
 	const Exception from_owned(message);
-	ASSERT_EQUAL("test_construct_from_view_and_safe_string", std::string("StormByte: owned"), std::string(from_owned.what()));
-	RETURN_TEST("test_construct_from_view_and_safe_string", result);
+	ASSERT_EQUAL(std::string{"StormByte: owned"}, std::string{from_owned.what()});
+	RETURN_TEST(0);
 }
 
 int test_formatted_message_with_args() {
-	int result = 0;
-	Exception e("value is {}", 42);
-	ASSERT_EQUAL("test_formatted_message_with_args", std::string("StormByte: value is 42"), std::string(e.what()));
-	RETURN_TEST("test_formatted_message_with_args", result);
-}
-
-int test_zero_args_format_string_ctor_is_as_is() {
-	int result = 0;
-	constexpr std::string_view sv = "literal {{brace}} as-is";
-	Exception e(sv);
-	ASSERT_EQUAL("test_zero_args_format_string_ctor_is_as_is", std::string("StormByte: literal {{brace}} as-is"), std::string(e.what()));
-	RETURN_TEST("test_zero_args_format_string_ctor_is_as_is", result);
-}
-
-namespace {
-
-class CryptoError: public Exception {
-	public:
-		template <typename... Args>
-		explicit CryptoError(std::format_string<Args...> fmt, Args&&... args)
-			: Exception(Path{"Crypto"}, fmt, std::forward<Args>(args)...) {}
-
-		~CryptoError() override = default;
-
-	protected:
-		template <typename... Args>
-		explicit CryptoError(Path child, std::format_string<Args...> fmt, Args&&... args)
-			: Exception(Path{std::string("Crypto.") + std::string(child.text)}, fmt, std::forward<Args>(args)...) {}
-};
-
-class CrypterError: public CryptoError {
-	public:
-		template <typename... Args>
-		explicit CrypterError(std::format_string<Args...> fmt, Args&&... args)
-			: CryptoError(Path{"Crypter"}, fmt, std::forward<Args>(args)...) {}
-
-		~CrypterError() override = default;
-};
-
-class EncryptError: public CrypterError {
-	public:
-		using CrypterError::CrypterError;
-		~EncryptError() override = default;
-};
-
+	Exception error("value is {}", 42);
+	ASSERT_EQUAL(std::string{"StormByte: value is 42"}, std::string{error.what()});
+	RETURN_TEST(0);
 }
 
 int test_parent_prepends_segment() {
-	int result = 0;
 	const CryptoError crypto("failed with code {}", 7);
 	const EncryptError formatted("failed with code {}", 7);
 	const EncryptError plain("plain text");
-	ASSERT_EQUAL("test_parent_prepends_segment", std::string("StormByte.Crypto: failed with code 7"), std::string(crypto.what()));
-	ASSERT_EQUAL("test_parent_prepends_segment", std::string("StormByte.Crypto.Crypter: failed with code 7"), std::string(formatted.what()));
-	ASSERT_EQUAL("test_parent_prepends_segment", std::string("StormByte.Crypto.Crypter: plain text"), std::string(plain.what()));
-	RETURN_TEST("test_parent_prepends_segment", result);
+	ASSERT_EQUAL(std::string{"StormByte.Crypto: failed with code 7"}, std::string{crypto.what()});
+	ASSERT_EQUAL(std::string{"StormByte.Crypto.Crypter: failed with code 7"}, std::string{formatted.what()});
+	ASSERT_EQUAL(std::string{"StormByte.Crypto.Crypter: plain text"}, std::string{plain.what()});
+	RETURN_TEST(0);
+}
+
+int test_plain_message_no_args() {
+	Exception error("Key not found in Iterable::operator[]");
+	ASSERT_EQUAL(std::string{"StormByte: Key not found in Iterable::operator[]"}, std::string{error.what()});
+	ASSERT_NOT_NULL(error.what());
+	RETURN_TEST(0);
+}
+
+int test_zero_args_format_string_is_as_is() {
+	constexpr std::string_view text = "literal {{brace}} as-is";
+	Exception error(text);
+	ASSERT_EQUAL(std::string{"StormByte: literal {{brace}} as-is"}, std::string{error.what()});
+	RETURN_TEST(0);
 }
 
 // -------------------
-// Copy / move
+// Copy
 // -------------------
 
 int test_copy_keeps_what() {
-	int result = 0;
 	Exception original("payload");
 	Exception copy(original);
-	ASSERT_EQUAL("test_copy_keeps_what", std::string("StormByte: payload"), std::string(copy.what()));
-	ASSERT_EQUAL("test_copy_keeps_what", std::string("StormByte: payload"), std::string(original.what()));
-	RETURN_TEST("test_copy_keeps_what", result);
+	ASSERT_EQUAL(std::string{"StormByte: payload"}, std::string{copy.what()});
+	ASSERT_EQUAL(std::string{"StormByte: payload"}, std::string{original.what()});
+	RETURN_TEST(0);
 }
 
-int test_move_keeps_what() {
-	int result = 0;
+int test_move_keeps_what_and_source_stays_valid() {
 	Exception original("payload");
 	Exception taken(std::move(original));
-	ASSERT_EQUAL("test_move_keeps_what", std::string("StormByte: payload"), std::string(taken.what()));
-	RETURN_TEST("test_move_keeps_what", result);
+	ASSERT_EQUAL(std::string{"StormByte: payload"}, std::string{taken.what()});
+	ASSERT_NOT_NULL(original.what());
+	RETURN_TEST(0);
 }
 
 // -------------------
 // Derived
 // -------------------
 
-int test_derived_are_exceptions() {
-	int result = 0;
-	try {
-		throw Base64Error("bad alphabet");
-	} catch (const Exception& e) {
-		ASSERT_EQUAL("test_derived_are_exceptions", std::string("StormByte: bad alphabet"), std::string(e.what()));
-	}
+int test_allocation_error_does_not_allocate_text() {
+	const Safe::AllocationError error;
+	ASSERT_EQUAL(std::string{"StormByte.Safe: Memory allocation failed"}, std::string{error.what()});
+	const Safe::AllocationError copy(error);
+	ASSERT_EQUAL(std::string{error.what()}, std::string{copy.what()});
+	RETURN_TEST(0);
+}
+
+int test_bad_optional_access_is_static() {
+	const Safe::BadOptionalAccess error;
+	ASSERT_EQUAL(std::string{"StormByte.Safe: Optional has no value"}, std::string{error.what()});
+	RETURN_TEST(0);
+}
+
+int test_root_leaves_add_no_segment() {
+	ASSERT_EQUAL(std::string{"StormByte: wire"}, std::string{DeserializeError("wire").what()});
+	ASSERT_EQUAL(std::string{"StormByte: alien"}, std::string{OperationError("alien").what()});
+	ASSERT_EQUAL(std::string{"StormByte: bad alphabet"}, std::string{Base64Error("bad alphabet").what()});
+	ASSERT_EQUAL(std::string{"StormByte: slot 3"}, std::string{DeserializeError("slot {}", 3).what()});
+	const Safe::String body("owned leaf");
+	ASSERT_EQUAL(std::string{"StormByte: owned leaf"}, std::string{OperationError(body).what()});
+	RETURN_TEST(0);
+}
+
+int test_safe_path_and_catch() {
 	try {
 		throw Safe::OutOfBoundsError("index");
-	} catch (const Exception& e) {
-		ASSERT_EQUAL("test_derived_are_exceptions", std::string("StormByte.Safe: index"), std::string(e.what()));
+	} catch (const Safe::OutOfBoundsError& error) {
+		ASSERT_EQUAL(std::string{"StormByte.Safe: index"}, std::string{error.what()});
+	} catch (const Exception&) {
+		ASSERT_FAIL("OutOfBoundsError missed its own catch");
 	}
 	try {
-		throw DeserializeError("wire");
-	} catch (const Exception& e) {
-		ASSERT_EQUAL("test_derived_are_exceptions", std::string("StormByte: wire"), std::string(e.what()));
+		throw Safe::ExpiredWeakPointerError("expired");
+	} catch (const Safe::Exception& error) {
+		ASSERT_EQUAL(std::string{"StormByte.Safe: expired"}, std::string{error.what()});
 	}
-	RETURN_TEST("test_derived_are_exceptions", result);
+	try {
+		throw Base64Error("bad");
+	} catch (const Exception& error) {
+		ASSERT_EQUAL(std::string{"StormByte: bad"}, std::string{error.what()});
+	}
+	static_assert(std::is_base_of_v<Exception, Base64Error>);
+	static_assert(std::is_base_of_v<Exception, Safe::Exception>);
+	static_assert(std::is_base_of_v<Safe::Exception, Safe::AllocationError>);
+	static_assert(!std::is_base_of_v<std::exception, Exception>);
+	RETURN_TEST(0);
 }
 
 int main() {
 	int result = 0;
 
 	// -------------------
+	// Assign
+	// -------------------
+	result += test_assign_copy_and_move();
+
+	// -------------------
 	// Construct
 	// -------------------
-	result += test_plain_message_no_args();
 	result += test_construct_from_lvalue_string();
 	result += test_construct_from_view_and_safe_string();
 	result += test_formatted_message_with_args();
-	result += test_zero_args_format_string_ctor_is_as_is();
 	result += test_parent_prepends_segment();
+	result += test_plain_message_no_args();
+	result += test_zero_args_format_string_is_as_is();
 
 	// -------------------
-	// Copy / move
+	// Copy
 	// -------------------
 	result += test_copy_keeps_what();
-	result += test_move_keeps_what();
+	result += test_move_keeps_what_and_source_stays_valid();
 
 	// -------------------
 	// Derived
 	// -------------------
-	result += test_derived_are_exceptions();
+	result += test_allocation_error_does_not_allocate_text();
+	result += test_bad_optional_access_is_static();
+	result += test_root_leaves_add_no_segment();
+	result += test_safe_path_and_catch();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

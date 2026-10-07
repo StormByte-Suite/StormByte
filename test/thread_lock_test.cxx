@@ -44,66 +44,16 @@
 #include <chrono>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 using namespace StormByte;
 
-// -------------------
-// Reentry
-// -------------------
-
-int test_owner_may_lock_again() {
-	int result = 0;
-	ThreadLock lock;
-	lock.Lock();
-	lock.Lock();
-	std::atomic<bool> other_acquired(false);
-	std::thread t([&]() {
-		lock.Lock();
-		other_acquired.store(true);
-		lock.Unlock();
-	});
-	std::this_thread::sleep_for(std::chrono::milliseconds(100));
-	ASSERT_FALSE("test_owner_may_lock_again", other_acquired.load());
-	lock.Unlock();
-	t.join();
-	ASSERT_TRUE("test_owner_may_lock_again", other_acquired.load());
-	RETURN_TEST("test_owner_may_lock_again", result);
-}
-
-// -------------------
-// Unlock
-// -------------------
-
-int test_unlock_before_lock_is_noop() {
-	int result = 0;
-	ThreadLock lock;
-	lock.Unlock();
-	lock.Lock();
-	lock.Unlock();
-	RETURN_TEST("test_unlock_before_lock_is_noop", result);
-}
-
-int test_unlock_from_non_owner_is_noop() {
-	int result = 0;
-	ThreadLock lock;
-	lock.Lock();
-	std::atomic<bool> acquired(false);
-	std::thread thief([&]() {
-		lock.Unlock();
-	});
-	thief.join();
-	std::thread waiter([&]() {
-		lock.Lock();
-		acquired.store(true);
-		lock.Unlock();
-	});
-	std::this_thread::sleep_for(std::chrono::milliseconds(100));
-	ASSERT_FALSE("test_unlock_from_non_owner_is_noop", acquired.load());
-	lock.Unlock();
-	waiter.join();
-	ASSERT_TRUE("test_unlock_from_non_owner_is_noop", acquired.load());
-	RETURN_TEST("test_unlock_from_non_owner_is_noop", result);
+namespace {
+	void WaitUntil(const std::atomic<bool>& flag) {
+		while (!flag.load())
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
 }
 
 // -------------------
@@ -111,21 +61,125 @@ int test_unlock_from_non_owner_is_noop() {
 // -------------------
 
 int test_other_thread_blocks_until_unlock() {
-	int result = 0;
 	ThreadLock lock;
 	lock.Lock();
 	std::atomic<bool> acquired(false);
-	std::thread t([&]() {
+	std::thread waiter([&]() {
 		lock.Lock();
 		acquired.store(true);
 		lock.Unlock();
 	});
-	std::this_thread::sleep_for(std::chrono::milliseconds(100));
-	ASSERT_FALSE("test_other_thread_blocks_until_unlock", acquired.load());
+	std::this_thread::sleep_for(std::chrono::milliseconds(50));
+	ASSERT_FALSE(acquired.load());
 	lock.Unlock();
-	t.join();
-	ASSERT_TRUE("test_other_thread_blocks_until_unlock", acquired.load());
-	RETURN_TEST("test_other_thread_blocks_until_unlock", result);
+	waiter.join();
+	ASSERT_TRUE(acquired.load());
+	RETURN_TEST(0);
+}
+
+int test_relock_after_unlock() {
+	ThreadLock lock;
+	lock.Lock();
+	lock.Unlock();
+	std::atomic<bool> acquired(false);
+	std::thread waiter([&]() {
+		lock.Lock();
+		acquired.store(true);
+		lock.Unlock();
+	});
+	waiter.join();
+	ASSERT_TRUE(acquired.load());
+	RETURN_TEST(0);
+}
+
+// -------------------
+// Reentry
+// -------------------
+
+int test_owner_reentry_is_not_counted() {
+	ThreadLock lock;
+	lock.Lock();
+	lock.Lock();
+	std::atomic<bool> started(false);
+	std::atomic<bool> acquired(false);
+	std::thread waiter([&]() {
+		started.store(true);
+		lock.Lock();
+		acquired.store(true);
+		lock.Unlock();
+	});
+	WaitUntil(started);
+	std::this_thread::sleep_for(std::chrono::milliseconds(50));
+	ASSERT_FALSE(acquired.load());
+	lock.Unlock();
+	waiter.join();
+	ASSERT_TRUE(acquired.load());
+	RETURN_TEST(0);
+}
+
+int test_owner_reentry_does_not_block_self() {
+	ThreadLock lock;
+	ASSERT_NO_THROW(lock.Lock());
+	ASSERT_NO_THROW(lock.Lock());
+	ASSERT_NO_THROW(lock.Lock());
+	lock.Unlock();
+	RETURN_TEST(0);
+}
+
+// -------------------
+// Special
+// -------------------
+
+int test_not_copyable_or_movable() {
+	static_assert(!std::is_copy_constructible_v<ThreadLock>);
+	static_assert(!std::is_copy_assignable_v<ThreadLock>);
+	static_assert(!std::is_move_constructible_v<ThreadLock>);
+	static_assert(!std::is_move_assignable_v<ThreadLock>);
+	static_assert(std::is_nothrow_default_constructible_v<ThreadLock>);
+	RETURN_TEST(0);
+}
+
+// -------------------
+// Unlock
+// -------------------
+
+int test_double_unlock_is_noop() {
+	ThreadLock lock;
+	lock.Lock();
+	lock.Unlock();
+	ASSERT_NO_THROW(lock.Unlock());
+	lock.Lock();
+	lock.Unlock();
+	RETURN_TEST(0);
+}
+
+int test_unlock_before_lock_is_noop() {
+	ThreadLock lock;
+	ASSERT_NO_THROW(lock.Unlock());
+	lock.Lock();
+	lock.Unlock();
+	RETURN_TEST(0);
+}
+
+int test_unlock_from_non_owner_is_noop() {
+	ThreadLock lock;
+	lock.Lock();
+	std::thread thief([&]() {
+		lock.Unlock();
+	});
+	thief.join();
+	std::atomic<bool> acquired(false);
+	std::thread waiter([&]() {
+		lock.Lock();
+		acquired.store(true);
+		lock.Unlock();
+	});
+	std::this_thread::sleep_for(std::chrono::milliseconds(50));
+	ASSERT_FALSE(acquired.load());
+	lock.Unlock();
+	waiter.join();
+	ASSERT_TRUE(acquired.load());
+	RETURN_TEST(0);
 }
 
 // -------------------
@@ -133,12 +187,11 @@ int test_other_thread_blocks_until_unlock() {
 // -------------------
 
 int test_many_writers_do_not_interleave() {
-	int result = 0;
 	ThreadLock lock;
 	std::string shared;
-	const int thread_count = 8;
-	static constexpr int iterations = 200;
-	static constexpr int token_size = 8;
+	constexpr int thread_count = 8;
+	constexpr int iterations = 200;
+	constexpr int token_size = 8;
 	std::vector<std::thread> threads;
 	for (int t = 0; t < thread_count; ++t) {
 		threads.emplace_back([t, &lock, &shared]() {
@@ -151,36 +204,44 @@ int test_many_writers_do_not_interleave() {
 			}
 		});
 	}
-	for (auto& th : threads)
-		th.join();
+	for (auto& thread : threads)
+		thread.join();
 	const std::size_t expected_len = static_cast<std::size_t>(thread_count) * iterations * token_size;
-	ASSERT_EQUAL("test_many_writers_do_not_interleave", expected_len, shared.size());
+	ASSERT_EQUAL(expected_len, shared.size());
 	for (std::size_t pos = 0; pos < shared.size(); pos += static_cast<std::size_t>(token_size)) {
 		const char first = shared[pos];
 		for (std::size_t k = 1; k < static_cast<std::size_t>(token_size); ++k)
-			ASSERT_EQUAL("test_many_writers_do_not_interleave", first, shared[pos + k]);
+			ASSERT_EQUAL(first, shared[pos + k]);
 	}
-	RETURN_TEST("test_many_writers_do_not_interleave", result);
+	RETURN_TEST(0);
 }
 
 int main() {
 	int result = 0;
 
 	// -------------------
+	// Blocking
+	// -------------------
+	result += test_other_thread_blocks_until_unlock();
+	result += test_relock_after_unlock();
+
+	// -------------------
 	// Reentry
 	// -------------------
-	result += test_owner_may_lock_again();
+	result += test_owner_reentry_does_not_block_self();
+	result += test_owner_reentry_is_not_counted();
+
+	// -------------------
+	// Special
+	// -------------------
+	result += test_not_copyable_or_movable();
 
 	// -------------------
 	// Unlock
 	// -------------------
+	result += test_double_unlock_is_noop();
 	result += test_unlock_before_lock_is_noop();
 	result += test_unlock_from_non_owner_is_noop();
-
-	// -------------------
-	// Blocking
-	// -------------------
-	result += test_other_thread_blocks_until_unlock();
 
 	// -------------------
 	// Writers

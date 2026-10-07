@@ -484,40 +484,43 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Compare the contained value with @p value. Empty is not equal.
-				 * @tparam U Value type comparable with T.
+				 * @brief Compare the contained value with a Safe component. Empty is not equal.
+				 * @tparam U Safe component comparable with T. An iterator is not a candidate: checking `U == T` would re-enter this operator.
 				 * @param value Value to compare.
 				 * @return Whether a value is held and compares equal.
 				 */
 				template<class U>
-				requires (!Type::SameAs<U, Optional>) &&
+				requires Type::SafeComponent<std::remove_cvref_t<U>> &&
+					(!Type::SameAs<std::remove_cvref_t<U>, Optional>) &&
 					requires(const T& left, const U& right) { { left == right } -> Type::ConvertibleTo<bool>; }
 				bool operator==(const U& value) const {
 					return has_value() && *m_value == value;
 				}
 
 				/**
-				 * @brief Compare a value with this optional.
-				 * @tparam U Value type comparable with T.
+				 * @brief Compare a Safe component with this optional.
+				 * @tparam U Safe component comparable with T. An iterator is not a candidate: checking `U == T` would re-enter this operator.
 				 * @param value Value to compare.
 				 * @param self Optional to compare.
 				 * @return Whether a value is held and compares equal.
 				 */
 				template<class U>
-				requires (!Type::SameAs<U, Optional>) &&
+				requires Type::SafeComponent<std::remove_cvref_t<U>> &&
+					(!Type::SameAs<std::remove_cvref_t<U>, Optional>) &&
 					requires(const U& left, const T& right) { { left == right } -> Type::ConvertibleTo<bool>; }
 				friend bool operator==(const U& value, const Optional& self) {
 					return self.has_value() && value == *self.m_value;
 				}
 
 				/**
-				 * @brief Order against a value. Empty is less than any value.
-				 * @tparam U Value type orderable against T.
+				 * @brief Order against a Safe component. Empty is less than any value.
+				 * @tparam U Safe component orderable against T. An iterator is not a candidate.
 				 * @param value Value to compare.
 				 * @return Three-way comparison result.
 				 */
 				template<class U>
-				requires (!Type::SameAs<U, Optional>) &&
+				requires Type::SafeComponent<std::remove_cvref_t<U>> &&
+					(!Type::SameAs<std::remove_cvref_t<U>, Optional>) &&
 					requires(const T& left, const U& right) { left <=> right; }
 				auto operator<=>(const U& value) const {
 					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const U&>())>;
@@ -808,11 +811,10 @@ namespace StormByte {
 		struct IsSafeOptional<Safe::Optional<T>>: std::true_type {};
 
 		/**
-		 * @brief Admits a nested optional of an already safe component.
+		 * @brief Admits a Safe optional as a collection value.
 		 * @tparam T Safe component.
 		 */
 		template<SafeComponent T>
-		requires Type::IsSafe<T>::value
 		struct IsSafeValue<Safe::Optional<T>>: std::true_type {};
 	}
 }

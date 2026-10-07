@@ -37,6 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/error.hxx>
 #include <StormByte/error.txx>
 #include <StormByte/test_handlers.h>
 
@@ -49,10 +50,6 @@
 #include <vector>
 
 using namespace StormByte;
-
-// -------------------
-// Fake module domains
-// -------------------
 
 enum class Inventory {
 	Success = 0,
@@ -118,9 +115,6 @@ namespace std {
 	struct is_error_code_enum<Transit>: true_type {};
 }
 
-/**
- * @brief Stock table that reports @ref Inventory through `std::error_code`.
- */
 class Warehouse {
 	public:
 		void Stock(std::string sku) {
@@ -131,12 +125,6 @@ class Warehouse {
 			m_locked.push_back(std::move(sku));
 		}
 
-		/**
-		 * @brief STL-style non-throwing lookup.
-		 * @param sku Item id.
-		 * @param ec Set to Success, Missing or Locked.
-		 * @return true if the item is in stock and not locked.
-		 */
 		bool Contains(const std::string& sku, std::error_code& ec) const {
 			if (std::ranges::find(m_locked, sku) != m_locked.end()) {
 				ec = Inventory::Locked;
@@ -150,12 +138,6 @@ class Warehouse {
 			return true;
 		}
 
-		/**
-		 * @brief Throwing lookup for algorithms that propagate exceptions.
-		 * @param sku Item id.
-		 * @return true if available.
-		 * @throw std::system_error Inventory code.
-		 */
 		bool ContainsOrThrow(const std::string& sku) const {
 			std::error_code ec;
 			if (Contains(sku, ec))
@@ -168,9 +150,6 @@ class Warehouse {
 		std::vector<std::string> m_locked;
 };
 
-/**
- * @brief Delivery table that reports @ref Transit through `std::error_code`.
- */
 class Carrier {
 	public:
 		void Accept(std::string dest) {
@@ -200,141 +179,107 @@ class Carrier {
 };
 
 // -------------------
-// Suite Code
-// -------------------
-
-int test_suite_success_is_falsy() {
-	int result = 0;
-	const std::error_code code = Error::Code::Success;
-	ASSERT_TRUE("test_suite_success_is_falsy", !code);
-	ASSERT_EQUAL("test_suite_success_is_falsy", std::string("StormByte"), std::string(code.category().name()));
-	RETURN_TEST("test_suite_success_is_falsy", result);
-}
-
-int test_suite_unknown() {
-	int result = 0;
-	const std::error_code code = Error::Code::Unknown;
-	ASSERT_TRUE("test_suite_unknown", static_cast<bool>(code));
-	ASSERT_TRUE("test_suite_unknown", code == Error::Code::Unknown);
-	RETURN_TEST("test_suite_unknown", result);
-}
-
-int test_suite_category_is_singleton() {
-	int result = 0;
-	const std::error_code a = Error::Code::Success;
-	const std::error_code b = make_error_code(Error::Code::Unknown);
-	ASSERT_TRUE("test_suite_category_is_singleton", &a.category() == &b.category());
-	RETURN_TEST("test_suite_category_is_singleton", result);
-}
-
-// -------------------
-// Custom domains
+// Domain
 // -------------------
 
 int test_domains_do_not_share_category() {
-	int result = 0;
 	Warehouse warehouse;
 	Carrier carrier;
 	std::error_code stock;
 	std::error_code ship;
 	warehouse.Contains("ghost", stock);
 	carrier.Send("nowhere", ship);
-	ASSERT_TRUE("test_domains_do_not_share_category", stock == Inventory::Missing);
-	ASSERT_TRUE("test_domains_do_not_share_category", ship == Transit::Timeout);
-	ASSERT_TRUE("test_domains_do_not_share_category", &stock.category() != &ship.category());
-	ASSERT_TRUE("test_domains_do_not_share_category", stock != ship);
-	RETURN_TEST("test_domains_do_not_share_category", result);
+	ASSERT_TRUE(stock == Inventory::Missing);
+	ASSERT_TRUE(ship == Transit::Timeout);
+	ASSERT_TRUE(&stock.category() != &ship.category());
+	ASSERT_TRUE(stock != ship);
+	ASSERT_EQUAL(std::string{"StormByte::Inventory"}, std::string{stock.category().name()});
+	ASSERT_EQUAL(std::string{"StormByte::Transit"}, std::string{ship.category().name()});
+	ASSERT_EQUAL(std::string{"Item not in stock"}, stock.message());
+	ASSERT_EQUAL(std::string{"Delivery timed out"}, ship.message());
+	RETURN_TEST(0);
 }
 
 int test_same_numeric_value_different_domain() {
-	int result = 0;
 	Warehouse warehouse;
 	Carrier carrier;
 	std::error_code stock;
 	std::error_code ship;
 	warehouse.Contains("ghost", stock);
 	carrier.Send("nowhere", ship);
-	ASSERT_EQUAL("test_same_numeric_value_different_domain", stock.value(), ship.value());
-	ASSERT_TRUE("test_same_numeric_value_different_domain", stock != ship);
-	RETURN_TEST("test_same_numeric_value_different_domain", result);
+	ASSERT_EQUAL(stock.value(), ship.value());
+	ASSERT_TRUE(stock != ship);
+	RETURN_TEST(0);
 }
 
 // -------------------
 // Fault
 // -------------------
 
-int test_fault_default_is_success() {
-	int result = 0;
-	Error::Fault fault;
-	ASSERT_TRUE("test_fault_default_is_success", !fault);
-	ASSERT_TRUE("test_fault_default_is_success", fault.code() == Error::Code::Success);
-	RETURN_TEST("test_fault_default_is_success", result);
-}
-
-int test_fault_from_warehouse() {
-	int result = 0;
-	Warehouse warehouse;
-	std::error_code ec;
-	warehouse.Lock("safe");
-	warehouse.Contains("safe", ec);
-	Error::Fault fault{ec};
-	ASSERT_TRUE("test_fault_from_warehouse", static_cast<bool>(fault));
-	ASSERT_TRUE("test_fault_from_warehouse", fault.code() == Inventory::Locked);
-	ASSERT_TRUE("test_fault_from_warehouse", std::strstr(fault.what(), "Item is locked") != nullptr);
-	RETURN_TEST("test_fault_from_warehouse", result);
-}
-
 int test_fault_copy_is_independent() {
-	int result = 0;
 	Warehouse warehouse;
 	std::error_code ec;
 	warehouse.Contains("ghost", ec);
 	Error::Fault original{ec};
 	Error::Fault copy{original};
-	ASSERT_TRUE("test_fault_copy_is_independent", copy.code() == original.code());
-	ASSERT_EQUAL("test_fault_copy_is_independent", 0, std::strcmp(copy.what(), original.what()));
-	ASSERT_TRUE("test_fault_copy_is_independent", copy.what() != original.what());
-	RETURN_TEST("test_fault_copy_is_independent", result);
+	ASSERT_TRUE(copy.code() == original.code());
+	ASSERT_EQUAL(0, std::strcmp(copy.what(), original.what()));
+	ASSERT_TRUE(copy.what() != original.what());
+	Error::Fault taken(std::move(original));
+	ASSERT_NOT_NULL(taken.what());
+	ASSERT_CONTAINS(std::string_view{taken.what()}, "Item not in stock");
+	RETURN_TEST(0);
+}
+
+int test_fault_default_is_success() {
+	Error::Fault fault;
+	ASSERT_FALSE(static_cast<bool>(fault));
+	ASSERT_TRUE(fault.code() == Error::Code::Success);
+	ASSERT_EQUAL(std::string{"StormByte: Success"}, std::string{fault.what()});
+	RETURN_TEST(0);
+}
+
+int test_fault_from_enumerator() {
+	const Error::Fault fault{Error::Code::Unknown};
+	ASSERT_TRUE(static_cast<bool>(fault));
+	ASSERT_TRUE(fault.code() == Error::Code::Unknown);
+	ASSERT_EQUAL(std::string{"StormByte: Unknown StormByte error"}, std::string{fault.what()});
+	RETURN_TEST(0);
+}
+
+int test_fault_from_warehouse() {
+	Warehouse warehouse;
+	std::error_code ec;
+	warehouse.Lock("safe");
+	warehouse.Contains("safe", ec);
+	Error::Fault fault{ec};
+	ASSERT_TRUE(static_cast<bool>(fault));
+	ASSERT_TRUE(fault.code() == Inventory::Locked);
+	ASSERT_EQUAL(std::string{"StormByte::Inventory: Item is locked"}, std::string{fault.what()});
+	RETURN_TEST(0);
 }
 
 // -------------------
-// STL algorithms
+// Range
 // -------------------
 
-int test_ranges_all_of_reports_locked() {
-	int result = 0;
+int test_any_of_stops_on_first_fault() {
 	Warehouse warehouse;
 	warehouse.Stock("nail");
-	warehouse.Stock("bolt");
-	warehouse.Lock("bolt");
-	const std::vector<std::string> want{"nail", "bolt"};
+	const std::vector<std::string> want{"ghost", "nail"};
 	std::error_code ec;
-	const bool ok = std::ranges::all_of(want, [&](const std::string& sku) {
-		return warehouse.Contains(sku, ec);
-	});
-	ASSERT_TRUE("test_ranges_all_of_reports_locked", !ok);
-	ASSERT_TRUE("test_ranges_all_of_reports_locked", ec == Inventory::Locked);
-	ASSERT_EQUAL("test_ranges_all_of_reports_locked", std::string("Item is locked"), ec.message());
-	RETURN_TEST("test_ranges_all_of_reports_locked", result);
-}
-
-int test_ranges_find_if_reports_missing() {
-	int result = 0;
-	Warehouse warehouse;
-	warehouse.Stock("nail");
-	const std::vector<std::string> want{"nail", "ghost", "bolt"};
-	std::error_code ec;
-	const auto it = std::ranges::find_if(want, [&](const std::string& sku) {
+	std::size_t calls = 0;
+	const bool failed = std::ranges::any_of(want, [&](const std::string& sku) {
+		++calls;
 		return !warehouse.Contains(sku, ec);
 	});
-	ASSERT_TRUE("test_ranges_find_if_reports_missing", it != want.end());
-	ASSERT_EQUAL("test_ranges_find_if_reports_missing", std::string("ghost"), *it);
-	ASSERT_TRUE("test_ranges_find_if_reports_missing", ec == Inventory::Missing);
-	RETURN_TEST("test_ranges_find_if_reports_missing", result);
+	ASSERT_TRUE(failed);
+	ASSERT_EQUAL(std::size_t{1}, calls);
+	ASSERT_TRUE(ec == Inventory::Missing);
+	RETURN_TEST(0);
 }
 
 int test_for_each_collects_transit_codes() {
-	int result = 0;
 	Carrier carrier;
 	carrier.Accept("port");
 	carrier.Refuse("gate");
@@ -345,64 +290,96 @@ int test_for_each_collects_transit_codes() {
 		carrier.Send(stop, ec);
 		codes.push_back(ec);
 	});
-	ASSERT_EQUAL("test_for_each_collects_transit_codes", 3u, codes.size());
-	ASSERT_TRUE("test_for_each_collects_transit_codes", codes[0] == Transit::Success);
-	ASSERT_TRUE("test_for_each_collects_transit_codes", !codes[0]);
-	ASSERT_TRUE("test_for_each_collects_transit_codes", codes[1] == Transit::Refused);
-	ASSERT_TRUE("test_for_each_collects_transit_codes", codes[2] == Transit::Timeout);
-	RETURN_TEST("test_for_each_collects_transit_codes", result);
+	ASSERT_EQUAL(std::size_t{3}, codes.size());
+	ASSERT_TRUE(codes[0] == Transit::Success);
+	ASSERT_FALSE(static_cast<bool>(codes[0]));
+	ASSERT_TRUE(codes[1] == Transit::Refused);
+	ASSERT_TRUE(codes[2] == Transit::Timeout);
+	RETURN_TEST(0);
 }
 
-int test_algorithm_propagates_system_error() {
-	int result = 0;
+int test_ranges_all_of_reports_locked() {
+	Warehouse warehouse;
+	warehouse.Stock("nail");
+	warehouse.Stock("bolt");
+	warehouse.Lock("bolt");
+	const std::vector<std::string> want{"nail", "bolt"};
+	std::error_code ec;
+	const bool ok = std::ranges::all_of(want, [&](const std::string& sku) {
+		return warehouse.Contains(sku, ec);
+	});
+	ASSERT_FALSE(ok);
+	ASSERT_TRUE(ec == Inventory::Locked);
+	ASSERT_EQUAL(std::string{"Item is locked"}, ec.message());
+	RETURN_TEST(0);
+}
+
+int test_ranges_find_if_reports_missing() {
+	Warehouse warehouse;
+	warehouse.Stock("nail");
+	const std::vector<std::string> want{"nail", "ghost", "bolt"};
+	std::error_code ec;
+	const auto it = std::ranges::find_if(want, [&](const std::string& sku) {
+		return !warehouse.Contains(sku, ec);
+	});
+	ASSERT_TRUE(it != want.end());
+	ASSERT_EQUAL(std::string{"ghost"}, *it);
+	ASSERT_TRUE(ec == Inventory::Missing);
+	RETURN_TEST(0);
+}
+
+int test_system_error_propagates() {
 	Warehouse warehouse;
 	warehouse.Stock("nail");
 	warehouse.Lock("bolt");
 	const std::vector<std::string> want{"nail", "bolt"};
-	bool threw = false;
-	try {
-		std::ranges::for_each(want, [&](const std::string& sku) {
-			warehouse.ContainsOrThrow(sku);
-		});
-	} catch (const std::system_error& thrown) {
-		threw = true;
-		ASSERT_TRUE("test_algorithm_propagates_system_error", thrown.code() == Inventory::Locked);
-		ASSERT_TRUE("test_algorithm_propagates_system_error",
-			std::string(thrown.what()).find("Item is locked") != std::string::npos);
-	}
-	ASSERT_TRUE("test_algorithm_propagates_system_error", threw);
-	RETURN_TEST("test_algorithm_propagates_system_error", result);
+	ASSERT_THROWS(std::ranges::for_each(want, [&](const std::string& sku) {
+		warehouse.ContainsOrThrow(sku);
+	}), std::system_error);
+	RETURN_TEST(0);
 }
 
-int test_any_of_stops_on_first_fault() {
-	int result = 0;
-	Warehouse warehouse;
-	warehouse.Stock("nail");
-	const std::vector<std::string> want{"ghost", "nail"};
-	std::error_code ec;
-	std::size_t calls = 0;
-	const bool failed = std::ranges::any_of(want, [&](const std::string& sku) {
-		++calls;
-		return !warehouse.Contains(sku, ec);
-	});
-	ASSERT_TRUE("test_any_of_stops_on_first_fault", failed);
-	ASSERT_EQUAL("test_any_of_stops_on_first_fault", 1u, calls);
-	ASSERT_TRUE("test_any_of_stops_on_first_fault", ec == Inventory::Missing);
-	RETURN_TEST("test_any_of_stops_on_first_fault", result);
+// -------------------
+// Suite
+// -------------------
+
+int test_suite_category_is_singleton() {
+	const std::error_code a = Error::Code::Success;
+	const std::error_code b = Error::make_error_code(Error::Code::Unknown);
+	ASSERT_TRUE(&a.category() == &b.category());
+	ASSERT_TRUE(&a.category() == &Error::category());
+	RETURN_TEST(0);
+}
+
+int test_suite_messages() {
+	const std::error_code success = Error::Code::Success;
+	const std::error_code unknown = Error::Code::Unknown;
+	ASSERT_EQUAL(std::string{"Success"}, success.message());
+	ASSERT_EQUAL(std::string{"Unknown StormByte error"}, unknown.message());
+	ASSERT_EQUAL(0, success.value());
+	ASSERT_EQUAL(1, unknown.value());
+	RETURN_TEST(0);
+}
+
+int test_suite_success_is_falsy() {
+	const std::error_code code = Error::Code::Success;
+	ASSERT_FALSE(static_cast<bool>(code));
+	ASSERT_EQUAL(std::string{"StormByte"}, std::string{code.category().name()});
+	RETURN_TEST(0);
+}
+
+int test_suite_unknown() {
+	const std::error_code code = Error::Code::Unknown;
+	ASSERT_TRUE(static_cast<bool>(code));
+	ASSERT_TRUE(code == Error::Code::Unknown);
+	RETURN_TEST(0);
 }
 
 int main() {
 	int result = 0;
 
 	// -------------------
-	// Suite Code
-	// -------------------
-	result += test_suite_success_is_falsy();
-	result += test_suite_unknown();
-	result += test_suite_category_is_singleton();
-
-	// -------------------
-	// Custom domains
+	// Domain
 	// -------------------
 	result += test_domains_do_not_share_category();
 	result += test_same_numeric_value_different_domain();
@@ -410,18 +387,27 @@ int main() {
 	// -------------------
 	// Fault
 	// -------------------
-	result += test_fault_default_is_success();
-	result += test_fault_from_warehouse();
 	result += test_fault_copy_is_independent();
+	result += test_fault_default_is_success();
+	result += test_fault_from_enumerator();
+	result += test_fault_from_warehouse();
 
 	// -------------------
-	// STL algorithms
+	// Range
 	// -------------------
+	result += test_any_of_stops_on_first_fault();
+	result += test_for_each_collects_transit_codes();
 	result += test_ranges_all_of_reports_locked();
 	result += test_ranges_find_if_reports_missing();
-	result += test_for_each_collects_transit_codes();
-	result += test_algorithm_propagates_system_error();
-	result += test_any_of_stops_on_first_fault();
+	result += test_system_error_propagates();
+
+	// -------------------
+	// Suite
+	// -------------------
+	result += test_suite_category_is_singleton();
+	result += test_suite_messages();
+	result += test_suite_success_is_falsy();
+	result += test_suite_unknown();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

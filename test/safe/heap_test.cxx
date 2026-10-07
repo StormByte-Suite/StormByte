@@ -37,99 +37,77 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/safe/exception.hxx>
+#include <StormByte/safe/heap.hxx>
 #include <StormByte/test_handlers.h>
 
-#include <array>
+#include <cstdint>
+#include <iostream>
 #include <stdexcept>
-#include <string>
+
+using namespace StormByte;
 
 // -------------------
-// Compare
+// Allocate
 // -------------------
 
-int test_assert_equal() {
-	int result = 0;
-	const std::array<int, 3> expected{1, 2, 3};
-	const std::array<int, 3> actual{1, 2, 3};
-	ASSERT_EQUAL("test_assert_equal", expected, actual);
-	ASSERT_EQUAL("test_assert_equal", 1, 1);
-	RETURN_TEST("test_assert_equal", result);
+int test_allocate_and_free() {
+	void* block = Safe::Heap::Allocate(16);
+	ASSERT_NOT_NULL(block);
+	auto* bytes = static_cast<std::uint8_t*>(block);
+	bytes[0] = 7;
+	bytes[15] = 9;
+	ASSERT_EQUAL(std::uint8_t{7}, bytes[0]);
+	ASSERT_EQUAL(std::uint8_t{9}, bytes[15]);
+	Safe::Heap::Free(block);
+	Safe::Heap::Free(nullptr);
+	RETURN_TEST(0);
 }
 
-int test_assert_not_equal() {
-	int result = 0;
-	ASSERT_NOT_EQUAL("test_assert_not_equal", 1, 2);
-	RETURN_TEST("test_assert_not_equal", result);
-}
-
-int test_assert_true_false() {
-	int result = 0;
-	ASSERT_TRUE("test_assert_true_false", true);
-	ASSERT_FALSE("test_assert_true_false", false);
-	RETURN_TEST("test_assert_true_false", result);
-}
-
-// -------------------
-// Exception
-// -------------------
-
-int test_assert_throws() {
-	int result = 0;
-	ASSERT_THROWS("test_assert_throws", throw std::runtime_error("expected"), std::runtime_error);
-	RETURN_TEST("test_assert_throws", result);
-}
-
-int test_assert_no_throw() {
-	int result = 0;
-	ASSERT_NO_THROW("test_assert_no_throw", std::string("no throw"));
-	RETURN_TEST("test_assert_no_throw", result);
+int test_allocate_rejects_bad_alloc() {
+	try {
+		throw std::bad_alloc();
+	}
+	catch (...) {
+		ASSERT_THROWS(Safe::Heap::RethrowException(), Safe::AllocationError);
+	}
+	RETURN_TEST(0);
 }
 
 // -------------------
-// Value
+// Throw
 // -------------------
 
-int test_assert_near() {
-	int result = 0;
-	ASSERT_NEAR("test_assert_near", 1.0, 1.0001, 0.001);
-	RETURN_TEST("test_assert_near", result);
-}
-
-int test_assert_contains() {
-	int result = 0;
-	ASSERT_CONTAINS("test_assert_contains", std::string("StormByte tests"), "Byte");
-	RETURN_TEST("test_assert_contains", result);
-}
-
-int test_assert_not_null() {
-	int result = 0;
-	int value = 42;
-	ASSERT_NOT_NULL("test_assert_not_null", &value);
-	RETURN_TEST("test_assert_not_null", result);
+int test_throw_expired_and_rethrow() {
+	ASSERT_THROWS(Safe::Heap::ThrowExpiredWeakPointer(), Safe::ExpiredWeakPointerError);
+	try {
+		throw Safe::OutOfBoundsError("slot");
+	}
+	catch (...) {
+		ASSERT_THROWS(Safe::Heap::RethrowException(), Safe::OutOfBoundsError);
+	}
+	try {
+		throw std::runtime_error("foreign");
+	}
+	catch (...) {
+		ASSERT_THROWS(Safe::Heap::RethrowException(), OperationError);
+	}
+	RETURN_TEST(0);
 }
 
 int main() {
 	int result = 0;
 
 	// -------------------
-	// Compare
+	// Allocate
 	// -------------------
-	result += test_assert_equal();
-	result += test_assert_not_equal();
-	result += test_assert_true_false();
+	result += test_allocate_and_free();
+	result += test_allocate_rejects_bad_alloc();
 
 	// -------------------
-	// Exception
+	// Throw
 	// -------------------
-	result += test_assert_throws();
-	result += test_assert_no_throw();
-
-	// -------------------
-	// Value
-	// -------------------
-	result += test_assert_near();
-	result += test_assert_contains();
-	result += test_assert_not_null();
+	result += test_throw_expired_and_rethrow();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;
