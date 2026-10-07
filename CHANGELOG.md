@@ -23,27 +23,29 @@ If you landed here from a release link and have not read the tree:
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.0.0...HEAD
 
+Reviso el `CHANGELOG` actual para añadir `Set` y `UnorderedSet` sin inventar el resto.
+
 ## [2.0.0] - 2026-10-07
 
 ### Added
 
 - `AllocationError`, `ExpiredWeakPointerError` and `OperationError`, anchored in Base for cross-DLL catching. The allocation exception uses a static message and does not allocate during construction. `Safe::Heap::RethrowException` preserves StormByte exception types and translates foreign failures. `BadOptionalAccess` and `BadVariantAccess` take their message from the constructor, like `OutOfBoundsError`.
 - **`Safe::Optional` value API** — direct/converting construction and assignment from Safe values, enums and `std::optional`, `nullopt`, `value_or`, heterogeneous comparisons, in-place construction, `swap` and qualified monadic operations. Mutable `operator*` uses a callback-backed proxy with copy reads; `operator->` calls const members through a caller-owned snapshot that is valid for the full expression only. No pointer or reference to creator-owned storage crosses the ABI. Storage is on the Base heap.
-- **Safe serialization** — `Serializable` now round-trips `Safe::Optional`, sequence/map collections, `Safe::Queue` and `Safe::Binary`. Optional shares the `std::optional` wire format, and Queue preserves FIFO order. Container iterators are serialized as `value_type` snapshots and decoded through Safe insertion operations. Queue decoding rejects counts above 1,048,576 to bound resource use. The corruption cases remain: truncation, a huge size field, bit-flip, byte-overwrite, random corruption and trailing garbage.
-- **Safe STL-shaped APIs** — `Safe::Vector` adds insertion, emplacement, removal, resize and capacity requests, and borrows as `std::span`. `Safe::List` is a doubly linked list on the Base heap, with splice, merge, unique, sort and reverse. `Safe::Map` adds comparator-aware ordered bounds, insertion, range erase, stable key-identity iterators, `node_type`, extract and merge. `Safe::UnorderedMap` is a hash table on the Base heap, keyed through `Safe::Hash`. `Safe::Queue` adds `back`, `emplace`, `swap`, Safe random-access iterators, mutable callback-backed `front` / `back` proxies and `erase` for `<algorithm>` / `std::ranges`, without exposing creator-owned nodes across DLL boundaries. `Safe::String` / `Safe::WString` add common size-changing value modifiers while retaining Base-owned storage. Reusing a moved-from map with a stateful comparator is rejected rather than silently changing key order. Brace initialization works, including `Safe::List<int>{1, 6, 7}` and `Safe::Map<Safe::String, int>{{"a", 1}}`.
+- **Safe serialization** — `Serializable` now round-trips `Safe::Optional`, sequence/map collections, `Safe::Set`, `Safe::UnorderedSet`, `Safe::Queue` and `Safe::Binary`. Optional shares the `std::optional` wire format, and Queue preserves FIFO order. `Safe::Set` shares the `std::set` wire. A container with a `hasher` (`Safe::UnorderedSet`, `Safe::UnorderedMap`, and the `std` counterparts) writes the count and then the elements sorted by key, so the wire does not depend on the bucket order. Map elements are ordered through pointers: `Pair<const K, V>` is not assignable. Container iterators are serialized as `value_type` snapshots and decoded through Safe insertion operations. Queue decoding rejects counts above 1,048,576 to bound resource use. The corruption cases remain: truncation, a huge size field, bit-flip, byte-overwrite, random corruption and trailing garbage.
+- **Safe STL-shaped APIs** — `Safe::Vector` adds insertion, emplacement, removal, resize and capacity requests, and borrows as `std::span`. `Safe::List` is a doubly linked list on the Base heap, with splice, merge, unique, sort and reverse. `Safe::Map` adds comparator-aware ordered bounds, insertion, range erase, stable key-identity iterators, `node_type`, extract and merge. `Safe::Set` is that map with `Monostate` as the mapped type: key-only iterators, `node_type`, extract and merge. The same comparator transfers the node; a different comparator copies the key. `Safe::UnorderedMap` is a hash table on the Base heap, keyed through `Safe::Hash`. `Safe::UnorderedSet` is that table with `Monostate` as the mapped type. The same hash transfers the node; a different hash copies the key. Iterator keys stay const. `Safe::Queue` adds `back`, `emplace`, `swap`, Safe random-access iterators, mutable callback-backed `front` / `back` proxies and `erase` for `<algorithm>` / `std::ranges`, without exposing creator-owned nodes across DLL boundaries. `Safe::String` / `Safe::WString` add common size-changing value modifiers while retaining Base-owned storage. Reusing a moved-from map with a stateful comparator is rejected rather than silently changing key order. Brace initialization works, including `Safe::List<int>{1, 6, 7}`, `Safe::Set<int>{1, 6, 7}`, `Safe::UnorderedSet<int>{1, 6, 7}` and `Safe::Map<Safe::String, int>{{"a", 1}}`.
 - **Safe::String / Safe::WString** — UTF-8 and wide owned text, with range, lookup, case conversion and serialization support. Private SDS / wide-buffer storage and SSO keep allocation, mutation and destruction inside Base. Views are copied when retained and preserve their full length, including embedded NUL code units; `Bytes()` exposes a non-owning NUL-terminated pointer. `capacity()` / `reserve(Size)` exclude the trailing NUL, smaller requests never shrink, and value modifiers retain reserved capacity. Literal and `string_view` constructors are implicit. UTF-8 conversion between the two types preserves embedded NULs. `Split` fills a Safe vector and `Explode` fills a Safe queue. Covered by `StringTests` / `WStringTests`.
 - **CRT-safe containers** — `Safe::Iterable<Container>` is the consumer cursor. It is not the iterator model of `Safe::Binary`, and it is not an alias of an STL container. `Safe::Optional<T>` is a zero-or-one-element range; `Safe::Queue<T>` is an iterable FIFO. `Safe::Pair<First,Second>` is a SafeValue entry pair, value-initializes both members, supports structured bindings, and copies to/from `std::pair`. Explicit STL imports and force-inline exports keep STL allocations in the caller CRT.
 - **Safe::Binary** — owned contiguous sequence of `std::byte`, safe to use across a DLL boundary. Same kind of API as `std::vector<std::byte>` (iterators, `<algorithm>`, `std::ranges`, `std::span`, insert / erase / assign / `append` / `emplace_back` / `operator+=`). Lengths and indices use `StormByte::ByteSize`. Storage is `Safe::Vector<std::byte>` on Base's heap; the public type is not `std::vector<std::byte>`. `at()` throws `OutOfBoundsError`. Construct from `span`, pointer+`ByteSize`, range, initializer list, `string_view`, and a caller-owned `std::vector<std::byte>` (lvalue copies and leaves the vector; rvalue copies onto Base's heap then clears the vector — looks like a move, not a heap steal). Convert out with implicit `span` and `explicit operator std::vector<std::byte>` (`const&` copies and leaves `*this`; `&&` copies onto the caller CRT then clears `*this`). `append(Binary&&)` / `operator+=(Binary&&)` are a real same-heap move when `*this` is empty. Compare equal / unequal / three-way with another `Binary` and with `std::span<const std::byte>` (both operand orders). `HexDump()` and `HexDump(Size columns)` return a `Safe::String`: 8-digit offset, hex row, ASCII (non-printable as `.`). `columns` is a row width, not a byte length. `0` prints every byte on one line. Default `HexDump()` is 16 columns. `Type::Container` / `Type::Sized` / `Type::HasPushBack` / `Type::ByteInputRange` match; `Type::String` does not. `Serializable<Binary>` uses the container path (same wire as `std::vector<std::byte>`: `uint64` LE count + payload). Covered by `BinaryTests` and `SerializableTests`.
 - **Safe::Variant and Safe::Monostate** — a variant stored on the Base heap, not a `std::variant` member. A move leaves the source valueless. `emplace` builds the replacement first, so a throw keeps the previous alternative. `get`, `get_if`, `visit` and `holds_alternative` are found by argument lookup; `std::get` and `std::visit` do not accept this type. Conversion to `std::variant` is explicit and does not steal. Covered by `VariantTests`.
-- **Safe::Hash** — cross-module FNV-1a. Integral, enumeration, floating-point and pointer keys are closed in `hash.hxx`. `String`, `WString`, `Binary`, `Size`, `ByteSize`, `Pair`, `Optional`, `Variant` and `Monostate` are closed in their own headers. A type without a specialization is not a key of `UnorderedMap`. The call does not throw. `std::hash` specializations delegate to it. `long double` hashes its 80-bit payload, not the padding of the object representation. Covered by `HashTests`.
+- **Safe::Hash** — cross-module FNV-1a. Integral, enumeration, floating-point and pointer keys are closed in `hash.hxx`. `String`, `WString`, `Binary`, `Size`, `ByteSize`, `Pair`, `Optional`, `Variant` and `Monostate` are closed in their own headers. A type without a specialization is not a key of `UnorderedMap` or `UnorderedSet`. The call does not throw. `std::hash` specializations delegate to it. `long double` hashes its 80-bit payload, not the padding of the object representation. Covered by `HashTests`.
 - **Safe::Heap** — public allocation surface (`Allocate` / `Free`) used by the Safe types. The object and the `shared_ptr` control block are allocated here. `AtomicShared` default-constructs its flag.
 - **Telemetry** and **Clock** — base session telemetry (`Telemetry`) with pure `operator Safe::String` and a protected named clock drawer (`Clock`) backed by a thread-safe PIMPL store (`Safe::Unique<Store>`). Leaves derive and add their own domain metrics and counters. `Clock::Measure()` and `Telemetry::MeasureClock(name)` return move-only sample tokens with independent start times; concurrent and nested samples aggregate safely without per-thread clock names or external Start/Stop locks. `Clock::GetValues()` returns a coherent Count/Time/MeanDuration snapshot. Covered by `TelemetryTests`.
 - **`STORMBYTE_PUBLIC_TYPE`** — in `visibility.h`. Default visibility on ELF / Mach-O, empty on Windows. Put on header-only types (templates included) whose `typeinfo` and vtable every module emits, so `typeid` / `dynamic_cast` agree across DLLs (on ELF the loader also merges the copies) even when a consumer builds with `-fvisibility=hidden`. Windows needs nothing: MSVC compares RTTI by name and implicitly exports the base specializations of an exported class.
 - **`STORMBYTE_FORCE_INLINE`** — in `platform.h`. `inline` plus `__forceinline` or `always_inline`, so the body is emitted in the caller. `inline` alone is only a hint.
 - **Safe DLL-boundary contracts and typed callbacks** —
-  - `Type::IsSafe` is the Base-backed classification; `Type::MaybeSafe` is a recursive conditional classification. Consumer types opt in through `STORMBYTE_DECLARE_MAYBE_SAFE`; known incompatible STL types remain rejected.
-  - `Safe::Owner` publicly exposes creator-module clone/destruction for opaque state, with explicit MaybeSafe requirements.
-  - `Safe::Callback` and both `Safe::Function<Signature>` specializations are copyable as well as movable when supplied with a provider-module `noexcept Clone` callback. Copies own independent contexts; failed clones throw `StormByte::Exception`. Typed functions preserve that exception and report other callback exceptions as `Safe::Status::Failure`.
+- `Type::IsSafe` is the Base-backed classification; `Type::MaybeSafe` is a recursive conditional classification. Consumer types opt in through `STORMBYTE_DECLARE_MAYBE_SAFE`; known incompatible STL types remain rejected.
+- `Safe::Owner` publicly exposes creator-module clone/destruction for opaque state, with explicit MaybeSafe requirements.
+- `Safe::Callback` and both `Safe::Function<Signature>` specializations are copyable as well as movable when supplied with a provider-module `noexcept Clone` callback. Copies own independent contexts; failed clones throw `StormByte::Exception`. Typed functions preserve that exception and report other callback exceptions as `Safe::Status::Failure`.
 - **`Safe::Shared<T>` collection values** — admitted to Safe collections and wrappers. This does not certify the pointee's ABI or lifetime; `Safe::Unique<T>` remains excluded because collection reads require copyable values.
 - **Error** — `Domain`, `Category`, `Code` (`Success`, `Unknown`) and `Fault`. Modules specialize `Domain` for their enums; `make_error_code` lives next to the enum so ADL feeds `std::error_code`. Category singletons stay in the module `.cxx`. `Fault` holds the code and a `Safe::String`. Not thrown. Covered by `ErrorTests`.
 - **Shared** — `StormByte::Safe::Shared`, complements `std::shared_ptr` (`StormByte/safe/pointers.hxx`). It does not replace it. Exact type: `Safe::Heap::MakeShared`. Derived type: `Shared<Base>::MakePointer<Derived>` (the deleter still destroys the derived object). Daily operations match `std::shared_ptr` (copy, `reset`, `swap`, compare, `use_count`, `owner_before`). No constructor from a raw pointer or from `std::shared_ptr`, and no `release`. Converts implicitly to `std::shared_ptr<T>` (same control block, deleter stays Base). No conversion back. `StaticPointerCast`, `DynamicPointerCast`, `ConstPointerCast` and `ReinterpretPointerCast` keep that control block. Covered by `PointerTests`.
@@ -73,7 +75,7 @@ If you landed here from a release link and have not read the tree:
 - **Type::Array** — StormByte flavor of a fixed-size sequence; `Serializable` uses it instead of stock `std::is_same` / `tuple_size` probes. `Binary` is not an array.
 - **Size vs ByteSize everywhere** — public Base APIs no longer take or return a raw `std::size_t` / `std::uint64_t` when the value is a count. Character counts (`Safe::String::size`, `Safe::WString::size`, subscripts) are `Size`. Octet counts (`Binary::size` / `operator[]` / ctors / `Serializable<T>::Size`, wire lengths) are `ByteSize`. Mixed arithmetic and comparison stay typed: a `Size` result stays a `Size`; a `ByteSize` result stays a `ByteSize`.
 - **Serializable** — container and string codecs use `ByteSize` for the on-wire length. `Safe::String` / `Safe::WString` codecs preserve embedded NULs; wide text is encoded as UTF-8 on the wire. Concepts used to branch (`Type::Array`, `Type::Container`, `Type::String`, `Type::Numeral`) are StormByte flavor, not stock `std::*` traits.
-- **Tests** — one executable per public component, under `test/`, `test/safe/` and `test/type_traits/`. `ASSERT_*` no longer takes the function name. UUID, Base64, Bitmask, Clonable, Exception, Expected, ThreadLock, Iterable, Serializable, Pointers, TypeTraits, Size, ByteSize, Binary, List, UnorderedMap, Hash and Variant cover the public surface, including `<algorithm>`.
+- **Tests** — one executable per public component, under `test/`, `test/safe/` and `test/type_traits/`. `ASSERT_*` no longer takes the function name. UUID, Base64, Bitmask, Clonable, Exception, Expected, ThreadLock, Iterable, Serializable, Pointers, TypeTraits, Size, ByteSize, Binary, List, Map, Set, UnorderedMap, UnorderedSet, Hash and Variant cover the public surface, including `<algorithm>`.
 
 ### Removed
 
@@ -97,16 +99,16 @@ If you landed here from a release link and have not read the tree:
 ### Added
 
 - `String` helpers that only read the input now take `std::string_view` /
-  `std::wstring_view`: `IsNumeric`, `ToLower`, `ToUpper`, `Explode`, `Split`,
-  `UTF8Encode`, `UTF8Decode`, `SanitizeNewlines`, `ToByteVector`,
-  `RemoveWhitespace`, `IsInteger`. `std::string`, `std::wstring` and
-  literals convert to the views.
+`std::wstring_view`: `IsNumeric`, `ToLower`, `ToUpper`, `Explode`, `Split`,
+`UTF8Encode`, `UTF8Decode`, `SanitizeNewlines`, `ToByteVector`,
+`RemoveWhitespace`, `IsInteger`. `std::string`, `std::wstring` and
+literals convert to the views.
 - `Base64Decode(std::string_view)` replaces `Base64Decode(const std::string&)`.
 
 ### Changed
 
 - `SanitizeNewlines` no longer builds a throwaway copy and a `std::regex`;
-  it walks the view and maps `\r\n` to `\n`.
+it walks the view and maps `\r\n` to `\n`.
 
 [1.2.0]: https://github.com/StormBytePP/StormByte/compare/1.1.1...1.2.0
 
@@ -182,26 +184,26 @@ Initial public release of StormByte Base.
 - **Exception** hierarchy with DLL-safe `const char*` storage and `std::format` support
 - **Expected<T, E>** on `std::expected` with reference support and shared error ownership (`Unexpected` helpers)
 - **Serializable** template
-  - Trivially copyable types, STL containers, `std::pair` and `std::optional`
-  - `Detail::Codec` for `std::string`, `std::wstring`, `std::u16string` and `std::u32string`
-  - Zero-copy input via `std::span<const std::byte>`
-  - Little-endian on the wire
+- Trivially copyable types, STL containers, `std::pair` and `std::optional`
+- `Detail::Codec` for `std::string`, `std::wstring`, `std::u16string` and `std::u32string`
+- Zero-copy input via `std::span<const std::byte>`
+- Little-endian on the wire
 - **Base64** encode / decode (standard alphabet, whitespace-tolerant decoder)
 - **Bitmask** CRTP for unsigned flag enums (`|`, `&`, `^`, `~`, `Add`, `Remove`, `Has`, `HasAny`, `HasNone`)
 - **Clonable** for smart-pointer clone / move (`std::shared_ptr` / `std::unique_ptr`)
 - **ThreadLock** — owner-tracked lock; the owner may reenter; `Unlock` from a non-owner is a no-op
 - **String** utilities
-  - Case conversion (`ToLower` / `ToUpper`)
-  - Splitting (`Explode`, `Split`)
-  - Human-readable number and byte-size formatting
-  - UTF-8 ↔ wide string conversion
-  - Byte vector ↔ string conversion
-  - Whitespace removal, newline sanitization, integer detection
+- Case conversion (`ToLower` / `ToUpper`)
+- Splitting (`Explode`, `Split`)
+- Human-readable number and byte-size formatting
+- UTF-8 ↔ wide string conversion
+- Byte vector ↔ string conversion
+- Whitespace removal, newline sanitization, integer detection
 - **System** utilities
-  - `TempFileName()`
-  - `CurrentPath()` (process cwd)
-  - `ExecutablePath()` (directory of the running executable)
-  - `Sleep()` for any `std::chrono::duration`
+- `TempFileName()`
+- `CurrentPath()` (process cwd)
+- `ExecutablePath()` (directory of the running executable)
+- `Sleep()` for any `std::chrono::duration`
 - **UUID** generation (`GenerateUUIDv4()` — RFC 4122 version 4)
 - **Type** concepts under `StormByte::Type` (`String`, `Container`, `Optional`, `Pair`, enums, …)
 - Platform macros (`WINDOWS`, `LINUX`, `MACOS`, `UNIX`, `BIT32` / `BIT64`)

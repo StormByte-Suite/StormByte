@@ -50,27 +50,35 @@ Public Base APIs do not take or return a raw `std::size_t` / `std::uint64_t` whe
 - [The rest of the suite](#the-rest-of-the-suite)
 - [Installation](#installation)
 - [Usage](#usage)
-- [Exceptions](#exceptions)
-- [Expected](#expected)
-- [Error](#error)
-- [Safe](#safe)
-- [Contract](#contract)
-- [STORMBYTE_DECLARE_MAYBE_SAFE](#stormbyte_declare_maybe_safe)
-- [Text](#text)
-- [Binary](#binary)
-- [Collections](#collections)
-- [Optional, Pair, Variant](#optional-pair-variant)
-- [Hash](#hash)
-- [Pointers and Clonable](#pointers-and-clonable)
-- [Callbacks and owners](#callbacks-and-owners)
-- [Size](#size)
-- [ByteSize](#bytesize)
-- [Serialization](#serialization)
-- [UUID](#uuid)
-- [ThreadLock](#threadlock)
-- [Type concepts](#type-concepts)
-- [Bitmask](#bitmask)
-- [Telemetry](#telemetry)
+  - [Exceptions](#exceptions)
+  - [Expected](#expected)
+  - [Error](#error)
+  - [Safe](#safe)
+    - [Contract](#contract)
+    - [STORMBYTE_DECLARE_MAYBE_SAFE](#stormbyte_declare_maybe_safe)
+    - [Text](#text)
+    - [Binary](#binary)
+    - [Collections](#collections)
+      - [Vector](#vector)
+      - [List](#list)
+      - [Queue](#queue)
+      - [Map](#map)
+      - [Set](#set)
+      - [UnorderedMap](#unorderedmap)
+      - [UnorderedSet](#unorderedset)
+      - [Iterable](#iterable)
+    - [Optional, Pair, Variant](#optional-pair-variant)
+    - [Hash](#hash)
+    - [Pointers and Clonable](#pointers-and-clonable)
+    - [Callbacks and owners](#callbacks-and-owners)
+  - [Size](#size)
+  - [ByteSize](#bytesize)
+  - [Serialization](#serialization)
+  - [UUID](#uuid)
+  - [ThreadLock](#threadlock)
+  - [Type concepts](#type-concepts)
+  - [Bitmask](#bitmask)
+  - [Telemetry](#telemetry)
 - [Contributing](#contributing)
 - [License](#license)
 - [Support](#support)
@@ -332,20 +340,52 @@ int main() {
 
 #### Collections
 
-`Safe::Vector`, `Safe::List`, `Safe::Queue`, `Safe::Map` and `Safe::UnorderedMap` own their nodes on the Base heap. They are not aliases of `std::vector` or of `Safe::Iterable`. `Safe::Iterable` is a cursor for a consumer that does not want to write one (`Tracks : Iterable<Vector<Track>>`). Binary does not use it: Binary needs `std::byte*` and a `ByteSize` size.
+These types own their nodes on the Base heap. They are not aliases of the STL containers. Iterators and mutable proxies are callback-backed. `<algorithm>` and `std::ranges` do not see a creator-owned node. A move leaves the source valid and empty and keeps the creator-module callbacks. Lvalue import copies. Rvalue import moves elements and leaves the STL source valid and empty; it does not adopt the allocator. Export is `STORMBYTE_FORCE_INLINE` and `explicit`.
 
-Iterators and mutable proxies are callback-backed. `<algorithm>` and `std::ranges` do not see a creator-owned node. A move leaves the source valid and empty and keeps the creator-module callbacks. Lvalue import copies. Rvalue import moves elements and leaves the STL source valid and empty; it does not adopt the allocator. Export is `STORMBYTE_FORCE_INLINE`.
+##### Vector
 
-`Vector` borrows as `std::span`. `List` has splice, merge, unique, sort and reverse. `Map` is ordered, with bounds, `node_type`, extract and merge. A moved-from map with a stateful comparator cannot be reused. `UnorderedMap` is keyed through `Safe::Hash`. `Queue` keeps FIFO `push` / `pop` and still exposes random-access iterators. `Split` fills a `Vector`. `Explode` fills a `Queue`.
+`Safe::Vector` is the contiguous sequence. It borrows as `std::span`. `Split` fills one.
+
+##### List
+
+`Safe::List` is a doubly linked list. It has splice, merge, unique, sort and reverse.
+
+##### Queue
+
+`Safe::Queue` keeps FIFO `push` / `pop` and still exposes random-access iterators. `Explode` fills one.
+
+##### Map
+
+`Safe::Map` is ordered, with bounds, `node_type`, extract and merge. A moved-from map with a stateful comparator cannot be reused.
+
+##### Set
+
+`Safe::Set` is that map with `Monostate` as the mapped type. Iterators expose the key. It has the same `node_type`, extract and merge. The same comparator transfers the node. A different comparator copies the key.
+
+##### UnorderedMap
+
+`Safe::UnorderedMap` is a hash table keyed through `Safe::Hash`. A type without a `Safe::Hash` specialization is not a key.
+
+##### UnorderedSet
+
+`Safe::UnorderedSet` is that table with `Monostate` as the mapped type. Iterators expose the key, and that key stays const. The same hash transfers the node. A different hash copies the key.
+
+##### Iterable
+
+`Safe::Iterable` is a cursor for a consumer that does not want to write one (`Tracks : Iterable<Vector<Track>>`). It is not the storage of the collections above. Binary does not use it: Binary needs `std::byte*` and a `ByteSize` size.
 
 ```cpp
 #include <StormByte/safe/map.hxx>
+#include <StormByte/safe/set.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/unordered_set.hxx>
 #include <StormByte/safe/vector.hxx>
 
 using namespace StormByte;
 
 Safe::Map<Safe::String, int> scores{{"a", 1}, {"b", 2}};
+Safe::Set<int> unique{1, 6, 7, 6};
+Safe::UnorderedSet<int> hashed{1, 6, 7, 6};
 Safe::Vector<Safe::String> names{"one", "two"};
 ```
 
@@ -359,7 +399,7 @@ Safe::Vector<Safe::String> names{"one", "two"};
 
 #### Hash
 
-`Safe::Hash` is a cross-module FNV-1a. Integral, enumeration, floating-point and pointer keys are closed in `hash.hxx`. `String`, `WString`, `Binary`, `Size`, `ByteSize`, `Pair`, `Optional`, `Variant` and `Monostate` are closed next to the type. A type without a specialization is not a key of `UnorderedMap`. The call does not throw. `long double` hashes its payload, not the padding. `std::hash` specializations delegate to it. It is not the standard library hash, and it is not required to match `std::hash<int>` in another STL.
+`Safe::Hash` is a cross-module FNV-1a. Integral, enumeration, floating-point and pointer keys are closed in `hash.hxx`. `String`, `WString`, `Binary`, `Size`, `ByteSize`, `Pair`, `Optional`, `Variant` and `Monostate` are closed next to the type. A type without a specialization is not a key of `UnorderedMap` or `UnorderedSet`. The call does not throw. `long double` hashes its payload, not the padding. `std::hash` specializations delegate to it. It is not the standard library hash, and it is not required to match `std::hash<int>` in another STL.
 
 #### Pointers and Clonable
 
@@ -470,7 +510,7 @@ int main() {
 
 Wire is little-endian. `Serialize()` returns `Safe::Binary`. `Deserialize` reads a prefix; leftover bytes stay with the caller. Custom types specialize `StormByte::Detail::Codec<T>` (`Size` returns `ByteSize` / `Write` / `Read`), not `Serializable<T>`.
 
-Built-in generic serialization supports `std::optional` and `Safe::Optional` with identical presence/value framing, pair-like values including `Safe::Pair`, iterable containers including `Safe::Vector` and `Safe::Map`, and FIFO queues including `Safe::Queue` (count followed by values in pop order). Safe collection iterators are snapshotted into their declared `value_type`; decoding uses each type's public insertion API. `Safe::Shared`, `Safe::Unique`, `Safe::Weak`, `Safe::Callback` and `Safe::Clonable` are not generically serializable: pointer identity, callback context and dynamic ownership have no portable value encoding.
+Built-in generic serialization supports `std::optional` and `Safe::Optional` with identical presence/value framing, pair-like values including `Safe::Pair`, iterable containers including `Safe::Vector`, `Safe::Map` and `Safe::Set`, and FIFO queues including `Safe::Queue` (count followed by values in pop order). `Safe::Set` shares the `std::set` wire. A container with a `hasher` (`Safe::UnorderedSet`, `Safe::UnorderedMap`, and the `std` counterparts) writes the count and then the elements sorted by key, so the wire does not follow the bucket order. Safe collection iterators are snapshotted into their declared `value_type`; decoding uses each type's public insertion API. `Safe::Shared`, `Safe::Unique`, `Safe::Weak`, `Safe::Callback` and `Safe::Clonable` are not generically serializable: pointer identity, callback context and dynamic ownership have no portable value encoding.
 
 `Safe::Binary` is a `Type::Container` of `std::byte`. No `Codec` specialization is required; the container path writes the same layout as `std::vector<std::byte>`.
 
