@@ -45,6 +45,7 @@
 
 #include <cstddef>
 #include <initializer_list>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -69,7 +70,7 @@ namespace StormByte {
 		 * @brief Contiguous sequence stored on Base's heap.
 		 * @tparam T Safe value.
 		 *
-		 * The block is allocated with @ref Heap::Allocate. Iterators are pointers into that block. A move from `std::vector` moves the elements and clears the source in the caller, so its buffer is released by the caller's CRT.
+		 * The block is allocated with @ref Heap::Allocate. Iterators are pointers into that block. A move from `std::vector` moves the elements and clears the source in the caller, so its buffer is released by the caller's CRT. Conversion to `std::span` borrows the block and does not take ownership.
 		 */
 		template<Type::SafeValue T>
 		class STORMBYTE_PUBLIC_TYPE Vector final {
@@ -81,8 +82,8 @@ namespace StormByte {
 				using const_reference = const T&; ///< Read-only element reference.
 				using pointer = T*; ///< Mutable element pointer.
 				using const_pointer = const T*; ///< Read-only element pointer.
-				using iterator = T*; ///< Mutable random-access iterator.
-				using const_iterator = const T*; ///< Read-only random-access iterator.
+				using iterator = T*; ///< Mutable contiguous iterator.
+				using const_iterator = const T*; ///< Read-only contiguous iterator.
 
 				/**
 				 * @brief Construct an empty sequence.
@@ -256,6 +257,22 @@ namespace StormByte {
 				 * @return Block address, or null when no capacity is reserved.
 				 */
 				const_pointer data() const noexcept;
+
+				/**
+				 * @brief Borrow the occupied elements. The span does not own the block.
+				 * @return Mutable span over `[data(), data() + size())`.
+				 */
+				STORMBYTE_FORCE_INLINE operator std::span<T>() noexcept {
+					return std::span<T>(data(), size());
+				}
+
+				/**
+				 * @brief Borrow the occupied elements. The span does not own the block.
+				 * @return Read-only span over `[data(), data() + size())`.
+				 */
+				STORMBYTE_FORCE_INLINE operator std::span<const T>() const noexcept {
+					return std::span<const T>(data(), size());
+				}
 
 				/**
 				 * @brief Reserve room for at least @p count elements. A smaller request does not shrink.
