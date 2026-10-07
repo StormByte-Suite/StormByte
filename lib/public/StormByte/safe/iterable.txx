@@ -200,6 +200,53 @@ namespace StormByte {
 			{ readonly.size() } -> Type::ConvertibleTo<std::size_t>;
 		}
 		template<bool IsConst>
+		Iterable<Component>::BasicIterator<IsConst> Iterable<Component>::BasicIterator<IsConst>::operator+(difference_type offset) const requires random_access {
+			BasicIterator advanced = *this;
+			advanced += offset;
+			return advanced;
+		}
+
+		template<Type::SafeComponent Component>
+		requires requires(Component& component, const Component& readonly) {
+			typename Component::value_type;
+			{ component.begin() };
+			{ component.end() };
+			{ readonly.begin() };
+			{ readonly.end() };
+			{ readonly.size() } -> Type::ConvertibleTo<std::size_t>;
+		}
+		template<bool IsConst>
+		Iterable<Component>::BasicIterator<IsConst> Iterable<Component>::BasicIterator<IsConst>::operator-(difference_type offset) const requires random_access {
+			BasicIterator retreated = *this;
+			retreated -= offset;
+			return retreated;
+		}
+
+		template<Type::SafeComponent Component>
+		requires requires(Component& component, const Component& readonly) {
+			typename Component::value_type;
+			{ component.begin() };
+			{ component.end() };
+			{ readonly.begin() };
+			{ readonly.end() };
+			{ readonly.size() } -> Type::ConvertibleTo<std::size_t>;
+		}
+		template<bool IsConst>
+		template<bool OtherConst>
+		Iterable<Component>::BasicIterator<IsConst>::difference_type Iterable<Component>::BasicIterator<IsConst>::operator-(const BasicIterator<OtherConst>& other) const requires random_access {
+			return m_current - other.m_current;
+		}
+
+		template<Type::SafeComponent Component>
+		requires requires(Component& component, const Component& readonly) {
+			typename Component::value_type;
+			{ component.begin() };
+			{ component.end() };
+			{ readonly.begin() };
+			{ readonly.end() };
+			{ readonly.size() } -> Type::ConvertibleTo<std::size_t>;
+		}
+		template<bool IsConst>
 		template<bool OtherConst>
 		bool Iterable<Component>::BasicIterator<IsConst>::operator==(const BasicIterator<OtherConst>& other) const {
 			return m_current == other.m_current;
@@ -218,6 +265,51 @@ namespace StormByte {
 		template<bool OtherConst>
 		bool Iterable<Component>::BasicIterator<IsConst>::operator<(const BasicIterator<OtherConst>& other) const requires random_access {
 			return m_current < other.m_current;
+		}
+
+		template<Type::SafeComponent Component>
+		requires requires(Component& component, const Component& readonly) {
+			typename Component::value_type;
+			{ component.begin() };
+			{ component.end() };
+			{ readonly.begin() };
+			{ readonly.end() };
+			{ readonly.size() } -> Type::ConvertibleTo<std::size_t>;
+		}
+		template<bool IsConst>
+		template<bool OtherConst>
+		bool Iterable<Component>::BasicIterator<IsConst>::operator>(const BasicIterator<OtherConst>& other) const requires random_access {
+			return other < *this;
+		}
+
+		template<Type::SafeComponent Component>
+		requires requires(Component& component, const Component& readonly) {
+			typename Component::value_type;
+			{ component.begin() };
+			{ component.end() };
+			{ readonly.begin() };
+			{ readonly.end() };
+			{ readonly.size() } -> Type::ConvertibleTo<std::size_t>;
+		}
+		template<bool IsConst>
+		template<bool OtherConst>
+		bool Iterable<Component>::BasicIterator<IsConst>::operator<=(const BasicIterator<OtherConst>& other) const requires random_access {
+			return !(other < *this);
+		}
+
+		template<Type::SafeComponent Component>
+		requires requires(Component& component, const Component& readonly) {
+			typename Component::value_type;
+			{ component.begin() };
+			{ component.end() };
+			{ readonly.begin() };
+			{ readonly.end() };
+			{ readonly.size() } -> Type::ConvertibleTo<std::size_t>;
+		}
+		template<bool IsConst>
+		template<bool OtherConst>
+		bool Iterable<Component>::BasicIterator<IsConst>::operator>=(const BasicIterator<OtherConst>& other) const requires random_access {
+			return !(*this < other);
 		}
 
 		template<Type::SafeComponent Component>

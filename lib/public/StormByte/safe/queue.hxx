@@ -39,12 +39,13 @@
 
 #pragma once
 
-#include <StormByte/safe/iterable.hxx>
-#include <StormByte/size.hxx>
-#include <StormByte/type_traits/safe.hxx>
+#include <StormByte/safe/vector.hxx>
+#include <StormByte/type_traits.hxx>
+#include <StormByte/visibility.h>
 
-#include <deque>
+#include <cstddef>
 #include <queue>
+#include <utility>
 
 /**
  * @namespace StormByte
@@ -53,295 +54,295 @@
 namespace StormByte {
 	/**
 	 * @namespace StormByte::Safe
-	 * @brief Types safe to pass across a DLL boundary.
+	 * @brief Owned values that cross a DLL without the caller's CRT.
 	 */
 	namespace Safe {
 		/**
+		 * @brief Throw the queue out-of-bounds error from Base.
+		 * @throws OutOfBoundsError Always.
+		 */
+		[[noreturn]] STORMBYTE_PUBLIC void ThrowQueueOutOfBounds();
+
+		/**
 		 * @class Queue
-		 * @brief FIFO sequence with creator-owned storage and Safe random-access iterators.
-		 * @tparam T Unqualified Type::SafeValue.
+		 * @brief FIFO sequence stored on Base's heap.
+		 * @tparam T Safe value.
 		 *
-		 * Lvalue imports copy and rvalue imports move elements into creator-owned
-		 * storage; they never adopt another module's container allocation. Iterators
-		 * and mutable element access use caller-owned snapshots and callback writes,
-		 * never references into creator-owned storage. Structural mutation invalidates
-		 * iterators and element proxies. STL exports are force-inlined so the returned
-		 * queue is allocated and destroyed in the caller. Copy is deep; move leaves an
-		 * empty readable object. Compatible C++ ABI, packing, calling convention and
-		 * loaded creator/Base modules are required.
+		 * Elements live in a @ref Vector. A move from `std::queue` moves each element and pops the source in the caller, so the deque buffer is released by the caller's CRT. Iterators walk the queue in FIFO order.
 		 */
 		template<Type::SafeValue T>
 		class STORMBYTE_PUBLIC_TYPE Queue final {
 			public:
 				using value_type = T; ///< Element type.
 				using size_type = std::size_t; ///< Element count type.
-				using reference = typename StormByte::Safe::Iterable<std::deque<T>>::reference; ///< Mutable callback-backed element proxy.
-				using iterator = typename StormByte::Safe::Iterable<std::deque<T>>::iterator; ///< Mutable random-access iterator.
-				using const_iterator = typename StormByte::Safe::Iterable<std::deque<T>>::const_iterator; ///< Read-only random-access iterator.
+				using difference_type = std::ptrdiff_t; ///< Iterator distance type.
+				using reference = T&; ///< Mutable element reference.
+				using const_reference = const T&; ///< Read-only element reference.
+				using iterator = typename Vector<T>::iterator; ///< Mutable iterator, front to back.
+				using const_iterator = typename Vector<T>::const_iterator; ///< Read-only iterator, front to back.
 
 				/**
-				 * @brief Construct an empty FIFO in the calling module.
+				 * @brief Construct an empty queue.
 				 */
-				STORMBYTE_FORCE_INLINE Queue();
+				Queue() noexcept;
 
 				/**
-				 * @brief Copy elements from a caller-owned STL queue.
-				 * @param values Source queue; its allocation remains with its owner.
+				 * @brief Copy a caller-owned STL queue. Its state is unchanged.
+				 * @param values Source.
+				 * @throws AllocationError The block could not be allocated.
 				 */
-				explicit Queue(const std::queue<T>& values);
+				STORMBYTE_FORCE_INLINE explicit Queue(const std::queue<T>& values): Queue() {
+					std::queue<T> copy(values);
+					while (!copy.empty()) {
+						push(std::move(copy.front()));
+						copy.pop();
+					}
+				}
 
 				/**
-				 * @brief Move elements from an STL rvalue into locally owned storage.
-				 * @param values Source queue; it is left valid and empty.
+				 * @brief Move elements from a caller-owned STL queue and leave it empty.
+				 * @param values Source. Empty before this function returns.
+				 * @throws AllocationError The block could not be allocated.
 				 */
-				explicit Queue(std::queue<T>&& values);
+				STORMBYTE_FORCE_INLINE explicit Queue(std::queue<T>&& values): Queue() {
+					while (!values.empty()) {
+						push(std::move(values.front()));
+						values.pop();
+					}
+				}
 
 				/**
-				 * @brief Deep copy in the original owner module.
+				 * @brief Copy every element into a new Base block.
+				 * @param other Source.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				Queue(const Queue& other);
+
+				/**
+				 * @brief Take the block. @p other is left empty.
 				 * @param other Source.
 				 */
-				Queue(const Queue& other) = default;
+				Queue(Queue&& other) noexcept;
 
 				/**
-				 * @brief Transfer ownership; source becomes empty.
+				 * @brief Destroy every element and release the block.
+				 */
+				~Queue() noexcept;
+
+				/**
+				 * @brief Copy-assign.
 				 * @param other Source.
+				 * @return This queue.
+				 * @throws AllocationError The block could not be allocated.
 				 */
-				Queue(Queue&& other) noexcept = default;
+				Queue& operator=(const Queue& other);
 
 				/**
-				 * @brief Release storage through the creator-module callback.
-				 */
-				~Queue() noexcept = default;
-
-				/**
-				 * @brief Deep copy with strong guarantee.
+				 * @brief Move-assign. @p other is left empty.
 				 * @param other Source.
-				 * @return This FIFO.
-				 */
-				Queue& operator=(const Queue& other) = default;
-
-				/**
-				 * @brief Release old state and transfer.
-				 * @param other Source.
-				 * @return This FIFO.
-				 */
-				Queue& operator=(Queue&& other) noexcept = default;
-
-				/**
-				 * @brief Import an STL queue by copy.
-				 * @param values Caller-owned source queue.
 				 * @return This queue.
 				 */
-				Queue& operator=(const std::queue<T>& values) {
+				Queue& operator=(Queue&& other) noexcept;
+
+				/**
+				 * @brief Copy-assign a caller-owned STL queue. Its state is unchanged.
+				 * @param values Source.
+				 * @return This queue.
+				 * @throws AllocationError The block could not be allocated.
+				 */
+				STORMBYTE_FORCE_INLINE Queue& operator=(const std::queue<T>& values) {
 					Queue replacement(values);
-					*this = std::move(replacement);
+					swap(replacement);
 					return *this;
 				}
 
 				/**
-				 * @brief Import an STL queue by moving its elements.
-				 * @param values Source queue, empty after successful transfer.
+				 * @brief Move-assign a caller-owned STL queue and leave it empty.
+				 * @param values Source. Empty before this function returns.
 				 * @return This queue.
+				 * @throws AllocationError The block could not be allocated.
 				 */
-				Queue& operator=(std::queue<T>&& values) {
+				STORMBYTE_FORCE_INLINE Queue& operator=(std::queue<T>&& values) {
 					Queue replacement(std::move(values));
-					*this = std::move(replacement);
+					swap(replacement);
 					return *this;
 				}
 
 				/**
-				 * @brief Return the number of queued elements.
-				 * @return Element count, including zero after move.
+				 * @brief Return a mutable iterator to the front.
+				 * @return Mutable iterator.
 				 */
-				size_type size() const noexcept;
+				iterator begin() noexcept;
+
+				/**
+				 * @brief Return the mutable end iterator.
+				 * @return End iterator.
+				 */
+				iterator end() noexcept;
+
+				/**
+				 * @brief Return a read-only iterator to the front.
+				 * @return Read-only iterator.
+				 */
+				const_iterator begin() const noexcept;
+
+				/**
+				 * @brief Return the read-only end iterator.
+				 * @return End iterator.
+				 */
+				const_iterator end() const noexcept;
+
+				/**
+				 * @brief Return a read-only iterator to the front.
+				 * @return Read-only iterator.
+				 */
+				const_iterator cbegin() const noexcept;
+
+				/**
+				 * @brief Return the read-only end iterator.
+				 * @return End iterator.
+				 */
+				const_iterator cend() const noexcept;
 
 				/**
 				 * @brief Test whether the queue is empty.
 				 * @return Whether no elements are queued.
 				 */
-				bool empty() const noexcept { return size() == 0; }
+				bool empty() const noexcept;
 
 				/**
-				 * @brief Access the front element through a callback-backed proxy.
-				 * @return Mutable proxy to the front element.
-				 * @throws StormByte::Exception The queue is empty or copying failed.
+				 * @brief Return the element count.
+				 * @return Element count.
 				 */
-				reference front() { return m_values.front(); }
+				size_type size() const noexcept;
 
 				/**
-				 * @brief Return a copy of the front element.
-				 * @return Front element copy.
-				 * @throws StormByte::Exception The queue is empty or copying failed.
+				 * @brief Return the front element.
+				 * @return Front element. Valid until it is popped or the queue reallocates.
+				 * @throws OutOfBoundsError The queue is empty.
 				 */
-				T front() const { return m_values.front(); }
+				reference front();
 
 				/**
-				 * @brief Access the back element through a callback-backed proxy.
-				 * @return Mutable proxy to the back element.
-				 * @throws StormByte::Exception The queue is empty or copying failed.
+				 * @brief Return the front element.
+				 * @return Front element. Valid until it is popped or the queue reallocates.
+				 * @throws OutOfBoundsError The queue is empty.
 				 */
-				reference back() { return m_values.back(); }
+				const_reference front() const;
 
 				/**
-				 * @brief Return a copy of the back element.
-				 * @return Back element copy.
-				 * @throws StormByte::Exception The queue is empty or copying failed.
+				 * @brief Return the back element.
+				 * @return Back element. Valid until it is erased or the queue reallocates.
+				 * @throws OutOfBoundsError The queue is empty.
 				 */
-				T back() const { return m_values.back(); }
+				reference back();
 
 				/**
-				 * @brief Return a mutable iterator to the first element.
-				 * @return Mutable begin iterator.
+				 * @brief Return the back element.
+				 * @return Back element. Valid until it is erased or the queue reallocates.
+				 * @throws OutOfBoundsError The queue is empty.
 				 */
-				iterator begin() noexcept { return m_values.begin(); }
+				const_reference back() const;
 
 				/**
-				 * @brief Return a read-only iterator to the first element.
-				 * @return Read-only begin iterator.
+				 * @brief Append a copy.
+				 * @param value Value to copy.
+				 * @throws AllocationError The block could not be allocated.
 				 */
-				const_iterator begin() const noexcept { return m_values.begin(); }
+				void push(const T& value);
 
 				/**
-				 * @brief Return a mutable past-the-end iterator.
-				 * @return Mutable end iterator.
+				 * @brief Append a moved value.
+				 * @param value Value to move.
+				 * @throws AllocationError The block could not be allocated.
 				 */
-				iterator end() noexcept { return m_values.end(); }
+				void push(T&& value);
 
 				/**
-				 * @brief Return a read-only past-the-end iterator.
-				 * @return Read-only end iterator.
-				 */
-				const_iterator end() const noexcept { return m_values.end(); }
-
-				/**
-				 * @brief Return a read-only iterator to the first element.
-				 * @return Read-only begin iterator.
-				 */
-				const_iterator cbegin() const noexcept { return m_values.cbegin(); }
-
-				/**
-				 * @brief Return a read-only past-the-end iterator.
-				 * @return Read-only end iterator.
-				 */
-				const_iterator cend() const noexcept { return m_values.cend(); }
-
-				/**
-				 * @brief Append a value.
-				 * @param value Value to copy into the queue.
-				 * @throws StormByte::Exception Storage creation or copying failed.
-				 */
-				void push(const T& value) {
-					m_values.push_back(value);
-				}
-
-				/**
-				 * @brief Append an rvalue. The Safe value is copied through the creator callback.
-				 * @param value Value to append.
-				 */
-				void push(T&& value) { push(static_cast<const T&>(value)); }
-
-				/**
-				 * @brief Construct and append an element.
+				 * @brief Construct an element at the back.
 				 * @tparam Args Constructor argument types.
 				 * @param args Arguments forwarded to T.
-				 * @return Caller-owned snapshot of the inserted value; modifying it does not
-				 *         modify the queued element.
+				 * @return Reference to the new element.
+				 * @throws AllocationError The block could not be allocated.
 				 */
 				template<class... Args>
-				T emplace(Args&&... args) {
-					T value(std::forward<Args>(args)...);
-					push(value);
-					return value;
-				}
+				reference emplace(Args&&... args);
 
 				/**
 				 * @brief Remove the front element.
-				 * @throws StormByte::Exception The queue is empty or removal failed.
+				 * @throws OutOfBoundsError The queue is empty.
 				 */
-				void pop() {
-					if (empty())
-						Detail::ThrowSafeConversionFailure("Safe queue pop failed");
-					m_values.erase(m_values.cbegin());
-				}
+				void pop();
 
 				/**
-				 * @brief Erase one element from the iterable queue.
-				 * @param position Iterator to erase.
-				 * @return Iterator to the next element.
+				 * @brief Erase one element.
+				 * @param position Element to erase.
+				 * @return Iterator following the erased element.
 				 */
-				iterator erase(const_iterator position) { return m_values.erase(position); }
+				iterator erase(const_iterator position);
 
 				/**
-				 * @brief Erase a range from the iterable queue.
-				 * @param first First iterator to erase.
-				 * @param last Past-the-end iterator of the erased range.
-				 * @return Iterator to the first element after the erased range.
+				 * @brief Erase a half-open range.
+				 * @param first First element to erase.
+				 * @param last Past-the-end element.
+				 * @return Iterator following the erased range.
 				 */
-				iterator erase(const_iterator first, const_iterator last) { return m_values.erase(first, last); }
+				iterator erase(const_iterator first, const_iterator last);
 
 				/**
-				 * @brief Exchange queue storage and creator callbacks.
+				 * @brief Exchange blocks. Does not allocate.
 				 * @param other Queue to exchange with.
 				 */
-				void swap(Queue& other) noexcept {
-					if (this == &other)
-						return;
-					Queue temporary(std::move(*this));
-					*this = std::move(other);
-					other = std::move(temporary);
+				void swap(Queue& other) noexcept;
+
+				/**
+				 * @brief Compare elements in FIFO order.
+				 * @param other Queue to compare.
+				 * @return Whether both queues contain the same elements.
+				 */
+				bool operator==(const Queue& other) const requires Type::EqualityComparable<T>;
+
+				/**
+				 * @brief Order queues lexicographically.
+				 * @param other Queue to compare.
+				 * @return Whether this queue precedes @p other.
+				 */
+				bool operator<(const Queue& other) const requires requires(const T& left, const T& right) { left < right; };
+
+				/**
+				 * @brief Order queues lexicographically.
+				 * @param other Queue to compare.
+				 * @return Whether this queue precedes or equals @p other.
+				 */
+				bool operator<=(const Queue& other) const requires requires(const T& left, const T& right) { left < right; };
+
+				/**
+				 * @brief Order queues lexicographically.
+				 * @param other Queue to compare.
+				 * @return Whether this queue follows @p other.
+				 */
+				bool operator>(const Queue& other) const requires requires(const T& left, const T& right) { left < right; };
+
+				/**
+				 * @brief Order queues lexicographically.
+				 * @param other Queue to compare.
+				 * @return Whether this queue follows or equals @p other.
+				 */
+				bool operator>=(const Queue& other) const requires requires(const T& left, const T& right) { left < right; };
+
+				/**
+				 * @brief Copy the elements into caller-owned STL storage.
+				 * @return A `std::queue` owned by the caller.
+				 */
+				STORMBYTE_FORCE_INLINE explicit operator std::queue<T>() const {
+					std::queue<T> exported;
+					for (const T& value : *this)
+						exported.push(value);
+					return exported;
 				}
-
-				/**
-				 * @brief Exchange two queues.
-				 * @param left First queue.
-				 * @param right Second queue.
-				 */
-				friend void swap(Queue& left, Queue& right) noexcept { left.swap(right); }
-
-				/**
-				 * @brief Compare FIFO contents in order.
-				 * @param left First queue.
-				 * @param right Second queue.
-				 * @return Whether the queues contain equal values in order.
-				 */
-				friend bool operator==(const Queue& left, const Queue& right)
-					requires Type::EqualityComparable<T> {
-					return static_cast<std::queue<T>>(left) == static_cast<std::queue<T>>(right);
-				}
-
-				/**
-				 * @brief Order FIFO contents lexicographically.
-				 * @param left First queue.
-				 * @param right Second queue.
-				 * @return Comparison category of the underlying standard queue.
-				 */
-				friend auto operator<=>(const Queue& left, const Queue& right)
-					requires Type::ThreeWayComparable<T> {
-					return static_cast<std::queue<T>>(left) <=> static_cast<std::queue<T>>(right);
-				}
-
-				/**
-				 * @brief Copy elements into caller-owned STL storage.
-				 * @return A std::queue allocated and destroyed in the caller module.
-				 */
-				STORMBYTE_FORCE_INLINE explicit operator std::queue<T>() const;
 
 			private:
-				/**
-				 * @brief Convert an STL FIFO to deque storage without adopting its allocation.
-				 * @param values Source FIFO.
-				 * @return Deque containing copied values in FIFO order.
-				 */
-				static std::deque<T> Import(const std::queue<T>& values);
-
-				/**
-				 * @brief Move values from an STL FIFO into deque storage.
-				 * @param values Source FIFO, emptied after a successful transfer.
-				 * @return Deque containing the values in FIFO order.
-				 */
-				static std::deque<T> Import(std::queue<T>&& values);
-
-				StormByte::Safe::Iterable<std::deque<T>> m_values; ///< Creator-owned deque behind Safe callbacks.
+				Vector<T> m_values; ///< FIFO storage. Front is the first element.
 		};
 	}
 
@@ -351,36 +352,30 @@ namespace StormByte {
 	 */
 	namespace Type {
 		/**
-		 * @brief Recognizes opaque Safe FIFOs.
+		 * @brief Recognizes a queue of already safe values.
 		 * @tparam T Safe value.
 		 */
 		template<SafeValue T>
-		requires Type::IsSafe<T>::value
+		requires IsSafe<T>::value
 		struct IsSafe<Safe::Queue<T>>: std::true_type {};
 
 		/**
-		 * @brief Propagates conditional safety from the FIFO value type.
-		 * @tparam T Safe value type.
+		 * @brief Propagates conditional safety from the element type.
+		 * @tparam T Conditionally safe value.
 		 */
 		template<SafeValue T>
-		requires Type::MaybeSafe<T>
+		requires MaybeSafe<T>
 		struct IsMaybeSafe<Safe::Queue<T>>: std::true_type {};
 
 		/**
-		 * @brief Admits nested opaque FIFOs.
+		 * @brief Admits a Safe queue as a collection value.
 		 * @tparam T Safe value.
 		 */
 		template<SafeValue T>
 		struct IsSafeValue<Safe::Queue<T>>: std::true_type {};
-	}
 
-	/**
-	 * @namespace StormByte::Type
-	 * @brief Named concepts and small type utilities used across the suite.
-	 */
-	namespace Type {
 		/**
-		 * @brief Registers Safe FIFO wrappers for generic queue operations.
+		 * @brief Registers a Safe queue for generic queue operations.
 		 * @tparam T Safe value.
 		 */
 		template<SafeValue T>

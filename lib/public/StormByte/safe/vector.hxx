@@ -460,6 +460,34 @@ namespace StormByte {
 				bool operator==(const Vector& other) const requires Type::EqualityComparable<T>;
 
 				/**
+				 * @brief Order sequences lexicographically.
+				 * @param other Sequence to compare.
+				 * @return Whether this sequence precedes @p other.
+				 */
+				bool operator<(const Vector& other) const requires requires(const T& left, const T& right) { left < right; };
+
+				/**
+				 * @brief Order sequences lexicographically.
+				 * @param other Sequence to compare.
+				 * @return Whether this sequence precedes or equals @p other.
+				 */
+				bool operator<=(const Vector& other) const requires requires(const T& left, const T& right) { left < right; };
+
+				/**
+				 * @brief Order sequences lexicographically.
+				 * @param other Sequence to compare.
+				 * @return Whether this sequence follows @p other.
+				 */
+				bool operator>(const Vector& other) const requires requires(const T& left, const T& right) { left < right; };
+
+				/**
+				 * @brief Order sequences lexicographically.
+				 * @param other Sequence to compare.
+				 * @return Whether this sequence follows or equals @p other.
+				 */
+				bool operator>=(const Vector& other) const requires requires(const T& left, const T& right) { left < right; };
+
+				/**
 				 * @brief Copy the elements into caller-owned STL storage.
 				 * @return A `std::vector` owned by the caller.
 				 */

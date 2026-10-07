@@ -379,12 +379,23 @@ namespace StormByte {
 		struct IsSafeValue<T>: std::true_type {};
 
 		/**
-		 * @brief Value permitted in opaque Safe collections.
-		 * @tparam T Candidate value; cv/ref forms are unsupported.
-		 * @note MaybeSafe values must support default construction, copying, assignment and movement.
+		 * @brief Recognizes a cursor that stores only a Base node pointer.
+		 * @tparam T Candidate cursor.
+		 *
+		 * The mark is an alias inside the cursor. Copying the cursor copies that pointer. It is not a Safe component and it owns no element.
 		 */
 		template<typename T>
-		concept SafeValue = IsSafeValue<T>::value ||
+		concept SafeCursor = requires { typename std::remove_cvref_t<T>::StormByteSafeCursor; };
+
+		/**
+		 * @brief Value permitted in opaque Safe collections.
+		 * @tparam T Candidate value. A const value is the same value. References stay rejected.
+		 * @note MaybeSafe values must support default construction, copying, assignment and movement.
+		 * @note A cursor is admitted so a result pair can hold it. It is not a collection element.
+		 */
+		template<typename T>
+		concept SafeValue = IsSafeValue<std::remove_const_t<T>>::value ||
+			SafeCursor<T> ||
 			(MaybeSafe<T> && DefaultConstructible<T> && Copyable<T> && MoveConstructible<T> && MoveAssignable<T>);
 	}
 }

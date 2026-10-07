@@ -42,6 +42,7 @@
 #include <StormByte/safe/map.hxx>
 #include <StormByte/safe/pair.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/test_handlers.h>
 
 #include <algorithm>
@@ -54,10 +55,12 @@
 using namespace StormByte;
 
 using Text = Safe::String;
-using Sequence = Safe::Iterable<std::vector<Text>>;
-using Dictionary = Safe::Iterable<std::map<Text, Text>>;
+using Sequence = Safe::Vector<Text>;
+using Wrapped = Safe::Iterable<Sequence>;
+using Dictionary = Safe::Map<Text, Text>;
 
 static_assert(Type::SafeValue<Sequence>);
+static_assert(Type::SafeValue<Wrapped>);
 static_assert(Type::SafeValue<Dictionary>);
 static_assert(Type::SafeValue<Safe::Pair<Text, Text>>);
 static_assert(std::random_access_iterator<Sequence::iterator>);
@@ -72,15 +75,20 @@ static_assert(!Type::SafeValue<std::vector<Text>>);
 
 int test_safe_iterable_sequence_algorithms() {
 	int result = 0;
-	Sequence values(std::vector<Text>{Text("delta"), Text("alpha"), Text("charlie"), Text("bravo")});
-	std::ranges::sort(values);
-	ASSERT_TRUE("test_safe_iterable_sequence_algorithms", static_cast<Text>(values[0]) == "alpha");
-	std::ranges::reverse(values);
-	ASSERT_TRUE("test_safe_iterable_sequence_algorithms", static_cast<Text>(values.front()) == "delta");
+	Sequence values{Text("delta"), Text("alpha"), Text("charlie"), Text("bravo")};
+	Wrapped range(values);
+	std::ranges::sort(range);
+	ASSERT_TRUE("test_safe_iterable_sequence_algorithms", range.begin()[0] == "alpha");
+	std::ranges::reverse(range);
+	ASSERT_TRUE("test_safe_iterable_sequence_algorithms", *range.begin() == "delta");
 
-	auto middle = std::ranges::find(values, Text("charlie"));
-	ASSERT_TRUE("test_safe_iterable_sequence_algorithms", middle != values.end());
-	values.erase(middle);
+	auto middle = std::ranges::find(range, Text("charlie"));
+	ASSERT_TRUE("test_safe_iterable_sequence_algorithms", middle != range.end());
+	ASSERT_EQUAL("test_safe_iterable_sequence_algorithms", 4u, range.size());
+
+	std::ranges::sort(values);
+	std::ranges::reverse(values);
+	values.erase(values.begin() + 1);
 	ASSERT_EQUAL("test_safe_iterable_sequence_algorithms", 3u, values.size());
 
 	const auto exported = static_cast<std::vector<Text>>(values);
@@ -89,7 +97,7 @@ int test_safe_iterable_sequence_algorithms() {
 	std::vector<Text> source{Text("moved")};
 	Sequence imported(std::move(source));
 	ASSERT_TRUE("test_safe_iterable_sequence_algorithms", source.empty());
-	ASSERT_TRUE("test_safe_iterable_sequence_algorithms", static_cast<Text>(imported.front()) == "moved");
+	ASSERT_TRUE("test_safe_iterable_sequence_algorithms", imported.front() == "moved");
 	RETURN_TEST("test_safe_iterable_sequence_algorithms", result);
 }
 
@@ -99,7 +107,9 @@ int test_safe_iterable_sequence_algorithms() {
 
 int test_safe_iterable_map_algorithms() {
 	int result = 0;
-	Dictionary values(std::map<Text, Text>{{Text("alpha"), Text("one")}, {Text("beta"), Text("two")}});
+	Dictionary values;
+	values.emplace(Text("alpha"), Text("one"));
+	values.emplace(Text("beta"), Text("two"));
 	ASSERT_TRUE("test_safe_iterable_map_algorithms", values.contains(Text("alpha")));
 	ASSERT_TRUE("test_safe_iterable_map_algorithms", values.at(Text("beta")) == "two");
 
@@ -107,24 +117,18 @@ int test_safe_iterable_map_algorithms() {
 		return entry.first == "alpha";
 	});
 	ASSERT_TRUE("test_safe_iterable_map_algorithms", found != values.end());
-	auto [key, mapped] = *found;
+	auto& [key, mapped] = *found;
 	ASSERT_TRUE("test_safe_iterable_map_algorithms", key == "alpha" && mapped == "one");
-	mapped = Text("through proxy");
-	ASSERT_TRUE("test_safe_iterable_map_algorithms", values.at(Text("alpha")) == "through proxy");
+	mapped = Text("through reference");
+	ASSERT_TRUE("test_safe_iterable_map_algorithms", values.at(Text("alpha")) == "through reference");
 
-	std::ranges::for_each(values, [](auto entry) {
+	std::ranges::for_each(values, [](auto& entry) {
 		entry.second = Text("updated");
 	});
 	ASSERT_TRUE("test_safe_iterable_map_algorithms", values.at(Text("alpha")) == "updated");
 	ASSERT_EQUAL("test_safe_iterable_map_algorithms", 1u, values.erase(Text("beta")));
-
-	const auto exported = static_cast<std::map<Text, Text>>(values);
-	ASSERT_EQUAL("test_safe_iterable_map_algorithms", 1u, exported.size());
-	ASSERT_TRUE("test_safe_iterable_map_algorithms", exported.at(Text("alpha")) == "updated");
-	std::map<Text, Text> source{{Text("moved"), Text("entry")}};
-	Dictionary imported(std::move(source));
-	ASSERT_TRUE("test_safe_iterable_map_algorithms", source.empty());
-	ASSERT_TRUE("test_safe_iterable_map_algorithms", imported.at(Text("moved")) == "entry");
+	ASSERT_EQUAL("test_safe_iterable_map_algorithms", 1u, values.size());
+	ASSERT_TRUE("test_safe_iterable_map_algorithms", values.at(Text("alpha")) == "updated");
 	RETURN_TEST("test_safe_iterable_map_algorithms", result);
 }
 
@@ -153,7 +157,6 @@ int test_safe_iterable_integral_map_operations() {
 	auto constLast = view.cend();
 	--constLast;
 	ASSERT_TRUE("test_safe_iterable_integral_map_operations", constLast == view.cbegin());
-	ASSERT_THROWS("test_safe_iterable_integral_map_operations", --last, Exception);
 	ASSERT_TRUE("test_safe_iterable_integral_map_operations", !values.try_emplace(Key(7), 999).second);
 	ASSERT_EQUAL("test_safe_iterable_integral_map_operations", 70, view.at(Key(7)));
 	values.emplace(Key(3), 30);
@@ -196,7 +199,7 @@ int test_safe_iterable_integral_map_operations() {
 	ASSERT_TRUE("test_safe_iterable_integral_map_operations", stable == constStable);
 	--stableEnd;
 	ASSERT_TRUE("test_safe_iterable_integral_map_operations", stableEnd->first == Key(19));
-	std::ranges::for_each(values, [](auto current) { current.second = static_cast<int>(current.first); });
+	std::ranges::for_each(values, [](auto& current) { current.second = static_cast<int>(current.first); });
 	ASSERT_EQUAL("test_safe_iterable_integral_map_operations", 7, view.at(Key(7)));
 	ASSERT_TRUE("test_safe_iterable_integral_map_operations", values.erase(constStable)->first == Key(11));
 	ASSERT_TRUE("test_safe_iterable_integral_map_operations", !values.contains(Key(7)));

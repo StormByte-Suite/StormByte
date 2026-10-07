@@ -422,6 +422,33 @@ namespace StormByte {
 		}
 
 		template<Type::SafeValue T>
+		bool Vector<T>::operator<(const Vector& other) const requires requires(const T& left, const T& right) { left < right; } {
+			const size_type count = m_size < other.m_size ? m_size : other.m_size;
+			for (size_type index = 0; index < count; ++index) {
+				if (m_data[index] < other.m_data[index])
+					return true;
+				if (other.m_data[index] < m_data[index])
+					return false;
+			}
+			return m_size < other.m_size;
+		}
+
+		template<Type::SafeValue T>
+		bool Vector<T>::operator<=(const Vector& other) const requires requires(const T& left, const T& right) { left < right; } {
+			return !(other < *this);
+		}
+
+		template<Type::SafeValue T>
+		bool Vector<T>::operator>(const Vector& other) const requires requires(const T& left, const T& right) { left < right; } {
+			return other < *this;
+		}
+
+		template<Type::SafeValue T>
+		bool Vector<T>::operator>=(const Vector& other) const requires requires(const T& left, const T& right) { left < right; } {
+			return !(*this < other);
+		}
+
+		template<Type::SafeValue T>
 		T* Vector<T>::Allocate(size_type capacity) {
 			if (capacity == 0)
 				return nullptr;

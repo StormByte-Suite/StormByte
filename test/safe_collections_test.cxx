@@ -148,7 +148,7 @@ static_assert(Type::SafeValue<Safe::Pair<Safe::String, Safe::String>>);
 static_assert(Type::SafeValue<BinaryData>);
 static_assert(Type::SafeValue<Size>);
 static_assert(Type::SafeValue<ByteSize>);
-static_assert(!Type::SafeValue<const Safe::String>);
+static_assert(Type::SafeValue<const Safe::String>);
 static_assert(!Type::SafeValue<Safe::String&>);
 static_assert(!Type::SafeValue<Safe::Unique<Safe::String>>);
 static_assert(!Type::SafeValue<Safe::Weak<Safe::String>>);
@@ -332,9 +332,8 @@ int TestSafeMapAlgorithms() {
 	const auto pairInsert = dictionary.insert(std::pair{Safe::String("delta"), Safe::String("fourth")});
 	ASSERT_TRUE("TestSafeMapAlgorithms", pairInsert.second && dictionary.contains(Safe::String("delta")));
 	const auto found = std::ranges::find_if(dictionary, [](const auto& entry) { return entry.first == "beta"; });
-	ASSERT_TRUE("TestSafeVectorAlgorithms", found != dictionary.end());
-	std::ranges::for_each(dictionary, [](auto entry) { entry.second = Safe::String("updated"); });
-	Safe::String mapped;
+	ASSERT_TRUE("TestSafeMapAlgorithms", found != dictionary.end());
+	std::ranges::for_each(dictionary, [](auto& entry) { entry.second = Safe::String("updated"); });
 	ASSERT_TRUE("TestSafeMapAlgorithms", dictionary.at(Safe::String("alpha")) == "updated");
 	auto rangeFirst = dictionary.find(Safe::String("beta"));
 	auto rangeLast = dictionary.find(Safe::String("delta"));
@@ -344,25 +343,18 @@ int TestSafeMapAlgorithms() {
 	other.try_emplace(Safe::String("other"), Safe::String("entry"));
 	dictionary.swap(other);
 	ASSERT_TRUE("TestSafeMapAlgorithms", dictionary.contains(Safe::String("other")) && other.contains(Safe::String("delta")));
-	using DescendingContainer = std::map<Safe::String, Safe::String, std::greater<Safe::String>>;
-	Safe::Iterable<DescendingContainer> descending;
+	Safe::Map<Safe::String, Safe::String, std::greater<Safe::String>> descending;
 	descending.try_emplace(Safe::String("alpha"), Safe::String("first"));
 	descending.try_emplace(Safe::String("beta"), Safe::String("second"));
 	ASSERT_TRUE("TestSafeMapAlgorithms", descending.begin()->first == "beta" &&
 		descending.find(Safe::String("alpha")) != descending.end() &&
 		descending.lower_bound(Safe::String("beta"))->first == "beta");
-	using StatefulContainer = std::map<Safe::String, Safe::String, DirectionalStringCompare>;
-	StatefulContainer statefulSource(DirectionalStringCompare{true});
-	statefulSource.emplace(Safe::String("alpha"), Safe::String("first"));
-	statefulSource.emplace(Safe::String("beta"), Safe::String("second"));
-	Safe::Iterable<StatefulContainer> stateful(statefulSource);
-	const auto exportedStateful = static_cast<StatefulContainer>(stateful);
-	ASSERT_TRUE("TestSafeMapAlgorithms", exportedStateful.key_comp().descending &&
-		exportedStateful.begin()->first == "beta" && stateful.begin()->first == "beta");
-	Safe::Iterable<StatefulContainer> movedStateful(std::move(stateful));
-	ASSERT_THROWS("TestSafeMapAlgorithms", stateful.try_emplace(Safe::String("gamma"), Safe::String("third")), Exception);
-	ASSERT_THROWS("TestSafeMapAlgorithms", static_cast<StatefulContainer>(stateful), Exception);
-	ASSERT_TRUE("TestSafeMapAlgorithms", movedStateful.begin()->first == "beta");
+	Safe::Map<Safe::String, Safe::String, DirectionalStringCompare> stateful(DirectionalStringCompare{true});
+	stateful.try_emplace(Safe::String("alpha"), Safe::String("first"));
+	stateful.try_emplace(Safe::String("beta"), Safe::String("second"));
+	ASSERT_TRUE("TestSafeMapAlgorithms", stateful.key_comp().descending && stateful.begin()->first == "beta");
+	Safe::Map<Safe::String, Safe::String, DirectionalStringCompare> movedStateful(std::move(stateful));
+	ASSERT_TRUE("TestSafeMapAlgorithms", stateful.empty() && movedStateful.begin()->first == "beta");
 	RETURN_TEST("TestSafeMapAlgorithms", 0);
 }
 

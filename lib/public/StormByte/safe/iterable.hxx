@@ -212,6 +212,30 @@ namespace StormByte {
 						template<bool OtherConst>
 						bool operator<(const BasicIterator<OtherConst>& other) const requires random_access;
 
+						/**
+						 * @brief Order two cursors. Random-access components only.
+						 * @param other Cursor to compare.
+						 * @return Whether this cursor follows @p other.
+						 */
+						template<bool OtherConst>
+						bool operator>(const BasicIterator<OtherConst>& other) const requires random_access;
+
+						/**
+						 * @brief Order two cursors. Random-access components only.
+						 * @param other Cursor to compare.
+						 * @return Whether this cursor precedes or equals @p other.
+						 */
+						template<bool OtherConst>
+						bool operator<=(const BasicIterator<OtherConst>& other) const requires random_access;
+
+						/**
+						 * @brief Order two cursors. Random-access components only.
+						 * @param other Cursor to compare.
+						 * @return Whether this cursor follows or equals @p other.
+						 */
+						template<bool OtherConst>
+						bool operator>=(const BasicIterator<OtherConst>& other) const requires random_access;
+
 					private:
 						friend class Iterable;
 						template<bool> friend class BasicIterator;
@@ -333,6 +357,35 @@ namespace StormByte {
 
 				container_type m_container{}; ///< Stored Safe component. This is the only storage.
 		};
+	}
+
+	/**
+	 * @namespace StormByte::Type
+	 * @brief Named concepts and small type utilities used across the suite.
+	 */
+	namespace Type {
+		/**
+		 * @brief Recognizes an iterable facade of an already safe component.
+		 * @tparam Component Safe component.
+		 */
+		template<SafeComponent Component>
+		requires IsSafe<std::remove_const_t<Component>>::value
+		struct IsSafe<Safe::Iterable<Component>>: std::true_type {};
+
+		/**
+		 * @brief Propagates conditional safety from the wrapped component.
+		 * @tparam Component Safe component.
+		 */
+		template<SafeComponent Component>
+		requires MaybeSafe<Component>
+		struct IsMaybeSafe<Safe::Iterable<Component>>: std::true_type {};
+
+		/**
+		 * @brief Admits an iterable facade as a collection value.
+		 * @tparam Component Safe component.
+		 */
+		template<SafeComponent Component>
+		struct IsSafeValue<Safe::Iterable<Component>>: std::true_type {};
 	}
 }
 

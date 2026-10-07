@@ -44,49 +44,162 @@
 namespace StormByte {
 	namespace Safe {
 		template<Type::SafeValue T>
-		STORMBYTE_FORCE_INLINE Queue<T>::Queue():
-			m_values() {}
+		Queue<T>::Queue() noexcept: m_values() {}
 
 		template<Type::SafeValue T>
-		std::deque<T> Queue<T>::Import(const std::queue<T>& values) {
-			std::queue<T> copy(values);
-			std::deque<T> imported;
-			while (!copy.empty()) {
-				imported.push_back(copy.front());
-				copy.pop();
-			}
-			return imported;
+		Queue<T>::Queue(const Queue& other): m_values(other.m_values) {}
+
+		template<Type::SafeValue T>
+		Queue<T>::Queue(Queue&& other) noexcept: m_values(std::move(other.m_values)) {}
+
+		template<Type::SafeValue T>
+		Queue<T>::~Queue() noexcept = default;
+
+		template<Type::SafeValue T>
+		Queue<T>& Queue<T>::operator=(const Queue& other) {
+			if (this == &other)
+				return *this;
+			m_values = other.m_values;
+			return *this;
 		}
 
 		template<Type::SafeValue T>
-		std::deque<T> Queue<T>::Import(std::queue<T>&& values) {
-			std::deque<T> imported;
-			while (!values.empty()) {
-				imported.push_back(std::move(values.front()));
-				values.pop();
-			}
-			return imported;
+		Queue<T>& Queue<T>::operator=(Queue&& other) noexcept {
+			if (this == &other)
+				return *this;
+			m_values = std::move(other.m_values);
+			return *this;
 		}
 
 		template<Type::SafeValue T>
-		Queue<T>::Queue(const std::queue<T>& values):
-			m_values(Import(values)) {}
+		Queue<T>::iterator Queue<T>::begin() noexcept {
+			return m_values.begin();
+		}
 
 		template<Type::SafeValue T>
-		Queue<T>::Queue(std::queue<T>&& values):
-			m_values(Import(std::move(values))) {}
+		Queue<T>::iterator Queue<T>::end() noexcept {
+			return m_values.end();
+		}
 
 		template<Type::SafeValue T>
-		std::size_t Queue<T>::size() const noexcept {
+		Queue<T>::const_iterator Queue<T>::begin() const noexcept {
+			return m_values.begin();
+		}
+
+		template<Type::SafeValue T>
+		Queue<T>::const_iterator Queue<T>::end() const noexcept {
+			return m_values.end();
+		}
+
+		template<Type::SafeValue T>
+		Queue<T>::const_iterator Queue<T>::cbegin() const noexcept {
+			return m_values.cbegin();
+		}
+
+		template<Type::SafeValue T>
+		Queue<T>::const_iterator Queue<T>::cend() const noexcept {
+			return m_values.cend();
+		}
+
+		template<Type::SafeValue T>
+		bool Queue<T>::empty() const noexcept {
+			return m_values.empty();
+		}
+
+		template<Type::SafeValue T>
+		Queue<T>::size_type Queue<T>::size() const noexcept {
 			return m_values.size();
 		}
 
 		template<Type::SafeValue T>
-		STORMBYTE_FORCE_INLINE Queue<T>::operator std::queue<T>() const {
-			std::queue<T> output;
-			for (auto iterator = cbegin(); iterator != cend(); ++iterator)
-				output.push(*iterator);
-			return output;
+		Queue<T>::reference Queue<T>::front() {
+			if (m_values.empty())
+				ThrowQueueOutOfBounds();
+			return m_values.front();
+		}
+
+		template<Type::SafeValue T>
+		Queue<T>::const_reference Queue<T>::front() const {
+			if (m_values.empty())
+				ThrowQueueOutOfBounds();
+			return m_values.front();
+		}
+
+		template<Type::SafeValue T>
+		Queue<T>::reference Queue<T>::back() {
+			if (m_values.empty())
+				ThrowQueueOutOfBounds();
+			return m_values.back();
+		}
+
+		template<Type::SafeValue T>
+		Queue<T>::const_reference Queue<T>::back() const {
+			if (m_values.empty())
+				ThrowQueueOutOfBounds();
+			return m_values.back();
+		}
+
+		template<Type::SafeValue T>
+		void Queue<T>::push(const T& value) {
+			m_values.push_back(value);
+		}
+
+		template<Type::SafeValue T>
+		void Queue<T>::push(T&& value) {
+			m_values.push_back(std::move(value));
+		}
+
+		template<Type::SafeValue T>
+		template<class... Args>
+		Queue<T>::reference Queue<T>::emplace(Args&&... args) {
+			return m_values.emplace_back(std::forward<Args>(args)...);
+		}
+
+		template<Type::SafeValue T>
+		void Queue<T>::pop() {
+			if (m_values.empty())
+				ThrowQueueOutOfBounds();
+			m_values.erase(m_values.begin());
+		}
+
+		template<Type::SafeValue T>
+		Queue<T>::iterator Queue<T>::erase(const_iterator position) {
+			return m_values.erase(position);
+		}
+
+		template<Type::SafeValue T>
+		Queue<T>::iterator Queue<T>::erase(const_iterator first, const_iterator last) {
+			return m_values.erase(first, last);
+		}
+
+		template<Type::SafeValue T>
+		void Queue<T>::swap(Queue& other) noexcept {
+			m_values.swap(other.m_values);
+		}
+
+		template<Type::SafeValue T>
+		bool Queue<T>::operator==(const Queue& other) const requires Type::EqualityComparable<T> {
+			return m_values == other.m_values;
+		}
+
+		template<Type::SafeValue T>
+		bool Queue<T>::operator<(const Queue& other) const requires requires(const T& left, const T& right) { left < right; } {
+			return m_values < other.m_values;
+		}
+
+		template<Type::SafeValue T>
+		bool Queue<T>::operator<=(const Queue& other) const requires requires(const T& left, const T& right) { left < right; } {
+			return m_values <= other.m_values;
+		}
+
+		template<Type::SafeValue T>
+		bool Queue<T>::operator>(const Queue& other) const requires requires(const T& left, const T& right) { left < right; } {
+			return m_values > other.m_values;
+		}
+
+		template<Type::SafeValue T>
+		bool Queue<T>::operator>=(const Queue& other) const requires requires(const T& left, const T& right) { left < right; } {
+			return m_values >= other.m_values;
 		}
 	}
 }
