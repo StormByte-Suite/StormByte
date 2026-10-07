@@ -71,10 +71,6 @@ namespace {
 	WBuf* Long(void* buffer) noexcept {
 		return static_cast<WBuf*>(buffer);
 	}
-
-	const WBuf* Long(const void* buffer) noexcept {
-		return static_cast<const WBuf*>(buffer);
-	}
 }
 
 void WString::SetEmpty() noexcept {
