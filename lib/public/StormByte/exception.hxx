@@ -42,8 +42,9 @@
 #include <StormByte/safe/string.hxx>
 #include <StormByte/visibility.h>
 
+#include <cstddef>
 #include <format>
-#include <string>
+#include <iterator>
 #include <string_view>
 #include <utility>
 
@@ -58,7 +59,7 @@ namespace StormByte {
 	 *
 	 * `what()` is `StormByte: message`, or `StormByte.path: message` when a parent passes the segments under `StormByte` (`Safe`, `Crypto.Crypter`). Segments are joined with a dot. The body is a @ref StormByte::Safe::String and does not repeat the path.
 	 *
-	 * `std::format` runs in the caller's translation unit. The result is copied into the owned string. A parent passes @ref Path, a `std::string_view` that lives for the constructor call and is not stored. A bare string is not a path: that would be ambiguous with the format constructor.
+	 * `std::format_to` runs in the caller's translation unit and appends into the owned string. It does not build a `std::string`. A parent passes @ref Path, a `std::string_view` that lives for the constructor call and is not stored. A bare string is not a path: that would be ambiguous with the format constructor.
 	 *
 	 * A parent prepends its own segment and forwards the format and the arguments. It does not format. A final leaf adds no segment: it inherits the parent constructors. Copy, move and the destructor of each named type are defined in that module's `.cxx`, so the `typeinfo` is unique across a DLL.
 	 *
@@ -79,7 +80,7 @@ namespace StormByte {
 			explicit Exception(const Safe::String& message);
 
 			/**
-			 * @brief Constructs with `std::format`. Text is `StormByte: formatted`.
+			 * @brief Constructs with `std::format_to`. Text is `StormByte: formatted`.
 			 * @tparam Args Format argument types.
 			 * @param fmt Format string.
 			 * @param args Format arguments.
@@ -155,21 +156,41 @@ namespace StormByte {
 			 * @param path Segments under `StormByte`.
 			 * @param fmt Format string. The body only, not the path.
 			 * @param args Format arguments.
-			 * @note With zero arguments the format string is the message as-is.
+			 * @note With zero arguments the format string is the message as-is. The body is appended to @ref m_what. No `std::string` is created.
 			 */
 			template <typename... Args>
 			Exception(Path path, std::format_string<Args...> fmt, Args&&... args) {
-				const std::string body = sizeof...(Args) == 0
-					? std::string(fmt.get())
-					: std::format(fmt, std::forward<Args>(args)...);
 				if (path.text.empty())
-					m_what.append("StormByte");
+					m_what.append("StormByte: ");
 				else {
 					m_what.append("StormByte.");
 					m_what.append(path.text);
+					m_what.append(": ");
 				}
-				m_what.append(": ");
-				m_what.append(body);
+				if constexpr (sizeof...(Args) == 0)
+					m_what.append(fmt.get());
+				else {
+					struct Append {
+						using iterator_concept = std::output_iterator_tag;
+						using iterator_category = std::output_iterator_tag;
+						using difference_type = std::ptrdiff_t;
+						using value_type = void;
+						using pointer = void;
+						using reference = void;
+
+						Safe::String* target;	///< Message receiving each formatted byte.
+
+						Append& operator=(char value) {
+							target->push_back(value);
+							return *this;
+						}
+
+						Append& operator*() { return *this; }
+						Append& operator++() { return *this; }
+						Append operator++(int) { return *this; }
+					};
+					std::format_to(Append{&m_what}, fmt, std::forward<Args>(args)...);
+				}
 			}
 
 		private:
