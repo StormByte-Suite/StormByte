@@ -109,6 +109,15 @@ namespace {
 	Safe::Function<void()> MakeCounter(std::atomic<int>* value, std::atomic<int>* released, Safe::Status status) {
 		return Safe::Function<void()>(new Counter{value, released, status}, InvokeCounter, CloneCounter, ReleaseCounter);
 	}
+
+	void WaitUntil(std::atomic<int>& value, int expected) {
+		const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+		while (value.load() < expected) {
+			if (std::chrono::steady_clock::now() > deadline)
+				break;
+			Safe::this_thread::yield();
+		}
+	}
 }
 
 // -------------------
@@ -131,6 +140,8 @@ int test_detach_drops_joinable() {
 		threw = true;
 	}
 	ASSERT_TRUE(threw);
+	WaitUntil(value, 1);
+	ASSERT_EQUAL(1, value.load());
 	RETURN_TEST(0);
 }
 
