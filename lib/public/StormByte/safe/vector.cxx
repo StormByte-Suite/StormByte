@@ -38,10 +38,29 @@
  */
 
 #include <StormByte/safe/exception.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/safe/vector.hxx>
 
 namespace StormByte {
 	namespace Safe {
+		template class STORMBYTE_INSTANTIATE Vector<bool>;
+		template class STORMBYTE_INSTANTIATE Vector<char>;
+		template class STORMBYTE_INSTANTIATE Vector<signed char>;
+		template class STORMBYTE_INSTANTIATE Vector<unsigned char>;
+		template class STORMBYTE_INSTANTIATE Vector<wchar_t>;
+		template class STORMBYTE_INSTANTIATE Vector<char8_t>;
+		template class STORMBYTE_INSTANTIATE Vector<char16_t>;
+		template class STORMBYTE_INSTANTIATE Vector<char32_t>;
+		template class STORMBYTE_INSTANTIATE Vector<short>;
+		template class STORMBYTE_INSTANTIATE Vector<unsigned short>;
+		template class STORMBYTE_INSTANTIATE Vector<int>;
+		template class STORMBYTE_INSTANTIATE Vector<unsigned int>;
+		template class STORMBYTE_INSTANTIATE Vector<long>;
+		template class STORMBYTE_INSTANTIATE Vector<unsigned long>;
+		template class STORMBYTE_INSTANTIATE Vector<long long>;
+		template class STORMBYTE_INSTANTIATE Vector<unsigned long long>;
+		template class STORMBYTE_INSTANTIATE Vector<String>;
+
 		void ThrowVectorOutOfBounds() {
 			throw OutOfBoundsError("vector index is outside the range");
 		}

@@ -1371,3 +1371,8 @@ struct std::hash<StormByte::Safe::String> {
 		return StormByte::Safe::Hash<StormByte::Safe::String>{}(text);
 	}
 };
+
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<StormByte::Safe::String>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<StormByte::Safe::String>;
+/// @endcond

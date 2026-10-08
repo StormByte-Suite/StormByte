@@ -354,7 +354,17 @@ namespace StormByte {
 
 		template<Type::SafeValue K, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		bool Set<K, Compare>::operator==(const Set& other) const { return m_values == other.m_values; }
+		bool Set<K, Compare>::operator==(const Set& other) const {
+			if (size() != other.size())
+				return false;
+			auto left = begin();
+			auto right = other.begin();
+			for (; left != end(); ++left, ++right) {
+				if (!(*left == *right))
+					return false;
+			}
+			return true;
+		}
 
 		template<Type::SafeValue K, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
@@ -362,7 +372,19 @@ namespace StormByte {
 
 		template<Type::SafeValue K, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		bool Set<K, Compare>::operator<(const Set& other) const { return m_values < other.m_values; }
+		bool Set<K, Compare>::operator<(const Set& other) const {
+			auto left = begin();
+			auto right = other.begin();
+			while (left != end() && right != other.end()) {
+				if (*left < *right)
+					return true;
+				if (*right < *left)
+					return false;
+				++left;
+				++right;
+			}
+			return left == end() && right != other.end();
+		}
 
 		template<Type::SafeValue K, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>

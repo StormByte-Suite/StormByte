@@ -141,8 +141,13 @@ namespace StormByte {
 				 */
 				STORMBYTE_FORCE_INLINE explicit Vector(std::vector<T>&& values): Vector() {
 					reserve(values.size());
-					for (T& value : values)
-						push_back(std::move(value));
+					if constexpr (Type::SameAs<T, bool>) {
+						for (bool value : values)
+							push_back(value);
+					} else {
+						for (T& value : values)
+							push_back(std::move(value));
+					}
 					values.clear();
 				}
 
@@ -717,5 +722,24 @@ namespace StormByte {
 		struct IsSafeValue<Safe::Vector<T>>: std::true_type {};
 	}
 }
+
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<bool>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<signed char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<unsigned char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<wchar_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<char8_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<char16_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<char32_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<unsigned short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<unsigned int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<unsigned long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<long long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Vector<unsigned long long>;
+/// @endcond
 
 #include <StormByte/safe/vector.txx>

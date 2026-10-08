@@ -1171,4 +1171,15 @@ namespace StormByte {
 	}
 }
 
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Map<int, int>;
+/// @endcond
+
 #include <StormByte/safe/map.txx>
+#include <StormByte/safe/string.hxx>
+
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Map<StormByte::Safe::String, StormByte::Safe::String>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Map<StormByte::Safe::String, int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Map<int, StormByte::Safe::String>;
+/// @endcond

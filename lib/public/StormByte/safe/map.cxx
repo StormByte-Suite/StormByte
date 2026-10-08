@@ -37,32 +37,14 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/safe/deque.hxx>
-#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/map.hxx>
 
 namespace StormByte {
 	namespace Safe {
-		template class STORMBYTE_INSTANTIATE Deque<bool>;
-		template class STORMBYTE_INSTANTIATE Deque<char>;
-		template class STORMBYTE_INSTANTIATE Deque<signed char>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned char>;
-		template class STORMBYTE_INSTANTIATE Deque<wchar_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char8_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char16_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char32_t>;
-		template class STORMBYTE_INSTANTIATE Deque<short>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned short>;
-		template class STORMBYTE_INSTANTIATE Deque<int>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned int>;
-		template class STORMBYTE_INSTANTIATE Deque<long>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned long>;
-		template class STORMBYTE_INSTANTIATE Deque<long long>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned long long>;
-		template class STORMBYTE_INSTANTIATE Deque<String>;
-
-		void ThrowDequeOutOfBounds() {
-			throw OutOfBoundsError("deque index is outside the range");
-		}
+		template class STORMBYTE_INSTANTIATE Map<String, String>;
+		template class STORMBYTE_INSTANTIATE Map<String, int>;
+		template class STORMBYTE_INSTANTIATE Map<int, String>;
+		template class STORMBYTE_INSTANTIATE Map<int, int>;
 	}
 }

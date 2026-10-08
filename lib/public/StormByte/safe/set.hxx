@@ -806,4 +806,28 @@ namespace StormByte {
 	}
 }
 
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<bool>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<signed char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<unsigned char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<wchar_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<char8_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<char16_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<char32_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<unsigned short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<unsigned int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<unsigned long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<long long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<unsigned long long>;
+/// @endcond
+
 #include <StormByte/safe/set.txx>
+#include <StormByte/safe/string.hxx>
+
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Set<StormByte::Safe::String>;
+/// @endcond

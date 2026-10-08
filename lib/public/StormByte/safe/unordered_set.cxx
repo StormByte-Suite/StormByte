@@ -37,32 +37,27 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/safe/deque.hxx>
-#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/unordered_set.hxx>
 
 namespace StormByte {
 	namespace Safe {
-		template class STORMBYTE_INSTANTIATE Deque<bool>;
-		template class STORMBYTE_INSTANTIATE Deque<char>;
-		template class STORMBYTE_INSTANTIATE Deque<signed char>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned char>;
-		template class STORMBYTE_INSTANTIATE Deque<wchar_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char8_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char16_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char32_t>;
-		template class STORMBYTE_INSTANTIATE Deque<short>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned short>;
-		template class STORMBYTE_INSTANTIATE Deque<int>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned int>;
-		template class STORMBYTE_INSTANTIATE Deque<long>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned long>;
-		template class STORMBYTE_INSTANTIATE Deque<long long>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned long long>;
-		template class STORMBYTE_INSTANTIATE Deque<String>;
-
-		void ThrowDequeOutOfBounds() {
-			throw OutOfBoundsError("deque index is outside the range");
-		}
+		template class STORMBYTE_INSTANTIATE UnorderedSet<bool>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<char>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<signed char>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<unsigned char>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<wchar_t>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<char8_t>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<char16_t>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<char32_t>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<short>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<unsigned short>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<int>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<unsigned int>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<long>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<unsigned long>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<long long>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<unsigned long long>;
+		template class STORMBYTE_INSTANTIATE UnorderedSet<String>;
 	}
 }

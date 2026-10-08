@@ -39,9 +39,28 @@
 
 #include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/queue.hxx>
+#include <StormByte/safe/string.hxx>
 
 namespace StormByte {
 	namespace Safe {
+		template class STORMBYTE_INSTANTIATE Queue<bool>;
+		template class STORMBYTE_INSTANTIATE Queue<char>;
+		template class STORMBYTE_INSTANTIATE Queue<signed char>;
+		template class STORMBYTE_INSTANTIATE Queue<unsigned char>;
+		template class STORMBYTE_INSTANTIATE Queue<wchar_t>;
+		template class STORMBYTE_INSTANTIATE Queue<char8_t>;
+		template class STORMBYTE_INSTANTIATE Queue<char16_t>;
+		template class STORMBYTE_INSTANTIATE Queue<char32_t>;
+		template class STORMBYTE_INSTANTIATE Queue<short>;
+		template class STORMBYTE_INSTANTIATE Queue<unsigned short>;
+		template class STORMBYTE_INSTANTIATE Queue<int>;
+		template class STORMBYTE_INSTANTIATE Queue<unsigned int>;
+		template class STORMBYTE_INSTANTIATE Queue<long>;
+		template class STORMBYTE_INSTANTIATE Queue<unsigned long>;
+		template class STORMBYTE_INSTANTIATE Queue<long long>;
+		template class STORMBYTE_INSTANTIATE Queue<unsigned long long>;
+		template class STORMBYTE_INSTANTIATE Queue<String>;
+
 		void ThrowQueueOutOfBounds() {
 			throw OutOfBoundsError("queue is empty");
 		}

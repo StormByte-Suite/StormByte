@@ -826,4 +826,15 @@ namespace StormByte {
 	}
 }
 
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedMap<int, int>;
+/// @endcond
+
 #include <StormByte/safe/unordered_map.txx>
+#include <StormByte/safe/string.hxx>
+
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedMap<StormByte::Safe::String, StormByte::Safe::String>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedMap<StormByte::Safe::String, int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedMap<int, StormByte::Safe::String>;
+/// @endcond

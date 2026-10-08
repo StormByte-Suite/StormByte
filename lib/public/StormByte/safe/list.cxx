@@ -37,32 +37,27 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/safe/deque.hxx>
-#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/list.hxx>
 
 namespace StormByte {
 	namespace Safe {
-		template class STORMBYTE_INSTANTIATE Deque<bool>;
-		template class STORMBYTE_INSTANTIATE Deque<char>;
-		template class STORMBYTE_INSTANTIATE Deque<signed char>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned char>;
-		template class STORMBYTE_INSTANTIATE Deque<wchar_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char8_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char16_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char32_t>;
-		template class STORMBYTE_INSTANTIATE Deque<short>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned short>;
-		template class STORMBYTE_INSTANTIATE Deque<int>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned int>;
-		template class STORMBYTE_INSTANTIATE Deque<long>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned long>;
-		template class STORMBYTE_INSTANTIATE Deque<long long>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned long long>;
-		template class STORMBYTE_INSTANTIATE Deque<String>;
-
-		void ThrowDequeOutOfBounds() {
-			throw OutOfBoundsError("deque index is outside the range");
-		}
+		template class STORMBYTE_INSTANTIATE List<bool>;
+		template class STORMBYTE_INSTANTIATE List<char>;
+		template class STORMBYTE_INSTANTIATE List<signed char>;
+		template class STORMBYTE_INSTANTIATE List<unsigned char>;
+		template class STORMBYTE_INSTANTIATE List<wchar_t>;
+		template class STORMBYTE_INSTANTIATE List<char8_t>;
+		template class STORMBYTE_INSTANTIATE List<char16_t>;
+		template class STORMBYTE_INSTANTIATE List<char32_t>;
+		template class STORMBYTE_INSTANTIATE List<short>;
+		template class STORMBYTE_INSTANTIATE List<unsigned short>;
+		template class STORMBYTE_INSTANTIATE List<int>;
+		template class STORMBYTE_INSTANTIATE List<unsigned int>;
+		template class STORMBYTE_INSTANTIATE List<long>;
+		template class STORMBYTE_INSTANTIATE List<unsigned long>;
+		template class STORMBYTE_INSTANTIATE List<long long>;
+		template class STORMBYTE_INSTANTIATE List<unsigned long long>;
+		template class STORMBYTE_INSTANTIATE List<String>;
 	}
 }

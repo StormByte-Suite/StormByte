@@ -397,8 +397,8 @@ namespace StormByte {
 				 * @throws AllocationError A node could not be allocated.
 				 */
 				STORMBYTE_FORCE_INLINE explicit UnorderedSet(std::unordered_set<K>&& other): UnorderedSet(other.bucket_count()) {
-					for (K& value : other)
-						insert(std::move(value));
+					for (const K& value : other)
+						insert(value);
 					other.clear();
 				}
 
@@ -772,4 +772,28 @@ namespace StormByte {
 	}
 }
 
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<bool>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<signed char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<unsigned char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<wchar_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<char8_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<char16_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<char32_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<unsigned short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<unsigned int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<unsigned long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<long long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<unsigned long long>;
+/// @endcond
+
 #include <StormByte/safe/unordered_set.txx>
+#include <StormByte/safe/string.hxx>
+
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::UnorderedSet<StormByte::Safe::String>;
+/// @endcond

@@ -442,4 +442,23 @@ namespace StormByte {
 	}
 }
 
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<bool>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<signed char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<unsigned char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<wchar_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<char8_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<char16_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<char32_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<unsigned short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<unsigned int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<unsigned long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<long long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Queue<unsigned long long>;
+/// @endcond
+
 #include <StormByte/safe/queue.txx>

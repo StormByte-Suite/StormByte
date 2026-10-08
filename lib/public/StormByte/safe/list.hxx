@@ -923,4 +923,24 @@ namespace StormByte {
 	}
 }
 
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<bool>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<signed char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<unsigned char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<wchar_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<char8_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<char16_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<char32_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<unsigned short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<unsigned int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<unsigned long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<long long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<unsigned long long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::List<StormByte::Safe::String>;
+/// @endcond
+
 #include <StormByte/safe/list.txx>

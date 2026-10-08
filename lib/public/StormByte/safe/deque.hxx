@@ -671,4 +671,24 @@ namespace StormByte {
 	}
 }
 
+/// @cond
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<bool>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<signed char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<unsigned char>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<wchar_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<char8_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<char16_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<char32_t>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<unsigned short>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<unsigned int>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<unsigned long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<long long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<unsigned long long>;
+extern template class STORMBYTE_PUBLIC StormByte::Safe::Deque<StormByte::Safe::String>;
+/// @endcond
+
 #include <StormByte/safe/deque.txx>

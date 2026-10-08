@@ -37,32 +37,27 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
-#include <StormByte/safe/deque.hxx>
-#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/string.hxx>
+#include <StormByte/safe/set.hxx>
 
 namespace StormByte {
 	namespace Safe {
-		template class STORMBYTE_INSTANTIATE Deque<bool>;
-		template class STORMBYTE_INSTANTIATE Deque<char>;
-		template class STORMBYTE_INSTANTIATE Deque<signed char>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned char>;
-		template class STORMBYTE_INSTANTIATE Deque<wchar_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char8_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char16_t>;
-		template class STORMBYTE_INSTANTIATE Deque<char32_t>;
-		template class STORMBYTE_INSTANTIATE Deque<short>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned short>;
-		template class STORMBYTE_INSTANTIATE Deque<int>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned int>;
-		template class STORMBYTE_INSTANTIATE Deque<long>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned long>;
-		template class STORMBYTE_INSTANTIATE Deque<long long>;
-		template class STORMBYTE_INSTANTIATE Deque<unsigned long long>;
-		template class STORMBYTE_INSTANTIATE Deque<String>;
-
-		void ThrowDequeOutOfBounds() {
-			throw OutOfBoundsError("deque index is outside the range");
-		}
+		template class STORMBYTE_INSTANTIATE Set<bool>;
+		template class STORMBYTE_INSTANTIATE Set<char>;
+		template class STORMBYTE_INSTANTIATE Set<signed char>;
+		template class STORMBYTE_INSTANTIATE Set<unsigned char>;
+		template class STORMBYTE_INSTANTIATE Set<wchar_t>;
+		template class STORMBYTE_INSTANTIATE Set<char8_t>;
+		template class STORMBYTE_INSTANTIATE Set<char16_t>;
+		template class STORMBYTE_INSTANTIATE Set<char32_t>;
+		template class STORMBYTE_INSTANTIATE Set<short>;
+		template class STORMBYTE_INSTANTIATE Set<unsigned short>;
+		template class STORMBYTE_INSTANTIATE Set<int>;
+		template class STORMBYTE_INSTANTIATE Set<unsigned int>;
+		template class STORMBYTE_INSTANTIATE Set<long>;
+		template class STORMBYTE_INSTANTIATE Set<unsigned long>;
+		template class STORMBYTE_INSTANTIATE Set<long long>;
+		template class STORMBYTE_INSTANTIATE Set<unsigned long long>;
+		template class STORMBYTE_INSTANTIATE Set<String>;
 	}
 }
