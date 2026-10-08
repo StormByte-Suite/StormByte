@@ -148,6 +148,24 @@ int test_int64_fetch_and_operators() {
 	RETURN_TEST(0);
 }
 
+int test_int64_fetch_max_keeps_signed_order() {
+	Safe::Atomic<std::int64_t> value(std::int64_t{-2});
+	ASSERT_EQUAL(std::int64_t{-2}, value.fetch_max(std::int64_t{-8}));
+	ASSERT_EQUAL(std::int64_t{-2}, value.load());
+	ASSERT_EQUAL(std::int64_t{-2}, value.fetch_max(std::int64_t{4}, Safe::MemoryOrder::Release));
+	ASSERT_EQUAL(std::int64_t{4}, value.load(Safe::MemoryOrder::Acquire));
+	RETURN_TEST(0);
+}
+
+int test_int64_fetch_min_keeps_signed_order() {
+	Safe::Atomic<std::int64_t> value(std::int64_t{-2});
+	ASSERT_EQUAL(std::int64_t{-2}, value.fetch_min(std::int64_t{4}));
+	ASSERT_EQUAL(std::int64_t{-2}, value.load());
+	ASSERT_EQUAL(std::int64_t{-2}, value.fetch_min(std::int64_t{-8}, Safe::MemoryOrder::AcqRel));
+	ASSERT_EQUAL(std::int64_t{-8}, value.load());
+	RETURN_TEST(0);
+}
+
 int test_size_fetch_bitwise() {
 	Safe::Atomic<std::size_t> value(std::size_t{0x0f});
 	ASSERT_EQUAL(std::size_t{0x0f}, value.fetch_or(std::size_t{0xf0}));
@@ -160,6 +178,19 @@ int test_size_fetch_bitwise() {
 	value &= std::size_t{0x0f};
 	value ^= std::size_t{0x06};
 	ASSERT_EQUAL(std::size_t{0x09}, value.load());
+	RETURN_TEST(0);
+}
+
+int test_size_fetch_max_and_min() {
+	Safe::Atomic<std::size_t> value(std::size_t{8});
+	ASSERT_EQUAL(std::size_t{8}, value.fetch_max(std::size_t{3}));
+	ASSERT_EQUAL(std::size_t{8}, value.load());
+	ASSERT_EQUAL(std::size_t{8}, value.fetch_max(std::size_t{12}));
+	ASSERT_EQUAL(std::size_t{12}, value.load());
+	ASSERT_EQUAL(std::size_t{12}, value.fetch_min(std::size_t{20}));
+	ASSERT_EQUAL(std::size_t{12}, value.load());
+	ASSERT_EQUAL(std::size_t{12}, value.fetch_min(std::size_t{1}));
+	ASSERT_EQUAL(std::size_t{1}, value.load());
 	RETURN_TEST(0);
 }
 
@@ -182,6 +213,20 @@ int test_pointer_fetch_advances_by_elements() {
 	ASSERT_TRUE(cursor.load() == cells + 2);
 	ASSERT_TRUE(cursor.fetch_sub(1) == cells + 2);
 	ASSERT_TRUE(cursor.load() == cells + 1);
+	RETURN_TEST(0);
+}
+
+int test_pointer_fetch_max_and_min() {
+	int cells[4] = {1, 2, 3, 4};
+	Safe::Atomic<int*> cursor(cells + 1);
+	ASSERT_TRUE(cursor.fetch_max(cells) == cells + 1);
+	ASSERT_TRUE(cursor.load() == cells + 1);
+	ASSERT_TRUE(cursor.fetch_max(cells + 3) == cells + 1);
+	ASSERT_TRUE(cursor.load() == cells + 3);
+	ASSERT_TRUE(cursor.fetch_min(cells + 3) == cells + 3);
+	ASSERT_TRUE(cursor.load() == cells + 3);
+	ASSERT_TRUE(cursor.fetch_min(cells) == cells + 3);
+	ASSERT_TRUE(cursor.load() == cells);
 	RETURN_TEST(0);
 }
 
@@ -276,13 +321,17 @@ int main() {
 	// Integer
 	// -------------------
 	result += test_int64_fetch_and_operators();
+	result += test_int64_fetch_max_keeps_signed_order();
+	result += test_int64_fetch_min_keeps_signed_order();
 	result += test_size_fetch_bitwise();
+	result += test_size_fetch_max_and_min();
 	result += test_size_wraps_on_its_width();
 
 	// -------------------
 	// Pointer
 	// -------------------
 	result += test_pointer_fetch_advances_by_elements();
+	result += test_pointer_fetch_max_and_min();
 
 	// -------------------
 	// Special

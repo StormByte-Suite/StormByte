@@ -323,22 +323,34 @@ namespace StormByte {
 
 				/**
 				 * @brief Add and return the previous value.
+				 * @tparam Delta `T` for an integer. An integer convertible to `std::ptrdiff_t` for an object pointer, counted in elements.
 				 * @param delta Addend.
 				 * @param order Order.
 				 * @return Previous value.
+				 *
+				 * A member template so an explicit class instantiation does not emit it. On Windows `ptrdiff_t` is `long long`, and MSVC does not mangle a requires clause. An integer literal is `int`, not `ptrdiff_t`, so the pointer path accepts the conversion.
 				 */
-				T fetch_add(T delta, MemoryOrder order = MemoryOrder::SeqCst) noexcept requires Type::Integral<T> {
-					return Fetch(static_cast<std::int64_t>(delta), order, 0);
+				template <class Delta>
+				T fetch_add(Delta delta, MemoryOrder order = MemoryOrder::SeqCst) noexcept requires ((Type::Integral<T> && std::is_same_v<Delta, T>) || (Type::Pointer<T> && sizeof(std::remove_pointer_t<T>) > 0 && std::is_integral_v<Delta> && std::is_convertible_v<Delta, std::ptrdiff_t>)) {
+					if constexpr (Type::Pointer<T>)
+						return Fetch(static_cast<std::int64_t>(static_cast<std::ptrdiff_t>(delta)) * static_cast<std::int64_t>(sizeof(std::remove_pointer_t<T>)), order, 0);
+					else
+						return Fetch(static_cast<std::int64_t>(delta), order, 0);
 				}
 
 				/**
 				 * @brief Subtract and return the previous value.
+				 * @tparam Delta `T` for an integer. An integer convertible to `std::ptrdiff_t` for an object pointer, counted in elements.
 				 * @param delta Subtrahend.
 				 * @param order Order.
 				 * @return Previous value.
 				 */
-				T fetch_sub(T delta, MemoryOrder order = MemoryOrder::SeqCst) noexcept requires Type::Integral<T> {
-					return Fetch(static_cast<std::int64_t>(delta), order, 1);
+				template <class Delta>
+				T fetch_sub(Delta delta, MemoryOrder order = MemoryOrder::SeqCst) noexcept requires ((Type::Integral<T> && std::is_same_v<Delta, T>) || (Type::Pointer<T> && sizeof(std::remove_pointer_t<T>) > 0 && std::is_integral_v<Delta> && std::is_convertible_v<Delta, std::ptrdiff_t>)) {
+					if constexpr (Type::Pointer<T>)
+						return Fetch(static_cast<std::int64_t>(static_cast<std::ptrdiff_t>(delta)) * static_cast<std::int64_t>(sizeof(std::remove_pointer_t<T>)), order, 1);
+					else
+						return Fetch(static_cast<std::int64_t>(delta), order, 1);
 				}
 
 				/**
@@ -372,23 +384,25 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Advance a pointer by @p delta elements.
-				 * @param delta Element count.
+				 * @brief Replace the value with the greater of it and @p value.
+				 * @param value Candidate.
 				 * @param order Order.
-				 * @return Previous pointer.
+				 * @return Previous value.
+				 *
+				 * One function for an integer and an object pointer. MSVC does not mangle a requires clause, so a second overload with the same signature is a redefinition.
 				 */
-				T fetch_add(std::ptrdiff_t delta, MemoryOrder order = MemoryOrder::SeqCst) noexcept requires (Type::Pointer<T> && sizeof(std::remove_pointer_t<T>) > 0) {
-					return Fetch(static_cast<std::int64_t>(delta) * static_cast<std::int64_t>(sizeof(std::remove_pointer_t<T>)), order, 0);
+				T fetch_max(T value, MemoryOrder order = MemoryOrder::SeqCst) noexcept requires (Type::Integral<T> || (Type::Pointer<T> && sizeof(std::remove_pointer_t<T>) > 0)) {
+					return Extremum(value, order);
 				}
 
 				/**
-				 * @brief Retreat a pointer by @p delta elements.
-				 * @param delta Element count.
+				 * @brief Replace the value with the lesser of it and @p value.
+				 * @param value Candidate.
 				 * @param order Order.
-				 * @return Previous pointer.
+				 * @return Previous value.
 				 */
-				T fetch_sub(std::ptrdiff_t delta, MemoryOrder order = MemoryOrder::SeqCst) noexcept requires (Type::Pointer<T> && sizeof(std::remove_pointer_t<T>) > 0) {
-					return Fetch(static_cast<std::int64_t>(delta) * static_cast<std::int64_t>(sizeof(std::remove_pointer_t<T>)), order, 1);
+				T fetch_min(T value, MemoryOrder order = MemoryOrder::SeqCst) noexcept requires (Type::Integral<T> || (Type::Pointer<T> && sizeof(std::remove_pointer_t<T>) > 0)) {
+					return Extremum(value, order, false);
 				}
 
 				/**
@@ -503,7 +517,44 @@ namespace StormByte {
 					return previous;
 				}
 
-				void* m_word;	///< Base-owned word. Never null while *this is alive.
+				/**
+				 * @brief Store the extreme of the current value and @p value.
+				 * @param value Candidate.
+				 * @param order Order of the successful exchange.
+				 * @param maximum Whether the greater value wins. False keeps the lesser.
+				 * @return Previous value.
+				 */
+				T Extremum(T value, MemoryOrder order, bool maximum = true) noexcept {
+					T current = load(MemoryOrder::Relaxed);
+					for (;;) {
+						const bool replace = maximum ? (current < value) : (value < current);
+						if (!replace)
+							return current;
+						if (compare_exchange_weak(current, value, order))
+							return current;
+					}
+				}
+
+				void* m_word;	///< Base-owned word. Not a `std::atomic` in the caller.
 		};
+
+		/// @cond
+		extern template class STORMBYTE_PUBLIC Atomic<bool>;
+		extern template class STORMBYTE_PUBLIC Atomic<char>;
+		extern template class STORMBYTE_PUBLIC Atomic<signed char>;
+		extern template class STORMBYTE_PUBLIC Atomic<unsigned char>;
+		extern template class STORMBYTE_PUBLIC Atomic<char8_t>;
+		extern template class STORMBYTE_PUBLIC Atomic<wchar_t>;
+		extern template class STORMBYTE_PUBLIC Atomic<char16_t>;
+		extern template class STORMBYTE_PUBLIC Atomic<char32_t>;
+		extern template class STORMBYTE_PUBLIC Atomic<short>;
+		extern template class STORMBYTE_PUBLIC Atomic<unsigned short>;
+		extern template class STORMBYTE_PUBLIC Atomic<int>;
+		extern template class STORMBYTE_PUBLIC Atomic<unsigned int>;
+		extern template class STORMBYTE_PUBLIC Atomic<long>;
+		extern template class STORMBYTE_PUBLIC Atomic<unsigned long>;
+		extern template class STORMBYTE_PUBLIC Atomic<long long>;
+		extern template class STORMBYTE_PUBLIC Atomic<unsigned long long>;
+		/// @endcond
 	}
 }

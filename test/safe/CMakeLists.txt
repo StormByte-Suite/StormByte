@@ -22,6 +22,14 @@ add_executable(ConditionVariableTests condition_variable_test.cxx)
 target_link_libraries(ConditionVariableTests StormByte)
 add_test(NAME ConditionVariableTests COMMAND ConditionVariableTests)
 
+add_executable(DequeTests deque_test.cxx)
+target_link_libraries(DequeTests StormByte)
+add_test(NAME DequeTests COMMAND DequeTests)
+
+add_executable(ExclusiveLockTests exclusive_lock_test.cxx)
+target_link_libraries(ExclusiveLockTests StormByte)
+add_test(NAME ExclusiveLockTests COMMAND ExclusiveLockTests)
+
 add_executable(SafeExceptionTests exception_test.cxx)
 target_link_libraries(SafeExceptionTests StormByte)
 add_test(NAME SafeExceptionTests COMMAND SafeExceptionTests)
