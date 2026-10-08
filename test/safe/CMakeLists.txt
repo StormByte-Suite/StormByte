@@ -102,6 +102,10 @@ add_executable(ThreadTests thread_test.cxx)
 target_link_libraries(ThreadTests StormByte)
 add_test(NAME ThreadTests COMMAND ThreadTests)
 
+add_executable(ThreadLifetimeTests thread_lifetime_test.cxx)
+target_link_libraries(ThreadLifetimeTests StormByte)
+add_test(NAME ThreadLifetimeTests COMMAND ThreadLifetimeTests)
+
 add_executable(UniqueLockTests unique_lock_test.cxx)
 target_link_libraries(UniqueLockTests StormByte)
 add_test(NAME UniqueLockTests COMMAND UniqueLockTests)

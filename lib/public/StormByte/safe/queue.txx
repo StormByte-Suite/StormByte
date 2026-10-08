@@ -149,17 +149,32 @@ namespace StormByte {
 
 		template<Type::SafeValue T>
 		void Queue<T>::push(const T& value) {
-			m_values.push_back(value);
+			if (m_values.size() == m_values.capacity()) {
+				T stable(value);
+				m_values.push_back(std::move(stable));
+			} else {
+				m_values.push_back(value);
+			}
 		}
 
 		template<Type::SafeValue T>
 		void Queue<T>::push(T&& value) {
-			m_values.push_back(std::move(value));
+			if (m_values.size() == m_values.capacity()) {
+				T stable(std::move(value));
+				m_values.push_back(std::move(stable));
+			} else {
+				m_values.push_back(std::move(value));
+			}
 		}
 
 		template<Type::SafeValue T>
 		template<class... Args>
 		Queue<T>::reference Queue<T>::emplace(Args&&... args) {
+			if (m_values.size() == m_values.capacity()) {
+				T stable(std::forward<Args>(args)...);
+				m_values.push_back(std::move(stable));
+				return m_values.back();
+			}
 			return m_values.emplace_back(std::forward<Args>(args)...);
 		}
 

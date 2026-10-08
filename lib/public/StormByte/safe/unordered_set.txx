@@ -70,7 +70,9 @@ namespace StormByte {
 
 		template<Type::SafeValue K, class Hash, class KeyEqual>
 		UnorderedSet<K, Hash, KeyEqual>& UnorderedSet<K, Hash, KeyEqual>::operator=(std::initializer_list<K> values) {
-			UnorderedSet replacement(values, bucket_count(), hash_function(), key_eq());
+			UnorderedSet replacement(bucket_count(), hash_function(), key_eq());
+			replacement.max_load_factor(max_load_factor());
+			replacement.insert(values);
 			swap(replacement);
 			return *this;
 		}
@@ -185,7 +187,10 @@ namespace StormByte {
 
 		template<Type::SafeValue K, class Hash, class KeyEqual>
 		typename UnorderedSet<K, Hash, KeyEqual>::iterator UnorderedSet<K, Hash, KeyEqual>::insert(const_iterator, node_type&& handle) {
-			return insert(std::move(handle)).position;
+			auto result = insert(std::move(handle));
+			if (!result.inserted)
+				handle = std::move(result.node);
+			return result.position;
 		}
 
 		template<Type::SafeValue K, class Hash, class KeyEqual>

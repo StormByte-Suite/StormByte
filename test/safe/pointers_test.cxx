@@ -56,10 +56,12 @@ namespace {
 	struct Item {
 		int value;
 		static int live;
+		static int destroyed;
 		explicit Item(int n): value(n) { ++live; }
-		~Item() { --live; }
+		~Item() { --live; ++destroyed; }
 	};
 	int Item::live = 0;
+	int Item::destroyed = 0;
 
 	struct BaseItem {
 		int value;
@@ -170,6 +172,38 @@ int test_shared_lifetime_copy_and_weak() {
 	ASSERT_TRUE(weak.expired());
 	ASSERT_NULL(weak.lock().get());
 	ASSERT_THROWS(Safe::Shared<Item>(weak), Safe::ExpiredWeakPointerError);
+	ASSERT_EQUAL(0, Item::live);
+	RETURN_TEST(0);
+}
+
+int test_shared_self_move_replacement_and_null() {
+	const int destroyed = Item::destroyed;
+	ASSERT_EQUAL(0, Item::live);
+	auto owned = Safe::MakeShared<Item>(11);
+	Item* pointer = owned.get();
+	Safe::Weak<Item> old_owner(owned);
+	owned = std::move(owned);
+	ASSERT_EQUAL(pointer, owned.get());
+	ASSERT_EQUAL(1L, owned.use_count());
+	ASSERT_EQUAL(destroyed, Item::destroyed);
+	auto replacement = Safe::MakeShared<Item>(12);
+	Item* replacement_pointer = replacement.get();
+	owned = std::move(replacement);
+	ASSERT_TRUE(old_owner.expired());
+	ASSERT_EQUAL(destroyed + 1, Item::destroyed);
+	ASSERT_EQUAL(1, Item::live);
+	ASSERT_EQUAL(replacement_pointer, owned.get());
+	ASSERT_NULL(replacement.get());
+	ASSERT_EQUAL(0L, replacement.use_count());
+	replacement = owned;
+	ASSERT_EQUAL(2L, owned.use_count());
+	owned = Safe::Shared<Item>(nullptr);
+	ASSERT_NULL(owned.get());
+	ASSERT_EQUAL(0L, owned.use_count());
+	ASSERT_EQUAL(destroyed + 1, Item::destroyed);
+	replacement.reset();
+	replacement.reset();
+	ASSERT_EQUAL(destroyed + 2, Item::destroyed);
 	ASSERT_EQUAL(0, Item::live);
 	RETURN_TEST(0);
 }
@@ -303,6 +337,36 @@ int test_unique_move_only_and_export() {
 	RETURN_TEST(0);
 }
 
+int test_unique_self_move_replacement_and_null() {
+	const int destroyed = Item::destroyed;
+	ASSERT_EQUAL(0, Item::live);
+	auto owned = Safe::MakeUnique<Item>(13);
+	Item* pointer = owned.get();
+	owned = std::move(owned);
+	ASSERT_EQUAL(pointer, owned.get());
+	ASSERT_EQUAL(destroyed, Item::destroyed);
+	auto replacement = Safe::MakeUnique<Item>(14);
+	Item* replacement_pointer = replacement.get();
+	owned = std::move(replacement);
+	ASSERT_NULL(replacement.get());
+	ASSERT_FALSE(static_cast<bool>(replacement));
+	ASSERT_EQUAL(replacement_pointer, owned.get());
+	ASSERT_EQUAL(destroyed + 1, Item::destroyed);
+	ASSERT_EQUAL(1, Item::live);
+	replacement = std::move(owned);
+	ASSERT_NULL(owned.get());
+	ASSERT_EQUAL(replacement_pointer, replacement.get());
+	ASSERT_EQUAL(destroyed + 1, Item::destroyed);
+	replacement = Safe::Unique<Item>(nullptr);
+	ASSERT_NULL(replacement.get());
+	ASSERT_EQUAL(destroyed + 2, Item::destroyed);
+	owned.reset();
+	replacement.reset();
+	ASSERT_EQUAL(destroyed + 2, Item::destroyed);
+	ASSERT_EQUAL(0, Item::live);
+	RETURN_TEST(0);
+}
+
 int test_unique_order_null_and_heterogeneous() {
 	Safe::Unique<Item> empty;
 	Safe::Unique<Item> also_empty(nullptr);
@@ -385,6 +449,40 @@ int test_weak_copy_move_reset_and_hash() {
 	RETURN_TEST(0);
 }
 
+int test_weak_self_move_replacement_and_null() {
+	const int destroyed = Item::destroyed;
+	ASSERT_EQUAL(0, Item::live);
+	auto first = Safe::MakeShared<Item>(15);
+	auto second = Safe::MakeShared<Item>(16);
+	Safe::Weak<Item> weak(first);
+	weak = std::move(weak);
+	ASSERT_EQUAL(first.get(), weak.lock().get());
+	ASSERT_EQUAL(1L, first.use_count());
+	Safe::Weak<Item> replacement(second);
+	weak = std::move(replacement);
+	ASSERT_TRUE(replacement.expired());
+	ASSERT_EQUAL(0L, replacement.use_count());
+	ASSERT_NULL(replacement.lock().get());
+	ASSERT_EQUAL(second.get(), weak.lock().get());
+	ASSERT_EQUAL(destroyed, Item::destroyed);
+	first.reset();
+	ASSERT_EQUAL(destroyed + 1, Item::destroyed);
+	ASSERT_FALSE(weak.expired());
+	replacement = std::move(weak);
+	ASSERT_TRUE(weak.expired());
+	ASSERT_EQUAL(second.get(), replacement.lock().get());
+	replacement = Safe::Weak<Item>(nullptr);
+	ASSERT_TRUE(replacement.expired());
+	ASSERT_EQUAL(1L, second.use_count());
+	ASSERT_EQUAL(destroyed + 1, Item::destroyed);
+	second.reset();
+	weak.reset();
+	replacement.reset();
+	ASSERT_EQUAL(destroyed + 2, Item::destroyed);
+	ASSERT_EQUAL(0, Item::live);
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -402,6 +500,7 @@ int main() {
 	// Shared
 	// -------------------
 	result += test_shared_lifetime_copy_and_weak();
+	result += test_shared_self_move_replacement_and_null();
 	result += test_shared_swap_export_and_from_this();
 	result += test_shared_algorithm_sort_by_value();
 	result += test_shared_order_null_and_heterogeneous();
@@ -410,12 +509,14 @@ int main() {
 	// Unique
 	// -------------------
 	result += test_unique_move_only_and_export();
+	result += test_unique_self_move_replacement_and_null();
 	result += test_unique_order_null_and_heterogeneous();
 
 	// -------------------
 	// Weak
 	// -------------------
 	result += test_weak_copy_move_reset_and_hash();
+	result += test_weak_self_move_replacement_and_null();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

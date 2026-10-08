@@ -602,7 +602,7 @@ namespace StormByte {
 				 * @throws AllocationError The node could not be allocated.
 				 */
 				template<class P>
-				requires Type::ConstructibleFrom<value_type, P> && (!Type::SameAs<std::remove_cvref_t<P>, value_type>)
+				requires Type::ConstructibleFrom<typename Map<K, V, Compare>::value_type, P> && (!Type::SameAs<std::remove_cvref_t<P>, typename Map<K, V, Compare>::value_type>)
 				insert_result insert(P&& entry);
 
 				/**

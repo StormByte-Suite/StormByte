@@ -37,6 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/pair.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/test_handlers.h>
@@ -48,6 +49,63 @@
 #include <vector>
 
 using namespace StormByte;
+
+// -------------------
+// Assign
+// -------------------
+
+int test_assign_self_copy_move_and_reuse() {
+	const Safe::String first(128, 'f');
+	const Safe::String second(192, 's');
+	Safe::Pair<Safe::String, Safe::String> value(first, second);
+	auto& alias = value;
+	ASSERT_TRUE(&(value = alias) == &value);
+	ASSERT_TRUE(&(value = std::move(alias)) == &value);
+	ASSERT_EQUAL(first, value.first);
+	ASSERT_EQUAL(second, value.second);
+	Safe::Pair<Safe::String, Safe::String> copy(value);
+	copy.first[0] = 'c';
+	copy.second[0] = 'c';
+	ASSERT_EQUAL(first, value.first);
+	ASSERT_EQUAL(second, value.second);
+	Safe::Pair<Safe::String, Safe::String> moved(std::move(value));
+	ASSERT_EQUAL(first, moved.first);
+	ASSERT_EQUAL(second, moved.second);
+	ASSERT_TRUE(value.first.empty());
+	ASSERT_TRUE(value.second.empty());
+	ASSERT_TRUE(&(value = alias) == &value);
+	ASSERT_TRUE(&(value = std::move(alias)) == &value);
+	ASSERT_TRUE(value.first.empty());
+	ASSERT_TRUE(value.second.empty());
+	ASSERT_NO_THROW(value = moved);
+	ASSERT_EQUAL(first, value.first);
+	ASSERT_EQUAL(second, value.second);
+	value = std::move(moved);
+	ASSERT_TRUE(moved.first.empty());
+	ASSERT_TRUE(moved.second.empty());
+	ASSERT_NO_THROW((moved = std::pair<Safe::String, Safe::String>(second, first)));
+	ASSERT_EQUAL(second, moved.first);
+	ASSERT_EQUAL(first, moved.second);
+	RETURN_TEST(0);
+}
+
+int test_assign_aliased_standard_pair() {
+	const Safe::String first(128, 'a');
+	const Safe::String second(192, 'b');
+	Safe::Pair<Safe::String, Safe::String> value(first, second);
+	std::pair<const Safe::String&, const Safe::String&> copied(value.first, value.second);
+	ASSERT_TRUE(&(value = copied) == &value);
+	ASSERT_EQUAL(first, value.first);
+	ASSERT_EQUAL(second, value.second);
+	std::pair<Safe::String&, Safe::String&> moved(value.first, value.second);
+	ASSERT_TRUE(&(value = std::move(moved)) == &value);
+	ASSERT_EQUAL(first, value.first);
+	ASSERT_EQUAL(second, value.second);
+	ASSERT_NO_THROW(value.swap(value));
+	ASSERT_EQUAL(first, value.first);
+	ASSERT_EQUAL(second, value.second);
+	RETURN_TEST(0);
+}
 
 // -------------------
 // Construct
@@ -75,6 +133,22 @@ int test_construct_convert_and_get() {
 	ASSERT_EQUAL(1, moved.first);
 	moved = std::pair<int, int>(4, 5);
 	ASSERT_EQUAL(5, moved.second);
+	RETURN_TEST(0);
+}
+
+int test_construct_piecewise_failure_and_empty_members() {
+	using StringPair = Safe::Pair<Safe::String, Safe::String>;
+	const Safe::String source(128, 'p');
+	ASSERT_THROWS((StringPair(std::piecewise_construct,
+		std::forward_as_tuple(source), std::forward_as_tuple(source, source.size() + 1))), Safe::OutOfBoundsError);
+	ASSERT_EQUAL(Safe::String(128, 'p'), source);
+	StringPair value(std::piecewise_construct,
+		std::forward_as_tuple(source, source.size()), std::forward_as_tuple(source, source.size(), 0));
+	ASSERT_TRUE(value.first.empty());
+	ASSERT_TRUE(value.second.empty());
+	ASSERT_NO_THROW((value = StringPair(source, source)));
+	ASSERT_EQUAL(source, value.first);
+	ASSERT_EQUAL(source, value.second);
 	RETURN_TEST(0);
 }
 
@@ -123,9 +197,16 @@ int main() {
 	int result = 0;
 
 	// -------------------
+	// Assign
+	// -------------------
+	result += test_assign_self_copy_move_and_reuse();
+	result += test_assign_aliased_standard_pair();
+
+	// -------------------
 	// Construct
 	// -------------------
 	result += test_construct_convert_and_get();
+	result += test_construct_piecewise_failure_and_empty_members();
 
 	// -------------------
 	// Order

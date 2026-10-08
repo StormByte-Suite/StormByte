@@ -38,6 +38,7 @@
  */
 
 #include <StormByte/safe/list.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/test_handlers.h>
 
 #include <algorithm>
@@ -99,6 +100,29 @@ int test_assign_copy_move_count_and_range() {
 	std::vector<int> range{6, 7};
 	moved.assign_range(range);
 	ASSERT_EQUAL(7, moved.back());
+	RETURN_TEST(0);
+}
+
+int test_assign_self_and_reuse_moved_from() {
+	Safe::List<Safe::Vector<int>> source;
+	source.emplace_back(std::initializer_list<int>{1, 2, 3});
+	auto& alias = source;
+	source = alias;
+	source = std::move(alias);
+	ASSERT_EQUAL(1u, source.size());
+	ASSERT_EQUAL(3u, source.front().size());
+	Safe::List<Safe::Vector<int>> destination;
+	destination.emplace_back(std::initializer_list<int>{9});
+	destination = std::move(source);
+	ASSERT_TRUE(source.empty());
+	ASSERT_EQUAL(source.begin(), source.end());
+	source.emplace_front(std::initializer_list<int>{4, 5});
+	ASSERT_EQUAL(5, source.back().back());
+	ASSERT_EQUAL(1, destination.front().front());
+	Safe::List<Safe::Vector<int>> constructed(std::move(source));
+	source.emplace_back(std::initializer_list<int>{6});
+	ASSERT_EQUAL(6, source.front().front());
+	ASSERT_EQUAL(4, constructed.back().front());
 	RETURN_TEST(0);
 }
 
@@ -226,6 +250,37 @@ int test_node_extract_insert_and_splice() {
 // Order
 // -------------------
 
+int test_order_remove_aliased_value() {
+	Safe::List<Safe::Vector<int>> chain;
+	chain.emplace_back(std::initializer_list<int>{7, 8});
+	chain.emplace_back(std::initializer_list<int>{9});
+	chain.emplace_back(std::initializer_list<int>{7, 8});
+	ASSERT_EQUAL(2u, chain.remove(chain.front()));
+	ASSERT_EQUAL(1u, chain.size());
+	ASSERT_EQUAL(9, chain.front().front());
+	ASSERT_EQUAL(chain.front().front(), chain.back().front());
+	RETURN_TEST(0);
+}
+
+int test_order_empty_boundaries_and_node() {
+	Chain chain;
+	ASSERT_EQUAL(chain.end(), chain.erase(chain.begin(), chain.end()));
+	ASSERT_EQUAL(chain.end(), chain.insert(chain.end(), 0, 3));
+	Chain::node_type node;
+	ASSERT_EQUAL(chain.end(), chain.insert(chain.end(), std::move(node)));
+	chain.reverse();
+	chain.sort();
+	chain.merge(chain);
+	ASSERT_EQUAL(0u, chain.unique());
+	ASSERT_EQUAL(0u, chain.remove(3));
+	ASSERT_EQUAL(chain.rbegin(), chain.rend());
+	chain.push_back(4);
+	chain.pop_front();
+	chain.push_front(5);
+	ASSERT_EQUAL(5, chain.back());
+	RETURN_TEST(0);
+}
+
 int test_order_merge_unique_sort_and_reverse() {
 	Chain chain{1, 1, 2, 2, 3};
 	ASSERT_EQUAL(2u, chain.unique());
@@ -282,6 +337,7 @@ int main() {
 	// Assign
 	// -------------------
 	result += test_assign_copy_move_count_and_range();
+	result += test_assign_self_and_reuse_moved_from();
 
 	// -------------------
 	// Construct
@@ -307,6 +363,8 @@ int main() {
 	// Order
 	// -------------------
 	result += test_order_merge_unique_sort_and_reverse();
+	result += test_order_remove_aliased_value();
+	result += test_order_empty_boundaries_and_node();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

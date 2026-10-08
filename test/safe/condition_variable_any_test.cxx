@@ -53,6 +53,22 @@
 using namespace StormByte;
 
 namespace {
+	struct TrackingLock {
+		Safe::SharedLock& held;
+		int lock_calls = 0;
+		int unlock_calls = 0;
+
+		void lock() {
+			held.lock();
+			++lock_calls;
+		}
+
+		void unlock() {
+			held.unlock();
+			++unlock_calls;
+		}
+	};
+
 	void WaitUntil(const std::atomic<int>& flag, int target) {
 		while (flag.load() < target)
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -114,6 +130,30 @@ int test_notify_one_wakes_unique_waiter() {
 // -------------------
 // Predicate
 // -------------------
+
+int test_timed_waits_with_true_predicate_do_not_unlock() {
+	Safe::SharedMutex mutex;
+	Safe::ConditionVariableAny condition;
+	Safe::SharedLock held(mutex);
+	TrackingLock lock{held};
+	int predicate_calls = 0;
+	bool predicate_owns_lock = true;
+	auto predicate = [&]() {
+		++predicate_calls;
+		predicate_owns_lock = predicate_owns_lock && held.owns_lock();
+		return true;
+	};
+	const bool relative_ready = condition.wait_for(lock, std::chrono::milliseconds(40), predicate);
+	const bool absolute_ready = condition.wait_until(lock, std::chrono::steady_clock::now() - std::chrono::seconds(1), predicate);
+	ASSERT_TRUE(relative_ready);
+	ASSERT_TRUE(absolute_ready);
+	ASSERT_EQUAL(2, predicate_calls);
+	ASSERT_TRUE(predicate_owns_lock);
+	ASSERT_TRUE(held.owns_lock());
+	ASSERT_EQUAL(0, lock.unlock_calls);
+	ASSERT_EQUAL(0, lock.lock_calls);
+	RETURN_TEST(0);
+}
 
 int test_wait_for_predicate_succeeds() {
 	Safe::SharedMutex mutex;
@@ -195,6 +235,38 @@ int test_not_copyable_or_movable() {
 // Timeout
 // -------------------
 
+int test_predicate_timeouts_preserve_lock_and_balance_calls() {
+	Safe::SharedMutex mutex;
+	Safe::ConditionVariableAny condition;
+	Safe::SharedLock held(mutex);
+	TrackingLock lock{held};
+	int predicate_calls = 0;
+	bool predicate_owns_lock = true;
+	auto predicate = [&]() {
+		++predicate_calls;
+		predicate_owns_lock = predicate_owns_lock && held.owns_lock();
+		return false;
+	};
+	const bool relative_ready = condition.wait_for(lock, std::chrono::milliseconds(40), predicate);
+	const int relative_calls = predicate_calls;
+	const int relative_unlocks = lock.unlock_calls;
+	const int relative_locks = lock.lock_calls;
+	const bool relative_owns_lock = held.owns_lock();
+	predicate_calls = 0;
+	const bool absolute_ready = condition.wait_until(lock, std::chrono::steady_clock::now() + std::chrono::milliseconds(40), predicate);
+	ASSERT_FALSE(relative_ready);
+	ASSERT_FALSE(absolute_ready);
+	ASSERT_TRUE(relative_calls >= 2);
+	ASSERT_TRUE(predicate_calls >= 2);
+	ASSERT_TRUE(predicate_owns_lock);
+	ASSERT_TRUE(relative_owns_lock);
+	ASSERT_TRUE(held.owns_lock());
+	ASSERT_EQUAL(relative_unlocks, relative_locks);
+	ASSERT_TRUE(lock.unlock_calls >= relative_unlocks);
+	ASSERT_EQUAL(lock.unlock_calls, lock.lock_calls);
+	RETURN_TEST(0);
+}
+
 int test_wait_for_predicate_times_out() {
 	Safe::SharedMutex mutex;
 	Safe::ConditionVariableAny condition;
@@ -249,6 +321,7 @@ int main() {
 	// -------------------
 	// Predicate
 	// -------------------
+	result += test_timed_waits_with_true_predicate_do_not_unlock();
 	result += test_wait_for_predicate_succeeds();
 	result += test_wait_predicate_filters_early_wake();
 	result += test_wait_until_predicate_succeeds();
@@ -261,6 +334,7 @@ int main() {
 	// -------------------
 	// Timeout
 	// -------------------
+	result += test_predicate_timeouts_preserve_lock_and_balance_calls();
 	result += test_wait_for_predicate_times_out();
 	result += test_wait_for_times_out();
 	result += test_wait_until_past_deadline_times_out();

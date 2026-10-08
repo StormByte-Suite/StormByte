@@ -40,9 +40,9 @@
 #include <StormByte/safe/atomic.hxx>
 #include <StormByte/test_handlers.h>
 
-#include <chrono>
 #include <cstdint>
 #include <iostream>
+#include <latch>
 #include <thread>
 #include <type_traits>
 
@@ -55,10 +55,6 @@ namespace {
 		Done
 	};
 
-	void WaitUntil(const Safe::Atomic<bool>& flag) {
-		while (!flag.load(Safe::MemoryOrder::Acquire))
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-	}
 }
 
 // -------------------
@@ -113,6 +109,20 @@ int test_bool_store_and_load() {
 // -------------------
 // Enum
 // -------------------
+
+int test_enum_compare_exchange_failure_updates_expected() {
+	Safe::Atomic<Phase> phase(Phase::Running);
+	Phase expected = Phase::Idle;
+	ASSERT_FALSE(phase.compare_exchange_strong(expected, Phase::Done, Safe::MemoryOrder::AcqRel));
+	ASSERT_TRUE(expected == Phase::Running);
+	ASSERT_TRUE(phase.load() == Phase::Running);
+	phase.store(Phase::Done);
+	expected = Phase::Idle;
+	ASSERT_FALSE(phase.compare_exchange_weak(expected, Phase::Done, Safe::MemoryOrder::Release));
+	ASSERT_TRUE(expected == Phase::Done);
+	ASSERT_TRUE(phase.load() == Phase::Done);
+	RETURN_TEST(0);
+}
 
 int test_enum_round_trip() {
 	Safe::Atomic<Phase> phase(Phase::Idle);
@@ -205,6 +215,32 @@ int test_size_wraps_on_its_width() {
 // Pointer
 // -------------------
 
+int test_pointer_compare_exchange_failure_and_null() {
+	int cells[2] = {1, 2};
+	Safe::Atomic<int*> cursor(cells);
+	int* expected = nullptr;
+	ASSERT_FALSE(cursor.compare_exchange_strong(expected, cells + 1));
+	ASSERT_TRUE(expected == cells);
+	ASSERT_TRUE(cursor.load() == cells);
+	ASSERT_TRUE(cursor.compare_exchange_strong(expected, nullptr));
+	ASSERT_TRUE(expected == cells);
+	expected = cells + 1;
+	ASSERT_FALSE(cursor.compare_exchange_weak(expected, cells, Safe::MemoryOrder::AcqRel));
+	ASSERT_TRUE(expected == nullptr);
+	ASSERT_TRUE(cursor.load() == nullptr);
+	RETURN_TEST(0);
+}
+
+int test_pointer_fetch_negative_delta() {
+	int cells[4] = {1, 2, 3, 4};
+	Safe::Atomic<int*> cursor(cells + 2);
+	ASSERT_TRUE(cursor.fetch_add(-1) == cells + 2);
+	ASSERT_TRUE(cursor.load() == cells + 1);
+	ASSERT_TRUE(cursor.fetch_sub(std::ptrdiff_t{-2}) == cells + 1);
+	ASSERT_TRUE(cursor.load() == cells + 3);
+	RETURN_TEST(0);
+}
+
 int test_pointer_fetch_advances_by_elements() {
 	int cells[4] = {1, 2, 3, 4};
 	Safe::Atomic<int*> cursor(cells);
@@ -260,21 +296,21 @@ int test_not_copyable_or_movable() {
 
 int test_wait_wakes_on_notify_all() {
 	Safe::Atomic<std::size_t> generation(std::size_t{0});
-	Safe::Atomic<bool> started(false);
+	std::latch ready(2);
 	std::atomic<int> awake(0);
 	std::thread first([&]() {
 		const auto captured = generation.load(Safe::MemoryOrder::Acquire);
-		started.store(true, Safe::MemoryOrder::Release);
+		ready.count_down();
 		generation.wait(captured, Safe::MemoryOrder::Acquire);
 		awake.fetch_add(1);
 	});
 	std::thread second([&]() {
 		const auto captured = generation.load(Safe::MemoryOrder::Acquire);
+		ready.count_down();
 		generation.wait(captured, Safe::MemoryOrder::Acquire);
 		awake.fetch_add(1);
 	});
-	WaitUntil(started);
-	std::this_thread::sleep_for(std::chrono::milliseconds(30));
+	ready.wait();
 	generation.fetch_add(std::size_t{1}, Safe::MemoryOrder::Release);
 	generation.notify_all();
 	first.join();
@@ -285,14 +321,13 @@ int test_wait_wakes_on_notify_all() {
 
 int test_wait_wakes_on_notify_one() {
 	Safe::Atomic<std::size_t> generation(std::size_t{4});
-	Safe::Atomic<bool> started(false);
+	std::latch ready(1);
 	std::thread waiter([&]() {
 		const auto captured = generation.load(Safe::MemoryOrder::Acquire);
-		started.store(true, Safe::MemoryOrder::Release);
+		ready.count_down();
 		generation.wait(captured, Safe::MemoryOrder::Acquire);
 	});
-	WaitUntil(started);
-	std::this_thread::sleep_for(std::chrono::milliseconds(30));
+	ready.wait();
 	generation.store(std::size_t{5}, Safe::MemoryOrder::Release);
 	generation.notify_one();
 	waiter.join();
@@ -315,6 +350,7 @@ int main() {
 	// -------------------
 	// Enum
 	// -------------------
+	result += test_enum_compare_exchange_failure_updates_expected();
 	result += test_enum_round_trip();
 
 	// -------------------
@@ -330,6 +366,8 @@ int main() {
 	// -------------------
 	// Pointer
 	// -------------------
+	result += test_pointer_compare_exchange_failure_and_null();
+	result += test_pointer_fetch_negative_delta();
 	result += test_pointer_fetch_advances_by_elements();
 	result += test_pointer_fetch_max_and_min();
 

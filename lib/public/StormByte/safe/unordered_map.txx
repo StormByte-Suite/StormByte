@@ -119,7 +119,9 @@ namespace StormByte::Safe {
 
 	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
 	UnorderedMap<K, V, Hash, KeyEqual>& UnorderedMap<K, V, Hash, KeyEqual>::operator=(std::initializer_list<value_type> values) {
-		UnorderedMap replacement(values);
+		UnorderedMap replacement(m_bucket_count, m_hash, m_equal);
+		replacement.max_load_factor(m_max_load);
+		replacement.insert(values);
 		swap(replacement);
 		return *this;
 	}
@@ -256,16 +258,18 @@ namespace StormByte::Safe {
 		insert_return_type result{end(), false, node_type()};
 		if (node.empty())
 			return result;
-		Node* existing = FindNode(node.m_node->Entry.first, node.m_node->Code);
+		const std::size_t code = m_hash(node.m_node->Entry.first);
+		Node* existing = FindNode(node.m_node->Entry.first, code);
 		if (existing != nullptr) {
 			result.position = iterator(existing, this);
 			result.node = std::move(node);
 			return result;
 		}
 		Node* taken = node.m_node;
-		node.m_node = nullptr;
+		taken->Code = code;
 		taken->Next = nullptr;
 		Link(taken);
+		node.m_node = nullptr;
 		result.position = iterator(taken, this);
 		result.inserted = true;
 		return result;
@@ -279,8 +283,10 @@ namespace StormByte::Safe {
 			Node* node = other.m_buckets[index];
 			while (node != nullptr) {
 				Node* next = node->Next;
-				if (FindNode(node->Entry.first, node->Code) == nullptr) {
+				const std::size_t code = m_hash(node->Entry.first);
+				if (FindNode(node->Entry.first, code) == nullptr) {
 					other.Unlink(node);
+					node->Code = code;
 					node->Next = nullptr;
 					Link(node);
 				}

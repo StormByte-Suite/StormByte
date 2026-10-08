@@ -308,7 +308,8 @@ namespace StormByte::Safe {
 
 	template<Type::SafeValue T>
 	List<T>::size_type List<T>::remove(const T& value) {
-		return remove_if([&value](const T& current) { return current == value; });
+		const T snapshot(value);
+		return remove_if([&snapshot](const T& current) { return current == snapshot; });
 	}
 
 	template<Type::SafeValue T>

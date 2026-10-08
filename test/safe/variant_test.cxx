@@ -154,6 +154,71 @@ int test_assign_copy_move_and_emplace() {
 	RETURN_TEST(0);
 }
 
+int test_assign_self_copy_move_and_reuse() {
+	const Safe::String expected(128, 'v');
+	Mixed value(expected);
+	Mixed& alias = value;
+	ASSERT_TRUE(&(value = alias) == &value);
+	ASSERT_TRUE(&(value = std::move(alias)) == &value);
+	ASSERT_EQUAL(expected, get<Safe::String>(value));
+	Mixed moved(std::move(value));
+	ASSERT_TRUE(value.valueless_by_exception());
+	ASSERT_NULL(get_if<Safe::String>(&value));
+	ASSERT_TRUE(&(value = value) == &value);
+	ASSERT_TRUE(&(value = std::move(alias)) == &value);
+	ASSERT_TRUE(value.valueless_by_exception());
+	ASSERT_NO_THROW(value = moved);
+	ASSERT_EQUAL(expected, get<Safe::String>(value));
+	get<Safe::String>(value)[0] = 'r';
+	ASSERT_EQUAL(expected, get<Safe::String>(moved));
+	value = std::move(moved);
+	ASSERT_TRUE(moved.valueless_by_exception());
+	ASSERT_NO_THROW(moved.emplace<1>(23));
+	ASSERT_EQUAL(23, get<int>(moved));
+	RETURN_TEST(0);
+}
+
+int test_assign_and_emplace_aliased_alternative() {
+	const Safe::String expected(128, 'a');
+	Mixed value(expected);
+	ASSERT_NO_THROW(value = get<Safe::String>(value));
+	ASSERT_EQUAL(expected, get<Safe::String>(value));
+	ASSERT_NO_THROW(value = std::move(get<Safe::String>(value)));
+	ASSERT_EQUAL(expected, get<Safe::String>(value));
+	ASSERT_NO_THROW(value.emplace<Safe::String>(get<Safe::String>(value)));
+	ASSERT_EQUAL(expected, get<Safe::String>(value));
+	ASSERT_NO_THROW(value.emplace<2>(std::move(get<Safe::String>(value))));
+	ASSERT_EQUAL(expected, get<Safe::String>(value));
+	ASSERT_EQUAL(2u, value.index());
+	RETURN_TEST(0);
+}
+
+int test_assign_failed_emplace_preserves_state() {
+	const Safe::String expected(128, 'k');
+	Mixed value(expected);
+	Safe::String* original = get_if<Safe::String>(&value);
+	ASSERT_THROWS(value.emplace<Safe::String>(get<Safe::String>(value), expected.size() + 1), Safe::OutOfBoundsError);
+	ASSERT_TRUE(original == get_if<Safe::String>(&value));
+	ASSERT_EQUAL(expected, get<Safe::String>(value));
+	ASSERT_EQUAL(2u, value.index());
+	ASSERT_FALSE(value.valueless_by_exception());
+	Mixed moved(std::move(value));
+	ASSERT_THROWS(value.emplace<2>(expected, expected.size() + 1), Safe::OutOfBoundsError);
+	ASSERT_TRUE(value.valueless_by_exception());
+	ASSERT_EQUAL((Mixed::npos), value.index());
+	ASSERT_NULL(get_if<2>(&value));
+	Mixed empty_copy(value);
+	ASSERT_TRUE(empty_copy.valueless_by_exception());
+	ASSERT_TRUE(empty_copy == value);
+	ASSERT_NO_THROW(value.emplace<Safe::String>(expected));
+	ASSERT_EQUAL(expected, get<Safe::String>(value));
+	moved = empty_copy;
+	ASSERT_TRUE(moved.valueless_by_exception());
+	ASSERT_NO_THROW(moved = 31);
+	ASSERT_EQUAL(31, get<int>(moved));
+	RETURN_TEST(0);
+}
+
 // -------------------
 // Construct
 // -------------------
@@ -277,6 +342,9 @@ int main() {
 	// Assign
 	// -------------------
 	result += test_assign_copy_move_and_emplace();
+	result += test_assign_self_copy_move_and_reuse();
+	result += test_assign_and_emplace_aliased_alternative();
+	result += test_assign_failed_emplace_preserves_state();
 
 	// -------------------
 	// Construct

@@ -41,8 +41,10 @@
 #include <StormByte/safe/heap.hxx>
 #include <StormByte/test_handlers.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 
 using namespace StormByte;
@@ -60,6 +62,46 @@ int test_allocate_and_free() {
 	ASSERT_EQUAL(std::uint8_t{7}, bytes[0]);
 	ASSERT_EQUAL(std::uint8_t{9}, bytes[15]);
 	Safe::Heap::Free(block);
+	Safe::Heap::Free(nullptr);
+	RETURN_TEST(0);
+}
+
+int test_allocate_fundamental_alignment() {
+	for (std::size_t size: {std::size_t{1}, sizeof(std::max_align_t), std::size_t{257}}) {
+		std::unique_ptr<void, decltype(&Safe::Heap::Free)> owned(Safe::Heap::Allocate(size), Safe::Heap::Free);
+		void* block = owned.get();
+		ASSERT_NOT_NULL(block);
+		ASSERT_EQUAL(std::uintptr_t{0}, reinterpret_cast<std::uintptr_t>(block) % alignof(std::max_align_t));
+		auto* bytes = static_cast<std::uint8_t*>(block);
+		for (std::size_t index = 0; index < size; ++index)
+			bytes[index] = static_cast<std::uint8_t>(index % 251);
+		for (std::size_t index = 0; index < size; ++index)
+			ASSERT_EQUAL(static_cast<std::uint8_t>(index % 251), bytes[index]);
+	}
+	RETURN_TEST(0);
+}
+
+int test_allocate_zero_and_independent_blocks() {
+	std::unique_ptr<void, decltype(&Safe::Heap::Free)> zero(Safe::Heap::Allocate(0), Safe::Heap::Free);
+	ASSERT_NOT_NULL(zero.get());
+	std::unique_ptr<void, decltype(&Safe::Heap::Free)> first_owner(Safe::Heap::Allocate(32), Safe::Heap::Free);
+	std::unique_ptr<void, decltype(&Safe::Heap::Free)> second_owner(Safe::Heap::Allocate(64), Safe::Heap::Free);
+	void* first = first_owner.get();
+	void* second = second_owner.get();
+	ASSERT_NOT_NULL(first);
+	ASSERT_NOT_NULL(second);
+	ASSERT_TRUE(first != second);
+	auto* first_bytes = static_cast<std::uint8_t*>(first);
+	auto* second_bytes = static_cast<std::uint8_t*>(second);
+	for (std::size_t index = 0; index < 32; ++index)
+		first_bytes[index] = static_cast<std::uint8_t>(index);
+	for (std::size_t index = 0; index < 64; ++index)
+		second_bytes[index] = 255;
+	zero.reset();
+	second_owner.reset();
+	for (std::size_t index = 0; index < 32; ++index)
+		ASSERT_EQUAL(static_cast<std::uint8_t>(index), first_bytes[index]);
+	first_owner.reset();
 	Safe::Heap::Free(nullptr);
 	RETURN_TEST(0);
 }
@@ -102,6 +144,8 @@ int main() {
 	// Allocate
 	// -------------------
 	result += test_allocate_and_free();
+	result += test_allocate_fundamental_alignment();
+	result += test_allocate_zero_and_independent_blocks();
 	result += test_allocate_rejects_bad_alloc();
 
 	// -------------------

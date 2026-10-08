@@ -312,6 +312,69 @@ int test_swap_member_and_free() {
 	RETURN_TEST(0);
 }
 
+int test_stateful_list_assignment() {
+	struct Compare {
+		bool descending = false;
+		bool operator()(int left, int right) const { return descending ? left > right : left < right; }
+	};
+	Safe::Set<int, Compare> values(Compare{true});
+	values = {1, 3, 2, 3};
+	ASSERT_TRUE(values.key_comp()(3, 1));
+	ASSERT_EQUAL(3, *values.begin());
+	ASSERT_EQUAL(1, *values.rbegin());
+	ASSERT_EQUAL(std::size_t{3}, values.size());
+	RETURN_TEST(0);
+}
+
+int test_rejected_nodes_and_stable_iterators() {
+	Safe::Set<int> source{1, 2};
+	Safe::Set<int> target{1};
+	auto stable = source.find(2);
+	const auto* address = &*stable;
+	auto handle = source.extract(1);
+	auto rejected = target.insert(std::move(handle));
+	ASSERT_FALSE(rejected.inserted);
+	ASSERT_TRUE(handle.empty());
+	ASSERT_FALSE(rejected.node.empty());
+	ASSERT_EQUAL(1, rejected.node.value());
+	ASSERT_TRUE(source.insert(std::move(rejected.node)).inserted);
+	auto hinted = source.extract(1);
+	ASSERT_EQUAL(1, *target.insert(target.end(), std::move(hinted)));
+	ASSERT_FALSE(hinted.empty());
+	ASSERT_EQUAL(1, *source.insert(source.end(), std::move(hinted)));
+	ASSERT_TRUE(hinted.empty());
+	source.insert(3);
+	source.erase(1);
+	ASSERT_TRUE(&*stable == address);
+	ASSERT_EQUAL(2, *stable);
+	RETURN_TEST(0);
+}
+
+int test_differential_insert_erase_and_bounds() {
+	Safe::Set<int> values;
+	std::set<int> model;
+	for (int index = 0; index < 96; ++index) {
+		const int key = (index * 37) % 61;
+		ASSERT_EQUAL(model.insert(key).second, values.insert(key).second);
+	}
+	for (int key = 0; key < 61; key += 2) ASSERT_EQUAL(model.erase(key), values.erase(key));
+	ASSERT_TRUE(std::equal(values.begin(), values.end(), model.begin(), model.end()));
+	for (int key = -1; key < 63; ++key) {
+		const auto lower = values.lower_bound(key);
+		const auto standard_lower = model.lower_bound(key);
+		ASSERT_EQUAL(standard_lower == model.end(), lower == values.end());
+		if (lower != values.end()) ASSERT_EQUAL(*standard_lower, *lower);
+		const auto upper = values.upper_bound(key);
+		const auto standard_upper = model.upper_bound(key);
+		ASSERT_EQUAL(standard_upper == model.end(), upper == values.end());
+		if (upper != values.end()) ASSERT_EQUAL(*standard_upper, *upper);
+		const auto range = values.equal_range(key);
+		ASSERT_EQUAL(lower, range.first);
+		ASSERT_EQUAL(upper, range.second);
+	}
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -320,6 +383,9 @@ int main() {
 	// -------------------
 	result += test_algorithm_bounds_and_order();
 	result += test_algorithm_set_operations();
+	result += test_stateful_list_assignment();
+	result += test_rejected_nodes_and_stable_iterators();
+	result += test_differential_insert_erase_and_bounds();
 
 	// -------------------
 	// Bounds

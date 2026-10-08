@@ -149,6 +149,66 @@ int test_construct_copy_move_and_export() {
 // Mutate
 // -------------------
 
+int test_self_assignment_and_moved_from_reuse() {
+	Safe::Queue<Safe::Vector<int>> values;
+	values.emplace(std::initializer_list<int>{11, 12});
+	auto& alias = values;
+	ASSERT_TRUE(&(values = alias) == &values);
+	ASSERT_TRUE(&(values = std::move(alias)) == &values);
+	ASSERT_EQUAL(std::size_t{1}, values.size());
+	ASSERT_EQUAL(11, values.front().front());
+	ASSERT_EQUAL(12, values.back().back());
+	Safe::Queue<Safe::Vector<int>> moved(std::move(values));
+	ASSERT_TRUE(values.empty());
+	values.emplace(std::initializer_list<int>{21});
+	ASSERT_EQUAL(21, values.front().front());
+	values = std::move(moved);
+	ASSERT_TRUE(moved.empty());
+	moved.emplace(std::initializer_list<int>{31});
+	ASSERT_EQUAL(31, moved.front().front());
+	ASSERT_EQUAL(11, values.front().front());
+	RETURN_TEST(0);
+}
+
+int test_aliased_modifiers_across_growth() {
+	Safe::Queue<Safe::Vector<int>> values;
+	values.emplace(std::initializer_list<int>{41, 42});
+	values.push(values.front());
+	ASSERT_EQUAL(std::size_t{2}, values.size());
+	ASSERT_EQUAL(41, values.front().front());
+	ASSERT_EQUAL(42, values.back().back());
+	values.emplace(values.back());
+	ASSERT_EQUAL(std::size_t{3}, values.size());
+	ASSERT_EQUAL(41, values.back().front());
+	values.back().front() = 99;
+	ASSERT_EQUAL(41, values.front().front());
+	Safe::Queue<Safe::Vector<int>> moving;
+	moving.emplace(std::initializer_list<int>{51});
+	moving.push(std::move(moving.front()));
+	ASSERT_TRUE(moving.front().empty());
+	ASSERT_EQUAL(51, moving.back().front());
+	RETURN_TEST(0);
+}
+
+int test_empty_boundaries_preserve_reusability() {
+	Safe::Queue<Safe::Vector<int>> values;
+	const auto& read = values;
+	ASSERT_THROWS(values.pop(), Safe::OutOfBoundsError);
+	ASSERT_THROWS(values.front(), Safe::OutOfBoundsError);
+	ASSERT_THROWS(values.back(), Safe::OutOfBoundsError);
+	ASSERT_THROWS(read.front(), Safe::OutOfBoundsError);
+	ASSERT_THROWS(read.back(), Safe::OutOfBoundsError);
+	ASSERT_TRUE(values.empty());
+	ASSERT_TRUE(values.begin() == values.end());
+	values.emplace(std::initializer_list<int>{61});
+	values.pop();
+	ASSERT_TRUE(values.empty());
+	ASSERT_THROWS(values.pop(), Safe::OutOfBoundsError);
+	values.emplace(std::initializer_list<int>{62});
+	ASSERT_EQUAL(62, values.front().front());
+	RETURN_TEST(0);
+}
+
 int test_push_pop_erase_and_order() {
 	Safe::Queue<int> values;
 	values.push(1);
@@ -205,6 +265,9 @@ int main() {
 	// -------------------
 	// Mutate
 	// -------------------
+	result += test_self_assignment_and_moved_from_reuse();
+	result += test_aliased_modifiers_across_growth();
+	result += test_empty_boundaries_preserve_reusability();
 	result += test_push_pop_erase_and_order();
 
 	if (result == 0)

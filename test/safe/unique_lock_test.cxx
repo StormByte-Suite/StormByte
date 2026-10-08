@@ -49,6 +49,19 @@
 
 using namespace StormByte;
 
+namespace {
+	bool can_lock_from_another_thread(Safe::Mutex& mutex) {
+		bool acquired = false;
+		std::thread probe([&]() {
+			acquired = mutex.try_lock();
+			if (acquired)
+				mutex.unlock();
+		});
+		probe.join();
+		return acquired;
+	}
+}
+
 // -------------------
 // Adopt
 // -------------------
@@ -89,7 +102,7 @@ int test_defer_then_lock() {
 	Safe::UniqueLock lock(mutex, Safe::defer_lock);
 	lock.lock();
 	ASSERT_TRUE(lock.owns_lock());
-	ASSERT_FALSE(mutex.try_lock());
+	ASSERT_FALSE(can_lock_from_another_thread(mutex));
 	lock.unlock();
 	ASSERT_FALSE(lock.owns_lock());
 	RETURN_TEST(0);
@@ -116,8 +129,9 @@ int test_destructor_of_deferred_does_not_unlock() {
 	{
 		Safe::UniqueLock lock(mutex, Safe::defer_lock);
 	}
-	ASSERT_FALSE(mutex.try_lock());
+	const bool acquired = can_lock_from_another_thread(mutex);
 	mutex.unlock();
+	ASSERT_FALSE(acquired);
 	RETURN_TEST(0);
 }
 
@@ -137,6 +151,48 @@ int test_empty_lock_owns_nothing() {
 // -------------------
 // Move
 // -------------------
+
+int test_self_move_and_moved_from_reuse() {
+	Safe::Mutex mutex;
+	Safe::UniqueLock source(mutex);
+	auto* same = &source;
+	source = std::move(*same);
+	ASSERT_TRUE(source.owns_lock());
+	ASSERT_TRUE(source.mutex() == &mutex);
+	ASSERT_FALSE(can_lock_from_another_thread(mutex));
+	Safe::UniqueLock destination(std::move(source));
+	ASSERT_FALSE(source.try_lock());
+	ASSERT_TRUE(source.release() == nullptr);
+	destination.unlock();
+	source = Safe::UniqueLock(mutex, Safe::try_to_lock);
+	ASSERT_TRUE(source.owns_lock());
+	destination = std::move(source);
+	ASSERT_FALSE(source.owns_lock());
+	ASSERT_TRUE(source.mutex() == nullptr);
+	destination = Safe::UniqueLock();
+	ASSERT_TRUE(can_lock_from_another_thread(mutex));
+	RETURN_TEST(0);
+}
+
+int test_move_deferred_lock_then_try_and_adopt() {
+	Safe::Mutex mutex;
+	Safe::UniqueLock source(mutex, Safe::defer_lock);
+	Safe::UniqueLock destination(std::move(source));
+	ASSERT_FALSE(destination.owns_lock());
+	ASSERT_TRUE(destination.mutex() == &mutex);
+	ASSERT_TRUE(source.mutex() == nullptr);
+	ASSERT_TRUE(destination.try_lock());
+	auto* released = destination.release();
+	const bool acquired = can_lock_from_another_thread(mutex);
+	{
+		Safe::UniqueLock adopted(*released, Safe::adopt_lock);
+		ASSERT_TRUE(adopted.owns_lock());
+	}
+	ASSERT_FALSE(acquired);
+	ASSERT_FALSE(destination.try_lock());
+	ASSERT_TRUE(can_lock_from_another_thread(mutex));
+	RETURN_TEST(0);
+}
 
 int test_move_assign_unlocks_previous() {
 	Safe::Mutex first;
@@ -160,7 +216,7 @@ int test_move_construct_transfers_ownership() {
 	ASSERT_TRUE(lock.owns_lock());
 	ASSERT_FALSE(source.owns_lock());
 	ASSERT_TRUE(source.mutex() == nullptr);
-	ASSERT_FALSE(mutex.try_lock());
+	ASSERT_FALSE(can_lock_from_another_thread(mutex));
 	lock.unlock();
 	RETURN_TEST(0);
 }
@@ -173,11 +229,14 @@ int test_release_drops_association_without_unlock() {
 	Safe::Mutex mutex;
 	Safe::UniqueLock lock(mutex);
 	Safe::Mutex* released = lock.release();
-	ASSERT_TRUE(released == &mutex);
-	ASSERT_FALSE(lock.owns_lock());
-	ASSERT_TRUE(lock.mutex() == nullptr);
-	ASSERT_FALSE(mutex.try_lock());
+	const bool owns = lock.owns_lock();
+	const auto* associated = lock.mutex();
+	const bool acquired = can_lock_from_another_thread(mutex);
 	mutex.unlock();
+	ASSERT_TRUE(released == &mutex);
+	ASSERT_FALSE(owns);
+	ASSERT_TRUE(associated == nullptr);
+	ASSERT_FALSE(acquired);
 	RETURN_TEST(0);
 }
 
@@ -232,10 +291,17 @@ int test_member_swap_exchanges_locks() {
 int test_try_to_lock_fails_when_owned() {
 	Safe::Mutex mutex;
 	mutex.lock();
-	Safe::UniqueLock lock(mutex, Safe::try_to_lock);
-	ASSERT_FALSE(lock.owns_lock());
-	ASSERT_TRUE(lock.mutex() == &mutex);
+	bool owns = false;
+	bool associated = false;
+	std::thread contender([&]() {
+		Safe::UniqueLock lock(mutex, Safe::try_to_lock);
+		owns = lock.owns_lock();
+		associated = lock.mutex() == &mutex;
+	});
+	contender.join();
 	mutex.unlock();
+	ASSERT_FALSE(owns);
+	ASSERT_TRUE(associated);
 	RETURN_TEST(0);
 }
 
@@ -276,6 +342,8 @@ int main() {
 	// -------------------
 	// Move
 	// -------------------
+	result += test_self_move_and_moved_from_reuse();
+	result += test_move_deferred_lock_then_try_and_adopt();
 	result += test_move_assign_unlocks_previous();
 	result += test_move_construct_transfers_ownership();
 

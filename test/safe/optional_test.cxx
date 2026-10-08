@@ -94,6 +94,70 @@ int test_construct_copy_move_and_assign() {
 // Value
 // -------------------
 
+int test_self_assignment_and_moved_from_reuse() {
+	const char* payload = "owned payload long enough to require Base heap storage";
+	Safe::Optional<Safe::String> text(std::in_place, payload);
+	auto& alias = text;
+	ASSERT_TRUE(&(text = alias) == &text);
+	ASSERT_TRUE(&(text = std::move(alias)) == &text);
+	ASSERT_TRUE(text.value() == payload);
+	Safe::Optional<Safe::String> moved(std::move(text));
+	ASSERT_FALSE(text.has_value());
+	text.emplace("reused source");
+	ASSERT_TRUE(text.value() == "reused source");
+	text = std::move(moved);
+	ASSERT_FALSE(moved.has_value());
+	moved.emplace("reused again");
+	ASSERT_TRUE(moved.value() == "reused again");
+	ASSERT_TRUE(text.value() == payload);
+	Safe::Optional<Safe::String> copy;
+	copy = text;
+	copy->clear();
+	ASSERT_TRUE(text.value() == payload);
+	ASSERT_TRUE(copy->empty());
+	RETURN_TEST(0);
+}
+
+int test_aliased_assignment_and_emplace() {
+	const char* payload = "aliased payload long enough to require Base heap storage";
+	Safe::Optional<Safe::String> text(std::in_place, payload);
+	ASSERT_TRUE(&(text = text.value()) == &text);
+	ASSERT_TRUE(text.value() == payload);
+	ASSERT_TRUE(&text.emplace(text.value()) == &text.value());
+	ASSERT_TRUE(text.value() == payload);
+	text = std::move(text.value());
+	ASSERT_TRUE(text.value() == payload);
+	text.emplace(std::move(text.value()));
+	ASSERT_TRUE(text.value() == payload);
+	text.swap(text);
+	ASSERT_TRUE(text.value() == payload);
+	RETURN_TEST(0);
+}
+
+int test_failed_emplace_and_empty_value_categories() {
+	struct FailingValue {
+		operator int() const {
+			throw Safe::BadOptionalAccess();
+		}
+	};
+	Safe::Optional<int> value(71);
+	ASSERT_THROWS(value.emplace(FailingValue{}), Safe::BadOptionalAccess);
+	ASSERT_TRUE(value.has_value());
+	ASSERT_EQUAL(71, value.value());
+	value.reset();
+	ASSERT_THROWS(value.emplace(FailingValue{}), Safe::BadOptionalAccess);
+	ASSERT_FALSE(value.has_value());
+	const auto& read = value;
+	ASSERT_THROWS(value.value(), Safe::BadOptionalAccess);
+	ASSERT_THROWS(read.value(), Safe::BadOptionalAccess);
+	ASSERT_THROWS(std::move(value).value(), Safe::BadOptionalAccess);
+	ASSERT_THROWS(std::move(read).value(), Safe::BadOptionalAccess);
+	ASSERT_FALSE(value.has_value());
+	value.emplace(72);
+	ASSERT_EQUAL(72, value.value());
+	RETURN_TEST(0);
+}
+
 int test_value_throw_fallback_and_monadic() {
 	Safe::Optional<int> empty;
 	ASSERT_THROWS(empty.value(), Safe::BadOptionalAccess);
@@ -168,6 +232,9 @@ int main() {
 	// -------------------
 	// Value
 	// -------------------
+	result += test_self_assignment_and_moved_from_reuse();
+	result += test_aliased_assignment_and_emplace();
+	result += test_failed_emplace_and_empty_value_categories();
 	result += test_value_throw_fallback_and_monadic();
 	result += test_value_algorithm_sort_and_find();
 

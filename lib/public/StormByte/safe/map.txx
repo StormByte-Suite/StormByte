@@ -185,7 +185,8 @@ namespace StormByte {
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
 		Map<K, V, Compare>& Map<K, V, Compare>::operator=(std::initializer_list<value_type> values) {
-			Map replacement(values);
+			Map replacement(m_compare);
+			replacement.insert(values);
 			swap(replacement);
 			return *this;
 		}
@@ -269,7 +270,7 @@ namespace StormByte {
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
 		Map<K, V, Compare>::insert_result Map<K, V, Compare>::insert(value_type&& entry) {
-			return try_emplace(std::move(const_cast<K&>(entry.first)), std::move(entry.second));
+			return try_emplace(entry.first, std::move(entry.second));
 		}
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
@@ -281,7 +282,7 @@ namespace StormByte {
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
 		Map<K, V, Compare>::iterator Map<K, V, Compare>::insert(const_iterator hint, value_type&& entry) {
-			return try_emplace(hint, std::move(const_cast<K&>(entry.first)), std::move(entry.second));
+			return try_emplace(hint, entry.first, std::move(entry.second));
 		}
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
@@ -520,11 +521,11 @@ namespace StormByte {
 		Map<K, V, Compare>::iterator Map<K, V, Compare>::insert(const_iterator hint, node_type&& handle) {
 			if (!handle)
 				return end();
-			if (!HintMatches(hint, handle.key()))
-				return insert(std::move(handle)).position;
 			Node* existing = FindNode(handle.key());
 			if (existing != nullptr)
 				return iterator(existing);
+			if (!HintMatches(hint, handle.key()))
+				return insert(std::move(handle)).position;
 			Node* node = handle.m_node;
 			handle.m_node = nullptr;
 			node->Left = nullptr;

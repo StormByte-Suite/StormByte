@@ -357,7 +357,7 @@ namespace StormByte {
 				 */
 				STORMBYTE_FORCE_INLINE explicit UnorderedMap(std::unordered_map<K, V>&& other): UnorderedMap(other.bucket_count()) {
 					for (auto& entry : other)
-						insert(value_type(std::move(const_cast<K&>(entry.first)), std::move(entry.second)));
+						insert(value_type(entry.first, std::move(entry.second)));
 					other.clear();
 				}
 

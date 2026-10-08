@@ -363,8 +363,11 @@ namespace StormByte::Safe {
 	template<Type::SafeValue T>
 	typename Deque<T>::iterator Deque<T>::insert(const_iterator position, size_type count, const T& value) {
 		const std::ptrdiff_t index = position.m_index;
+		if (count == 0)
+			return iterator(this, index);
+		const T snapshot(value);
 		for (size_type i = 0; i < count; ++i)
-			insert(const_iterator(this, index + static_cast<std::ptrdiff_t>(i)), value);
+			insert(const_iterator(this, index + static_cast<std::ptrdiff_t>(i)), snapshot);
 		return iterator(this, index);
 	}
 
@@ -393,10 +396,11 @@ namespace StormByte::Safe {
 	template<typename... Args>
 	typename Deque<T>::iterator Deque<T>::emplace(const_iterator position, Args&&... args) {
 		const std::ptrdiff_t index = position.m_index;
+		T value(std::forward<Args>(args)...);
 		emplace_back();
 		for (std::ptrdiff_t i = static_cast<std::ptrdiff_t>(m_size) - 1; i > index; --i)
 			Slot(static_cast<size_type>(i)) = std::move(Slot(static_cast<size_type>(i - 1)));
-		Slot(static_cast<size_type>(index)) = T(std::forward<Args>(args)...);
+		Slot(static_cast<size_type>(index)) = std::move(value);
 		return iterator(this, index);
 	}
 
@@ -409,6 +413,8 @@ namespace StormByte::Safe {
 	typename Deque<T>::iterator Deque<T>::erase(const_iterator first, const_iterator last) {
 		const std::ptrdiff_t index = first.m_index;
 		const std::ptrdiff_t count = last.m_index - first.m_index;
+		if (count == 0)
+			return iterator(this, index);
 		for (std::ptrdiff_t i = index; i + count < static_cast<std::ptrdiff_t>(m_size); ++i)
 			Slot(static_cast<size_type>(i)) = std::move(Slot(static_cast<size_type>(i + count)));
 		for (std::ptrdiff_t i = 0; i < count; ++i)

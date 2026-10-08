@@ -274,6 +274,77 @@ int test_swap_member_and_free() {
 	RETURN_TEST(0);
 }
 
+int test_stateful_list_assignment_and_transfer() {
+	struct Hash {
+		std::size_t seed = 0;
+		std::size_t operator()(int key) const { return static_cast<std::size_t>(key) ^ seed; }
+	};
+	struct Equal {
+		int state = 0;
+		bool operator()(int left, int right) const { return left == right; }
+	};
+	using Values = Safe::UnorderedSet<int, Hash, Equal>;
+	Values source(8, Hash{7}, Equal{3});
+	source.max_load_factor(0.5f);
+	source = {1, 2, 3, 3};
+	ASSERT_EQUAL(std::size_t{7}, source.hash_function().seed);
+	ASSERT_EQUAL(3, source.key_eq().state);
+	ASSERT_EQUAL(0.5f, source.max_load_factor());
+	Values target(8, Hash{19}, Equal{4});
+	ASSERT_TRUE(target.insert(source.extract(2)).inserted);
+	ASSERT_TRUE(target.contains(2));
+	target.insert(1);
+	target.merge(source);
+	ASSERT_TRUE(target.contains(3));
+	ASSERT_TRUE(source.contains(1));
+	ASSERT_FALSE(source.contains(3));
+	RETURN_TEST(0);
+}
+
+int test_rejected_node_ownership() {
+	Safe::UnorderedSet<int> source{1, 2};
+	Safe::UnorderedSet<int> target{1};
+	auto handle = source.extract(1);
+	auto rejected = target.insert(std::move(handle));
+	ASSERT_FALSE(rejected.inserted);
+	ASSERT_TRUE(handle.empty());
+	ASSERT_FALSE(rejected.node.empty());
+	ASSERT_EQUAL(1, rejected.node.value());
+	ASSERT_TRUE(source.insert(std::move(rejected.node)).inserted);
+	auto hinted = source.extract(1);
+	ASSERT_EQUAL(1, *target.insert(target.end(), std::move(hinted)));
+	ASSERT_FALSE(hinted.empty());
+	ASSERT_EQUAL(1, *source.insert(source.end(), std::move(hinted)));
+	ASSERT_TRUE(hinted.empty());
+	RETURN_TEST(0);
+}
+
+int test_iterator_stability_and_standard_model() {
+	Safe::UnorderedSet<int> values;
+	values.reserve(128);
+	values.insert(100);
+	auto stable = values.find(100);
+	const auto* address = &*stable;
+	std::unordered_set<int> model{100};
+	for (int index = 0; index < 96; ++index) {
+		const int key = (index * 37) % 61;
+		ASSERT_EQUAL(model.insert(key).second, values.insert(key).second);
+	}
+	for (int key = 0; key < 61; key += 2) ASSERT_EQUAL(model.erase(key), values.erase(key));
+	ASSERT_TRUE(&*stable == address);
+	ASSERT_EQUAL(100, *stable);
+	values.rehash(values.bucket_count() * 2);
+	ASSERT_TRUE(&*values.find(100) == address);
+	ASSERT_EQUAL(model.size(), values.size());
+	for (int key = -1; key < 102; ++key) {
+		ASSERT_EQUAL(model.contains(key), values.contains(key));
+		ASSERT_EQUAL(model.count(key), values.count(key));
+		const auto range = values.equal_range(key);
+		ASSERT_EQUAL(model.count(key), static_cast<std::size_t>(std::distance(range.first, range.second)));
+	}
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -281,6 +352,9 @@ int main() {
 	// Algorithm
 	// -------------------
 	result += test_algorithm_forward_and_set_ops();
+	result += test_stateful_list_assignment_and_transfer();
+	result += test_rejected_node_ownership();
+	result += test_iterator_stability_and_standard_model();
 
 	// -------------------
 	// Bucket

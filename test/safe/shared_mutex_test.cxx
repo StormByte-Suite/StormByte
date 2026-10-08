@@ -40,8 +40,6 @@
 #include <StormByte/safe/shared_mutex.hxx>
 #include <StormByte/test_handlers.h>
 
-#include <atomic>
-#include <chrono>
 #include <iostream>
 #include <thread>
 #include <type_traits>
@@ -55,28 +53,39 @@ using namespace StormByte;
 int test_exclusive_blocks_shared() {
 	Safe::SharedMutex mutex;
 	mutex.lock();
-	ASSERT_FALSE(mutex.try_lock());
-	ASSERT_FALSE(mutex.try_lock_shared());
+	bool exclusive_acquired = false;
+	bool shared_acquired = false;
+	std::thread contender([&]() {
+		exclusive_acquired = mutex.try_lock();
+		if (exclusive_acquired)
+			mutex.unlock();
+		shared_acquired = mutex.try_lock_shared();
+		if (shared_acquired)
+			mutex.unlock_shared();
+	});
+	contender.join();
 	mutex.unlock();
+	ASSERT_FALSE(exclusive_acquired);
+	ASSERT_FALSE(shared_acquired);
 	ASSERT_TRUE(mutex.try_lock());
 	mutex.unlock();
 	RETURN_TEST(0);
 }
 
-int test_exclusive_waits_for_shared() {
+int test_exclusive_rejected_until_shared_unlock() {
 	Safe::SharedMutex mutex;
-	std::atomic<bool> entered(false);
+	bool entered = false;
 	mutex.lock_shared();
 	std::thread waiter([&]() {
-		mutex.lock();
-		entered.store(true);
-		mutex.unlock();
+		entered = mutex.try_lock();
+		if (entered)
+			mutex.unlock();
 	});
-	std::this_thread::sleep_for(std::chrono::milliseconds(30));
-	ASSERT_FALSE(entered.load());
-	mutex.unlock_shared();
 	waiter.join();
-	ASSERT_TRUE(entered.load());
+	mutex.unlock_shared();
+	ASSERT_FALSE(entered);
+	ASSERT_TRUE(mutex.try_lock());
+	mutex.unlock();
 	RETURN_TEST(0);
 }
 
@@ -87,35 +96,74 @@ int test_exclusive_waits_for_shared() {
 int test_shared_allows_another_shared() {
 	Safe::SharedMutex mutex;
 	mutex.lock_shared();
-	ASSERT_TRUE(mutex.try_lock_shared());
+	bool shared_acquired = false;
+	bool exclusive_acquired = false;
+	std::thread reader([&]() {
+		shared_acquired = mutex.try_lock_shared();
+		if (shared_acquired)
+			mutex.unlock_shared();
+		exclusive_acquired = mutex.try_lock();
+		if (exclusive_acquired)
+			mutex.unlock();
+	});
+	reader.join();
 	mutex.unlock_shared();
-	ASSERT_FALSE(mutex.try_lock());
-	mutex.unlock_shared();
+	ASSERT_TRUE(shared_acquired);
+	ASSERT_FALSE(exclusive_acquired);
 	ASSERT_TRUE(mutex.try_lock());
 	mutex.unlock();
 	RETURN_TEST(0);
 }
 
-int test_shared_waits_for_exclusive() {
+int test_shared_rejected_until_exclusive_unlock() {
 	Safe::SharedMutex mutex;
-	std::atomic<int> entered(0);
+	bool first_entered = false;
+	bool second_entered = false;
 	mutex.lock();
 	std::thread first([&]() {
-		mutex.lock_shared();
-		entered.fetch_add(1);
-		mutex.unlock_shared();
+		first_entered = mutex.try_lock_shared();
+		if (first_entered)
+			mutex.unlock_shared();
 	});
 	std::thread second([&]() {
-		mutex.lock_shared();
-		entered.fetch_add(1);
-		mutex.unlock_shared();
+		second_entered = mutex.try_lock_shared();
+		if (second_entered)
+			mutex.unlock_shared();
 	});
-	std::this_thread::sleep_for(std::chrono::milliseconds(30));
-	ASSERT_EQUAL(0, entered.load());
-	mutex.unlock();
 	first.join();
 	second.join();
-	ASSERT_EQUAL(2, entered.load());
+	mutex.unlock();
+	ASSERT_FALSE(first_entered);
+	ASSERT_FALSE(second_entered);
+	ASSERT_TRUE(mutex.try_lock_shared());
+	mutex.unlock_shared();
+	RETURN_TEST(0);
+}
+
+// -------------------
+// Reuse
+// -------------------
+
+int test_repeated_shared_and_exclusive_reuse() {
+	Safe::SharedMutex mutex;
+	for (int iteration = 0; iteration < 3; ++iteration) {
+		bool shared_acquired = false;
+		std::thread reader([&]() {
+			shared_acquired = mutex.try_lock_shared();
+			if (shared_acquired)
+				mutex.unlock_shared();
+		});
+		reader.join();
+		bool exclusive_acquired = false;
+		std::thread writer([&]() {
+			exclusive_acquired = mutex.try_lock();
+			if (exclusive_acquired)
+				mutex.unlock();
+		});
+		writer.join();
+		ASSERT_TRUE(shared_acquired);
+		ASSERT_TRUE(exclusive_acquired);
+	}
 	RETURN_TEST(0);
 }
 
@@ -138,13 +186,18 @@ int main() {
 	// Exclusive
 	// -------------------
 	result += test_exclusive_blocks_shared();
-	result += test_exclusive_waits_for_shared();
+	result += test_exclusive_rejected_until_shared_unlock();
 
 	// -------------------
 	// Shared
 	// -------------------
 	result += test_shared_allows_another_shared();
-	result += test_shared_waits_for_exclusive();
+	result += test_shared_rejected_until_exclusive_unlock();
+
+	// -------------------
+	// Reuse
+	// -------------------
+	result += test_repeated_shared_and_exclusive_reuse();
 
 	// -------------------
 	// Special

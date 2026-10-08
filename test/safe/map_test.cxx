@@ -160,7 +160,9 @@ int test_insert_extract_merge_and_order() {
 	ASSERT_FALSE(values.insert(Entry(1, 11)).second);
 	values.insert(values.end(), Entry(3, 30));
 	values.insert(values.end(), Entry(4, 40));
-	values.insert(std::pair<int, int>(2, 20));
+	auto from_standard_pair = values.insert(std::pair<int, int>(2, 20));
+	ASSERT_TRUE(from_standard_pair.second);
+	ASSERT_EQUAL(20, from_standard_pair.first->second);
 	const Entry extra[] = {Entry(5, 50)};
 	values.insert(extra, extra + 1);
 	values.insert({Entry(6, 60)});
@@ -224,6 +226,76 @@ int test_insert_extract_merge_and_order() {
 	RETURN_TEST(0);
 }
 
+int test_const_key_and_standard_pairs() {
+	using Strings = Safe::Map<Safe::String, int>;
+	Strings values;
+	Strings::value_type entry(Safe::String("original key with heap storage"), 10);
+	ASSERT_TRUE(values.insert(std::move(entry)).second);
+	ASSERT_TRUE(entry.first == Safe::String("original key with heap storage"));
+	Strings::value_type hinted(Safe::String("hinted key with heap storage"), 20);
+	values.insert(values.end(), std::move(hinted));
+	ASSERT_TRUE(hinted.first == Safe::String("hinted key with heap storage"));
+	Safe::Map<int, int> integers;
+	std::pair<int, int> pair(1, 10);
+	ASSERT_TRUE(integers.insert(pair).second);
+	ASSERT_EQUAL(10, pair.second);
+	ASSERT_FALSE(integers.insert(std::pair<int, int>(1, 99)).second);
+	ASSERT_TRUE(integers.insert(std::pair<int, int>(2, 20)).second);
+	ASSERT_EQUAL(10, integers.at(1));
+	RETURN_TEST(0);
+}
+
+int test_node_rejection_and_iterator_stability() {
+	Safe::Map<int, int> source{{1, 10}, {2, 20}};
+	Safe::Map<int, int> target{{1, 99}};
+	auto stable = source.find(2);
+	const auto* address = &*stable;
+	auto handle = source.extract(1);
+	auto rejected = target.insert(std::move(handle));
+	ASSERT_FALSE(rejected.inserted);
+	ASSERT_TRUE(handle.empty());
+	ASSERT_FALSE(rejected.node.empty());
+	ASSERT_EQUAL(10, rejected.node.mapped());
+	ASSERT_TRUE(source.insert(std::move(rejected.node)).inserted);
+	source.insert(std::pair<int, int>(3, 30));
+	source.erase(1);
+	ASSERT_TRUE(&*stable == address);
+	ASSERT_EQUAL(20, stable->second);
+	RETURN_TEST(0);
+}
+
+int test_stateful_assignment_and_standard_model() {
+	struct Compare {
+		bool descending = false;
+		bool operator()(int left, int right) const { return descending ? left > right : left < right; }
+	};
+	Safe::Map<int, int, Compare> stateful(Compare{true});
+	stateful = {{1, 10}, {3, 30}, {2, 20}};
+	ASSERT_TRUE(stateful.key_comp()(3, 1));
+	ASSERT_TRUE(stateful.begin()->first == 3);
+	Safe::Map<int, int> values;
+	std::map<int, int> model;
+	for (int index = 0; index < 96; ++index) {
+		const int key = (index * 37) % 61;
+		ASSERT_EQUAL(model.emplace(key, index).second, values.insert(std::pair<int, int>(key, index)).second);
+	}
+	for (int key = -1; key < 63; ++key) {
+		auto lower = values.lower_bound(key);
+		auto standard_lower = model.lower_bound(key);
+		ASSERT_EQUAL(standard_lower == model.end(), lower == values.end());
+		if (lower != values.end()) ASSERT_TRUE(lower->first == standard_lower->first);
+		auto upper = values.upper_bound(key);
+		auto standard_upper = model.upper_bound(key);
+		ASSERT_EQUAL(standard_upper == model.end(), upper == values.end());
+		if (upper != values.end()) ASSERT_TRUE(upper->first == standard_upper->first);
+	}
+	for (int key = 0; key < 61; key += 2) ASSERT_EQUAL(model.erase(key), values.erase(key));
+	ASSERT_TRUE(std::equal(values.begin(), values.end(), model.begin(), model.end(), [](const auto& left, const auto& right) {
+		return left.first == right.first && left.second == right.second;
+	}));
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -241,6 +313,9 @@ int main() {
 	// Mutate
 	// -------------------
 	result += test_insert_extract_merge_and_order();
+	result += test_const_key_and_standard_pairs();
+	result += test_node_rejection_and_iterator_stability();
+	result += test_stateful_assignment_and_standard_model();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

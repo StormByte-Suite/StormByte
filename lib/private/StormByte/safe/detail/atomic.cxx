@@ -147,8 +147,6 @@ bool Safe::Detail::WordCompareExchange(void* word, std::size_t bytes, void* expe
 	const std::uint64_t want = Read(expected, bytes);
 	const std::uint64_t next = Read(desired, bytes);
 	std::uint64_t current = bits.load(std::memory_order_relaxed);
-	if (weak && (current & std::uint64_t{1}) == (want & std::uint64_t{1}) && current != want)
-		return false;
 	for (;;) {
 		if ((current & Mask(bytes)) != want) {
 			Write(expected, bytes, current);
@@ -156,6 +154,10 @@ bool Safe::Detail::WordCompareExchange(void* word, std::size_t bytes, void* expe
 		}
 		if (bits.compare_exchange_weak(current, next, Map(success), Map(Failure(failure))))
 			return true;
+		if (weak) {
+			Write(expected, bytes, current);
+			return false;
+		}
 	}
 }
 

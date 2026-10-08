@@ -123,6 +123,35 @@ int test_notify_one_wakes_one_waiter() {
 // Predicate
 // -------------------
 
+int test_timed_waits_with_true_predicate_keep_lock() {
+	Safe::Mutex mutex;
+	Safe::ConditionVariable condition;
+	Safe::UniqueLock lock(mutex);
+	int predicate_calls = 0;
+	bool predicate_owns_lock = true;
+	auto predicate = [&]() {
+		++predicate_calls;
+		predicate_owns_lock = predicate_owns_lock && lock.owns_lock();
+		return true;
+	};
+	const bool relative_ready = condition.wait_for(lock, std::chrono::milliseconds(40), predicate);
+	const bool absolute_ready = condition.wait_until(lock, std::chrono::steady_clock::now() - std::chrono::seconds(1), predicate);
+	bool acquired = false;
+	std::thread probe([&]() {
+		acquired = mutex.try_lock();
+		if (acquired)
+			mutex.unlock();
+	});
+	probe.join();
+	ASSERT_TRUE(relative_ready);
+	ASSERT_TRUE(absolute_ready);
+	ASSERT_EQUAL(2, predicate_calls);
+	ASSERT_TRUE(predicate_owns_lock);
+	ASSERT_TRUE(lock.owns_lock());
+	ASSERT_FALSE(acquired);
+	RETURN_TEST(0);
+}
+
 int test_wait_for_predicate_succeeds() {
 	Safe::Mutex mutex;
 	Safe::ConditionVariable condition;
@@ -205,6 +234,44 @@ int test_not_copyable_or_movable() {
 // Timeout
 // -------------------
 
+int test_predicate_timeouts_reacquire_mutex() {
+	Safe::Mutex mutex;
+	Safe::ConditionVariable condition;
+	Safe::UniqueLock lock(mutex);
+	int predicate_calls = 0;
+	bool predicate_owns_lock = true;
+	auto predicate = [&]() {
+		++predicate_calls;
+		predicate_owns_lock = predicate_owns_lock && lock.owns_lock();
+		return false;
+	};
+	auto can_acquire = [&]() {
+		bool acquired = false;
+		std::thread probe([&]() {
+			acquired = mutex.try_lock();
+			if (acquired)
+				mutex.unlock();
+		});
+		probe.join();
+		return acquired;
+	};
+	const bool relative_ready = condition.wait_for(lock, std::chrono::milliseconds(40), predicate);
+	const int relative_calls = predicate_calls;
+	const bool acquired_after_relative = can_acquire();
+	predicate_calls = 0;
+	const bool absolute_ready = condition.wait_until(lock, std::chrono::steady_clock::now() + std::chrono::milliseconds(40), predicate);
+	const bool acquired_after_absolute = can_acquire();
+	ASSERT_FALSE(relative_ready);
+	ASSERT_FALSE(absolute_ready);
+	ASSERT_TRUE(relative_calls >= 2);
+	ASSERT_TRUE(predicate_calls >= 2);
+	ASSERT_TRUE(predicate_owns_lock);
+	ASSERT_TRUE(lock.owns_lock());
+	ASSERT_FALSE(acquired_after_relative);
+	ASSERT_FALSE(acquired_after_absolute);
+	RETURN_TEST(0);
+}
+
 int test_wait_for_predicate_times_out() {
 	Safe::Mutex mutex;
 	Safe::ConditionVariable condition;
@@ -259,6 +326,7 @@ int main() {
 	// -------------------
 	// Predicate
 	// -------------------
+	result += test_timed_waits_with_true_predicate_keep_lock();
 	result += test_wait_for_predicate_succeeds();
 	result += test_wait_predicate_filters_early_wake();
 	result += test_wait_until_predicate_succeeds();
@@ -271,6 +339,7 @@ int main() {
 	// -------------------
 	// Timeout
 	// -------------------
+	result += test_predicate_timeouts_reacquire_mutex();
 	result += test_wait_for_predicate_times_out();
 	result += test_wait_for_times_out();
 	result += test_wait_until_past_deadline_times_out();

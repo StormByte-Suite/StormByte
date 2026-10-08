@@ -278,6 +278,84 @@ int test_order_swap_and_equality() {
 	RETURN_TEST(0);
 }
 
+int test_const_key_import_and_standard_pairs() {
+	using Strings = Safe::UnorderedMap<Safe::String, int>;
+	Strings values;
+	Strings::value_type entry(Safe::String("original key with heap storage"), 10);
+	ASSERT_TRUE(values.insert(std::move(entry)).second);
+	ASSERT_TRUE(entry.first == Safe::String("original key with heap storage"));
+	std::unordered_map<Safe::String, int> standard;
+	standard.emplace(Safe::String("imported key with heap storage"), 20);
+	Strings imported(std::move(standard));
+	ASSERT_TRUE(standard.empty());
+	ASSERT_EQUAL(20, imported.at(Safe::String("imported key with heap storage")));
+	Table integers;
+	std::pair<int, int> pair(1, 10);
+	ASSERT_TRUE(integers.insert(pair).second);
+	ASSERT_EQUAL(10, pair.second);
+	ASSERT_TRUE(integers.insert(std::pair<int, int>(2, 20)).second);
+	ASSERT_FALSE(integers.insert(std::pair<int, int>(1, 99)).second);
+	ASSERT_EQUAL(10, integers.at(1));
+	RETURN_TEST(0);
+}
+
+int test_stateful_assignment_and_node_transfer() {
+	struct Hash {
+		std::size_t seed = 0;
+		std::size_t operator()(int key) const { return static_cast<std::size_t>(key) ^ seed; }
+	};
+	struct Equal {
+		int state = 0;
+		bool operator()(int left, int right) const { return left == right; }
+	};
+	using Stateful = Safe::UnorderedMap<int, int, Hash, Equal>;
+	Stateful source(8, Hash{7}, Equal{3});
+	source.max_load_factor(0.5f);
+	source = {Stateful::value_type(1, 10), Stateful::value_type(2, 20)};
+	ASSERT_EQUAL(std::size_t{7}, source.hash_function().seed);
+	ASSERT_EQUAL(3, source.key_eq().state);
+	ASSERT_EQUAL(0.5f, source.max_load_factor());
+	Stateful target(8, Hash{19}, Equal{4});
+	target.emplace(1, 99);
+	auto handle = source.extract(1);
+	auto rejected = target.insert(std::move(handle));
+	ASSERT_FALSE(rejected.inserted);
+	ASSERT_TRUE(handle.empty());
+	ASSERT_FALSE(rejected.node.empty());
+	ASSERT_EQUAL(10, rejected.node.mapped());
+	ASSERT_TRUE(source.insert(std::move(rejected.node)).inserted);
+	auto transferred = target.insert(source.extract(2));
+	ASSERT_TRUE(transferred.inserted);
+	ASSERT_EQUAL(20, target.at(2));
+	source.emplace(3, 30);
+	target.merge(source);
+	ASSERT_EQUAL(30, target.at(3));
+	ASSERT_TRUE(source.contains(1));
+	ASSERT_FALSE(source.contains(3));
+	RETURN_TEST(0);
+}
+
+int test_iterator_stability_and_standard_model() {
+	Table values;
+	values.reserve(128);
+	values.emplace(100, 1000);
+	auto stable = values.find(100);
+	auto* address = &*stable;
+	std::unordered_map<int, int> model{{100, 1000}};
+	for (int index = 0; index < 96; ++index) {
+		const int key = (index * 37) % 61;
+		ASSERT_EQUAL(model.emplace(key, index).second, values.insert(std::pair<int, int>(key, index)).second);
+	}
+	for (int key = 0; key < 61; key += 2) ASSERT_EQUAL(model.erase(key), values.erase(key));
+	ASSERT_TRUE(&*stable == address);
+	ASSERT_EQUAL(1000, stable->second);
+	values.rehash(values.bucket_count() * 2);
+	ASSERT_TRUE(&*values.find(100) == address);
+	ASSERT_EQUAL(model.size(), values.size());
+	for (const auto& entry : model) ASSERT_EQUAL(entry.second, values.at(entry.first));
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -315,6 +393,9 @@ int main() {
 	// Insert
 	// -------------------
 	result += test_insert_emplace_assign_and_index();
+	result += test_const_key_import_and_standard_pairs();
+	result += test_stateful_assignment_and_node_transfer();
+	result += test_iterator_stability_and_standard_model();
 
 	// -------------------
 	// Node

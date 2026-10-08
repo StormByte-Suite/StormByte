@@ -39,6 +39,7 @@
 
 #include <StormByte/safe/deque.hxx>
 #include <StormByte/safe/exception.hxx>
+#include <StormByte/safe/vector.hxx>
 #include <StormByte/test_handlers.h>
 
 #include <algorithm>
@@ -143,6 +144,34 @@ int test_copy_and_move() {
 	RETURN_TEST(0);
 }
 
+int test_self_assignment_and_reuse_moved_from() {
+	Safe::Deque<Safe::Vector<int>> source;
+	for (int value = 0; value < 40; ++value)
+		source.emplace_back(std::initializer_list<int>{value, value + 1});
+	for (int index = 0; index < 17; ++index)
+		source.pop_front();
+	auto& alias = source;
+	source = alias;
+	source = std::move(alias);
+	ASSERT_EQUAL(23u, source.size());
+	ASSERT_EQUAL(17, source.front().front());
+	Safe::Deque<Safe::Vector<int>> destination;
+	destination.emplace_back(std::initializer_list<int>{99});
+	destination = std::move(source);
+	ASSERT_TRUE(source.empty());
+	ASSERT_EQUAL(source.begin(), source.end());
+	source.emplace_front(std::initializer_list<int>{4, 5});
+	source.emplace_back(std::initializer_list<int>{6});
+	ASSERT_EQUAL(4, source.front().front());
+	ASSERT_EQUAL(6, source.back().front());
+	ASSERT_EQUAL(40, destination.back().back());
+	Safe::Deque<Safe::Vector<int>> constructed(std::move(source));
+	source.emplace_back(std::initializer_list<int>{7});
+	ASSERT_EQUAL(7, source.front().front());
+	ASSERT_EQUAL(6, constructed.back().front());
+	RETURN_TEST(0);
+}
+
 int test_count_and_value() {
 	Safe::Deque<int> filled(std::size_t{4}, 7);
 	ASSERT_EQUAL(std::size_t{4}, filled.size());
@@ -226,6 +255,45 @@ int test_forward_and_reverse() {
 // -------------------
 // Modify
 // -------------------
+
+int test_insert_aliased_value() {
+	Safe::Deque<Safe::Vector<int>> values;
+	values.emplace_back(std::initializer_list<int>{1, 2});
+	values.emplace_back(std::initializer_list<int>{3, 4});
+	auto inserted = values.insert(values.begin(), values.back());
+	ASSERT_EQUAL(3, inserted->front());
+	ASSERT_EQUAL(4, inserted->back());
+	ASSERT_EQUAL(1, values[1].front());
+	ASSERT_EQUAL(3, values[2].front());
+	Safe::Deque<int> repeated{1, 2, 3};
+	repeated.insert(repeated.begin(), 2, repeated.back());
+	const Safe::Deque<int> expected{3, 3, 1, 2, 3};
+	ASSERT_TRUE(repeated == expected);
+	RETURN_TEST(0);
+}
+
+int test_empty_erase_and_failed_access_preserve_values() {
+	Safe::Deque<Safe::Vector<int>> values;
+	ASSERT_EQUAL(values.end(), values.erase(values.begin(), values.end()));
+	ASSERT_THROWS(values.front(), Safe::OutOfBoundsError);
+	ASSERT_THROWS(values.back(), Safe::OutOfBoundsError);
+	values.emplace_back(std::initializer_list<int>{1, 2});
+	values.emplace_back(std::initializer_list<int>{3, 4});
+	ASSERT_EQUAL(values.begin(), values.erase(values.begin(), values.begin()));
+	ASSERT_EQUAL(2u, values.front().size());
+	ASSERT_EQUAL(1, values.front().front());
+	ASSERT_EQUAL(4, values.back().back());
+	ASSERT_THROWS(values.at(values.size()) = Safe::Vector<int>{9}, Safe::OutOfBoundsError);
+	const auto& read = values;
+	ASSERT_THROWS(read.at(read.size()), Safe::OutOfBoundsError);
+	ASSERT_EQUAL(2u, values.size());
+	ASSERT_EQUAL(1, values.front().front());
+	auto after_erase = values.erase(values.begin(), values.end());
+	ASSERT_EQUAL(values.end(), after_erase);
+	values.emplace_front(std::initializer_list<int>{5});
+	ASSERT_EQUAL(5, values.back().front());
+	RETURN_TEST(0);
+}
 
 int test_append_and_prepend_range() {
 	Safe::Deque<int> values{3};
@@ -344,6 +412,7 @@ int main() {
 	// Construct
 	// -------------------
 	result += test_copy_and_move();
+	result += test_self_assignment_and_reuse_moved_from();
 	result += test_count_and_value();
 	result += test_empty_starts_empty();
 	result += test_initializer_and_iterators();
@@ -358,6 +427,8 @@ int main() {
 	// Modify
 	// -------------------
 	result += test_append_and_prepend_range();
+	result += test_insert_aliased_value();
+	result += test_empty_erase_and_failed_access_preserve_values();
 	result += test_assign_replaces();
 	result += test_clear_and_shrink();
 	result += test_emplace_insert_and_erase();

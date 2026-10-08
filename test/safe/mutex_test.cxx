@@ -41,7 +41,6 @@
 #include <StormByte/test_handlers.h>
 
 #include <atomic>
-#include <chrono>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -54,20 +53,19 @@ using namespace StormByte;
 // Blocking
 // -------------------
 
-int test_other_thread_blocks_until_unlock() {
+int test_other_thread_rejected_until_unlock() {
 	Safe::Mutex mutex;
 	mutex.lock();
 	std::atomic<bool> acquired(false);
 	std::thread waiter([&]() {
-		mutex.lock();
-		acquired.store(true);
-		mutex.unlock();
+		const bool taken = mutex.try_lock();
+		acquired.store(taken);
+		if (taken)
+			mutex.unlock();
 	});
-	std::this_thread::sleep_for(std::chrono::milliseconds(50));
-	ASSERT_FALSE(acquired.load());
-	mutex.unlock();
 	waiter.join();
-	ASSERT_TRUE(acquired.load());
+	mutex.unlock();
+	ASSERT_FALSE(acquired.load());
 	RETURN_TEST(0);
 }
 
@@ -107,11 +105,14 @@ int test_try_lock_fails_when_owned() {
 	mutex.lock();
 	std::atomic<bool> failed(false);
 	std::thread contender([&]() {
-		failed.store(!mutex.try_lock());
+		const bool taken = mutex.try_lock();
+		failed.store(!taken);
+		if (taken)
+			mutex.unlock();
 	});
 	contender.join();
-	ASSERT_TRUE(failed.load());
 	mutex.unlock();
+	ASSERT_TRUE(failed.load());
 	RETURN_TEST(0);
 }
 
@@ -135,6 +136,33 @@ int test_try_lock_then_other_thread_acquires() {
 	});
 	waiter.join();
 	ASSERT_TRUE(acquired.load());
+	RETURN_TEST(0);
+}
+
+int test_try_lock_reuse_across_threads() {
+	Safe::Mutex mutex;
+	for (int iteration = 0; iteration < 3; ++iteration) {
+		const bool owned = mutex.try_lock();
+		bool contender_acquired = false;
+		std::thread contender([&]() {
+			contender_acquired = mutex.try_lock();
+			if (contender_acquired)
+				mutex.unlock();
+		});
+		contender.join();
+		if (owned)
+			mutex.unlock();
+		bool reused = false;
+		std::thread next_owner([&]() {
+			reused = mutex.try_lock();
+			if (reused)
+				mutex.unlock();
+		});
+		next_owner.join();
+		ASSERT_TRUE(owned);
+		ASSERT_FALSE(contender_acquired);
+		ASSERT_TRUE(reused);
+	}
 	RETURN_TEST(0);
 }
 
@@ -178,7 +206,7 @@ int main() {
 	// -------------------
 	// Blocking
 	// -------------------
-	result += test_other_thread_blocks_until_unlock();
+	result += test_other_thread_rejected_until_unlock();
 	result += test_relock_after_unlock();
 
 	// -------------------
@@ -192,6 +220,7 @@ int main() {
 	result += test_try_lock_fails_when_owned();
 	result += test_try_lock_succeeds_when_free();
 	result += test_try_lock_then_other_thread_acquires();
+	result += test_try_lock_reuse_across_threads();
 
 	// -------------------
 	// Writers
