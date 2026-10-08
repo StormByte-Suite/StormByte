@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2024-2026 David C. Manuelda (StormBytePP)
  *
- * This file is part of StormByte.
+ * This is the base for StormByte Suite libraries.
  *
  * StormByte original source is dual-licensed:
  *
