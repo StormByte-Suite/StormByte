@@ -46,11 +46,16 @@
 #include <StormByte/size.hxx>
 #include <StormByte/visibility.h>
 
-#include <cctype>
+#if __has_include(<fmt/format.h>)
+#include <fmt/format.h>
+#endif
+
 #include <cassert>
+#include <cctype>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <functional>
 #include <initializer_list>
 #include <iterator>
@@ -1359,6 +1364,48 @@ struct StormByte::Safe::Hash<StormByte::Safe::String> {
 		return HashBytes(std::as_bytes(std::span<const char>(view.data(), view.size())));
 	}
 };
+
+/**
+ * @brief Formats owned UTF-8 text with standard string format specifications.
+ */
+template<>
+struct std::formatter<StormByte::Safe::String, char>: std::formatter<std::string_view, char> {
+	/**
+	 * @brief Formats the borrowed view without copying the owned text.
+	 * @tparam FormatContext Formatting context type.
+	 * @param text Source text.
+	 * @param context Destination formatting context.
+	 * @return Iterator past the formatted output.
+	 * @note The body is emitted in the caller; no formatting context crosses into Base.
+	 */
+	template<typename FormatContext>
+	STORMBYTE_FORCE_INLINE auto format(const StormByte::Safe::String& text, FormatContext& context) const {
+		const std::string_view view = text;
+		return std::formatter<std::string_view, char>::format(view, context);
+	}
+};
+
+#if __has_include(<fmt/format.h>)
+/**
+ * @brief Formats owned UTF-8 text with the optional fmt string formatter.
+ */
+template<>
+struct fmt::formatter<StormByte::Safe::String, char>: fmt::formatter<std::string_view, char> {
+	/**
+	 * @brief Formats the borrowed view without copying the owned text.
+	 * @tparam FormatContext Formatting context type.
+	 * @param text Source text.
+	 * @param context Destination formatting context.
+	 * @return Iterator past the formatted output.
+	 * @note The body is emitted in the caller; no formatting context crosses into Base.
+	 */
+	template<typename FormatContext>
+	STORMBYTE_FORCE_INLINE auto format(const StormByte::Safe::String& text, FormatContext& context) const {
+		const std::string_view view = text;
+		return fmt::formatter<std::string_view, char>::format(view, context);
+	}
+};
+#endif
 
 template<>
 struct std::hash<StormByte::Safe::String> {

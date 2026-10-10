@@ -95,6 +95,7 @@ target_link_libraries(SharedMutexTests StormByte)
 add_test(NAME SharedMutexTests COMMAND SharedMutexTests)
 
 add_executable(StringTests string_test.cxx)
+target_compile_definitions(StringTests PRIVATE FMT_HEADER_ONLY)
 target_link_libraries(StringTests StormByte)
 add_test(NAME StringTests COMMAND StringTests)
 
@@ -127,5 +128,6 @@ target_link_libraries(VectorTests StormByte)
 add_test(NAME VectorTests COMMAND VectorTests)
 
 add_executable(WStringTests wstring_test.cxx)
+target_compile_definitions(WStringTests PRIVATE FMT_HEADER_ONLY)
 target_link_libraries(WStringTests StormByte)
 add_test(NAME WStringTests COMMAND WStringTests)

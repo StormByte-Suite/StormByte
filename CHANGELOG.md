@@ -24,7 +24,7 @@ If you landed here from a release link and have not read the tree:
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.0.0...HEAD
 
-## [2.0.0] - 2026-10-08
+## [2.0.0] - 2026-10-10
 
 ### Added
 
@@ -87,6 +87,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 
+- **`Safe::String` / `Safe::WString` formatting.** Their `std::formatter` specializations delegate to `std::string_view` / `std::wstring_view`, so `std::format` and `std::format_to` format text rather than character ranges. String presentation (`:s`), precision, fill and alignment retain standard behavior, including dynamic width and precision. Optional `{fmt}` specializations are available when its headers are installed. The four `format` methods use `STORMBYTE_FORCE_INLINE` to keep their formatting contexts in the caller. Formatting borrows the full view, preserving embedded NULs without changing SSO or Base-owned storage. Covered by `StringTests` / `WStringTests`.
 - **`FindStormByte`.** `String` is no longer a package component; Base now provides the owned text types. `Buffer` pulls `Logger` and `System`; `Database` pulls `Logger`. `Crypto`, `Multimedia` and `Network` name only `Buffer`; the closure finds `Logger` and `System`. `Config` links only the core.
 - **`ByteSize` / `Size`.** The integer constructors stay in the header. GCC does not emit a `constexpr` constructor that is both an `extern template` and an explicit instantiation, so `ByteSize(unsigned long long)` was missing from the shared library. The operators are still one copy in the DLL. `++` / `--` build the step with the private constructor, so they do not instantiate `unsigned int` early.
 - **`Size` / `ByteSize` to `std::string`.** The conversion calls `operator Safe::String()` by name. On GCC, `static_cast<Safe::String>` picks `Safe::String(std::string)` and that calls the same operator again until the stack dies.

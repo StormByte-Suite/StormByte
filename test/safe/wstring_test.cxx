@@ -44,7 +44,9 @@
 #include <StormByte/test_handlers.h>
 
 #include <algorithm>
+#include <format>
 #include <iostream>
+#include <iterator>
 #include <queue>
 #include <ranges>
 #include <sstream>
@@ -92,9 +94,17 @@ int test_algorithm_read_and_rewrite_keeps_size() {
 	ASSERT_TRUE(std::find_end(text.begin(), text.end(), needle, needle + 2) == text.begin());
 	ASSERT_TRUE(std::search_n(text.begin(), text.end(), 2, L'a') == text.begin());
 	ASSERT_TRUE(std::find_first_of(text.begin(), text.end(), needle, needle + 1) == text.begin());
-	std::for_each(text.begin(), text.end(), [](wchar_t& ch) { ch = ch; });
-	std::for_each_n(text.begin(), 2, [](wchar_t& ch) { ch = ch; });
-	std::ranges::for_each(text, [](wchar_t& ch) { ch = ch; });
+	std::for_each(text.begin(), text.end(), [](wchar_t& ch) { ch = static_cast<wchar_t>(ch - L'a' + L'A'); });
+	ASSERT_TRUE(std::wstring_view(text) == L"AABBC");
+	std::for_each_n(text.begin(), 2, [](wchar_t& ch) { ch = static_cast<wchar_t>(ch - L'A' + L'a'); });
+	ASSERT_TRUE(std::wstring_view(text) == L"aaBBC");
+	std::ranges::for_each(text, [](wchar_t& ch) {
+		if (ch >= L'A' && ch <= L'Z')
+			ch = static_cast<wchar_t>(ch - L'A' + L'a');
+	});
+	ASSERT_TRUE(std::wstring_view(text) == L"aabbc");
+	ASSERT_EQUAL(owned, text.size());
+	ASSERT_EQUAL(L'\0', text.c_str()[static_cast<std::size_t>(owned)]);
 	std::reverse(text.begin(), text.end());
 	std::ranges::reverse(text);
 	std::rotate(text.begin(), text.begin() + 1, text.end());
@@ -314,6 +324,38 @@ int test_search_helpers_and_order() {
 	RETURN_TEST(0);
 }
 
+// -------------------
+// Format
+// -------------------
+
+int test_format_as_text() {
+	const Safe::WString text(L"hola mundo");
+	ASSERT_TRUE(std::format(L"Texto: {}", text) == L"Texto: hola mundo");
+	ASSERT_TRUE(std::format(L"{:s}", text) == L"hola mundo");
+	ASSERT_TRUE(std::format(L"{:.4}", text) == L"hola");
+	ASSERT_TRUE(std::format(L"{:_<12}", text) == L"hola mundo__");
+	ASSERT_TRUE(std::format(L"{:_>12}", text) == L"__hola mundo");
+	ASSERT_TRUE(std::format(L"{:_^12s}", text) == L"_hola mundo_");
+	ASSERT_TRUE(std::format(L"{:_>{}.{}s}", text, 6, 4) == L"__hola");
+	ASSERT_TRUE(std::format(L"{}", Safe::WString{}).empty());
+	const Safe::WString long_text(L"This text is longer than the short wide string buffer.");
+	ASSERT_TRUE(std::format(L"{}", long_text) == std::wstring_view(long_text));
+	const Safe::WString embedded(std::wstring_view(L"a\0b", 3));
+	ASSERT_TRUE(std::format(L"{}", embedded) == std::wstring(L"a\0b", 3));
+	std::wstring output;
+	std::format_to(std::back_inserter(output), L"Texto: {:.4s}", text);
+	ASSERT_TRUE(output == L"Texto: hola");
+#if __has_include(<fmt/xchar.h>)
+	ASSERT_TRUE(fmt::format(L"Texto: {}", text) == L"Texto: hola mundo");
+	ASSERT_TRUE(fmt::format(L"{:_>{}.{}s}", text, 6, 4) == L"__hola");
+	ASSERT_TRUE(fmt::format(L"{}", embedded) == std::wstring(L"a\0b", 3));
+	output.clear();
+	fmt::format_to(std::back_inserter(output), L"Texto: {:.4s}", text);
+	ASSERT_TRUE(output == L"Texto: hola");
+#endif
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -336,6 +378,11 @@ int main() {
 	// Search
 	// -------------------
 	result += test_search_helpers_and_order();
+
+	// -------------------
+	// Format
+	// -------------------
+	result += test_format_as_text();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

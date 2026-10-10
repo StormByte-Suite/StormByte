@@ -47,11 +47,16 @@
 #include <StormByte/size.hxx>
 #include <StormByte/visibility.h>
 
+#if __has_include(<fmt/xchar.h>)
+#include <fmt/xchar.h>
+#endif
+
 #include <cassert>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <cwctype>
+#include <format>
 #include <functional>
 #include <initializer_list>
 #include <iterator>
@@ -60,6 +65,7 @@
 #include <ranges>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -1350,6 +1356,48 @@ struct StormByte::Safe::Hash<StormByte::Safe::WString> {
 		return HashBytes(std::as_bytes(std::span<const wchar_t>(view.data(), view.size())));
 	}
 };
+
+/**
+ * @brief Formats owned wide text with standard string format specifications.
+ */
+template<>
+struct std::formatter<StormByte::Safe::WString, wchar_t>: std::formatter<std::wstring_view, wchar_t> {
+	/**
+	 * @brief Formats the borrowed view without copying the owned text.
+	 * @tparam FormatContext Formatting context type.
+	 * @param text Source text.
+	 * @param context Destination formatting context.
+	 * @return Iterator past the formatted output.
+	 * @note The body is emitted in the caller; no formatting context crosses into Base.
+	 */
+	template<typename FormatContext>
+	STORMBYTE_FORCE_INLINE auto format(const StormByte::Safe::WString& text, FormatContext& context) const {
+		const std::wstring_view view = text;
+		return std::formatter<std::wstring_view, wchar_t>::format(view, context);
+	}
+};
+
+#if __has_include(<fmt/xchar.h>)
+/**
+ * @brief Formats owned wide text with the optional fmt string formatter.
+ */
+template<>
+struct fmt::formatter<StormByte::Safe::WString, wchar_t>: fmt::formatter<std::wstring_view, wchar_t> {
+	/**
+	 * @brief Formats the borrowed view without copying the owned text.
+	 * @tparam FormatContext Formatting context type.
+	 * @param text Source text.
+	 * @param context Destination formatting context.
+	 * @return Iterator past the formatted output.
+	 * @note The body is emitted in the caller; no formatting context crosses into Base.
+	 */
+	template<typename FormatContext>
+	STORMBYTE_FORCE_INLINE auto format(const StormByte::Safe::WString& text, FormatContext& context) const {
+		const std::wstring_view view = text;
+		return fmt::formatter<std::wstring_view, wchar_t>::format(view, context);
+	}
+};
+#endif
 
 template<>
 struct std::hash<StormByte::Safe::WString> {

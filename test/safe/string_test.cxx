@@ -44,8 +44,10 @@
 #include <StormByte/test_handlers.h>
 
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <queue>
 #include <ranges>
 #include <sstream>
@@ -102,9 +104,17 @@ int test_algorithm_read_and_rewrite_keeps_size() {
 	ASSERT_TRUE(std::find_end(text.begin(), text.end(), needle, needle + 2) == text.begin());
 	ASSERT_TRUE(std::search_n(text.begin(), text.end(), 2, 'a') == text.begin());
 	ASSERT_TRUE(std::find_first_of(text.begin(), text.end(), needle, needle + 1) == text.begin());
-	std::for_each(text.begin(), text.end(), [](char& ch) { ch = ch; });
-	std::for_each_n(text.begin(), 2, [](char& ch) { ch = ch; });
-	std::ranges::for_each(text, [](char& ch) { ch = ch; });
+	std::for_each(text.begin(), text.end(), [](char& ch) { ch = static_cast<char>(ch - 'a' + 'A'); });
+	ASSERT_TRUE(std::string_view(text) == "AABBC");
+	std::for_each_n(text.begin(), 2, [](char& ch) { ch = static_cast<char>(ch - 'A' + 'a'); });
+	ASSERT_TRUE(std::string_view(text) == "aaBBC");
+	std::ranges::for_each(text, [](char& ch) {
+		if (ch >= 'A' && ch <= 'Z')
+			ch = static_cast<char>(ch - 'A' + 'a');
+	});
+	ASSERT_TRUE(std::string_view(text) == "aabbc");
+	ASSERT_EQUAL(owned, text.size());
+	ASSERT_EQUAL('\0', text.c_str()[static_cast<std::size_t>(owned)]);
 	std::reverse(text.begin(), text.end());
 	std::ranges::reverse(text);
 	std::rotate(text.begin(), text.begin() + 1, text.end());
@@ -367,6 +377,38 @@ int test_search_helpers_and_order() {
 	RETURN_TEST(0);
 }
 
+// -------------------
+// Format
+// -------------------
+
+int test_format_as_text() {
+	const Safe::String text("hola mundo");
+	ASSERT_EQUAL(std::string("Texto: hola mundo"), std::format("Texto: {}", text));
+	ASSERT_EQUAL(std::string("hola mundo"), std::format("{:s}", text));
+	ASSERT_EQUAL(std::string("hola"), std::format("{:.4}", text));
+	ASSERT_EQUAL(std::string("hola mundo__"), std::format("{:_<12}", text));
+	ASSERT_EQUAL(std::string("__hola mundo"), std::format("{:_>12}", text));
+	ASSERT_EQUAL(std::string("_hola mundo_"), std::format("{:_^12s}", text));
+	ASSERT_EQUAL(std::string("__hola"), std::format("{:_>{}.{}s}", text, 6, 4));
+	ASSERT_EQUAL(std::string(), std::format("{}", Safe::String{}));
+	const Safe::String long_text("This text is longer than the short string buffer.");
+	ASSERT_EQUAL(std::string(std::string_view(long_text)), std::format("{}", long_text));
+	const Safe::String embedded(std::string_view("a\0b", 3));
+	ASSERT_EQUAL(std::string("a\0b", 3), std::format("{}", embedded));
+	std::string output;
+	std::format_to(std::back_inserter(output), "Texto: {:.4s}", text);
+	ASSERT_EQUAL(std::string("Texto: hola"), output);
+#if __has_include(<fmt/format.h>)
+	ASSERT_EQUAL(std::string("Texto: hola mundo"), fmt::format("Texto: {}", text));
+	ASSERT_EQUAL(std::string("__hola"), fmt::format("{:_>{}.{}s}", text, 6, 4));
+	ASSERT_EQUAL(std::string("a\0b", 3), fmt::format("{}", embedded));
+	output.clear();
+	fmt::format_to(std::back_inserter(output), "Texto: {:.4s}", text);
+	ASSERT_EQUAL(std::string("Texto: hola"), output);
+#endif
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -389,6 +431,11 @@ int main() {
 	// Search
 	// -------------------
 	result += test_search_helpers_and_order();
+
+	// -------------------
+	// Format
+	// -------------------
+	result += test_format_as_text();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

@@ -276,6 +276,8 @@ Derived exceptions are `MaybeSafe` for the same reason: define each named destru
 
 Construct from a literal, `const char*` / `const wchar_t*` (null stays null), or `std::string_view` / `std::wstring_view`. Those constructors are implicit, so `Safe::Map<Safe::String, int>{{"a", 1}}` works. Views copy every code unit, including embedded NULs. `size()` is a `Size` and counts the stored sequence, not the first C-string prefix. `Bytes()` is a borrowed NUL-terminated pointer; a C API that ignores length stops at the first embedded NUL. `capacity()` / `reserve(Size)` exclude the trailing NUL and never shrink. Explicit conversion to `std::string` / `std::wstring` allocates in the caller.
 
+`std::format` / `std::format_to` treat these types as text, not character ranges. The formatters are included by each type's header and borrow its implicit view without copying the owned text. Standard string specifications (`:s`, precision, fill and alignment) apply. Use wide format strings with `Safe::WString`. `fmt::format` / `fmt::format_to` are also supported when the optional `{fmt}` headers are available; link `{fmt}` or use its header-only mode as usual.
+
 ```cpp
 #include <StormByte/safe/string.hxx>
 #include <StormByte/safe/wstring.hxx>
