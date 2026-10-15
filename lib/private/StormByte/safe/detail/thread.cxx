@@ -37,6 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/platform.h>
 #include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/thread.hxx>
 
@@ -47,8 +48,132 @@
 #include <new>
 #include <thread>
 #include <utility>
+#ifdef UNIX
+#include <pthread.h>
+#endif
 
 namespace StormByte::Safe::Detail {
+#ifdef UNIX
+	namespace {
+		constexpr std::size_t ThreadStackBytes = 8u * 1024u * 1024u;
+
+		struct Launch {
+			void (*entry)(void*);
+			void* argument;
+		};
+
+		void* RunLaunch(void* raw) {
+			auto* launch = static_cast<Launch*>(raw);
+			void (*entry)(void*) = launch->entry;
+			void* argument = launch->argument;
+			launch->~Launch();
+			Heap::Free(raw);
+			try {
+				entry(argument);
+			}
+			catch (...) {
+				std::terminate();
+			}
+			return nullptr;
+		}
+
+		template <typename Handle>
+		std::uintptr_t AsHandle(Handle handle) noexcept {
+			static_assert(sizeof(Handle) <= sizeof(std::uintptr_t));
+			std::uintptr_t value = 0;
+			std::memcpy(&value, &handle, sizeof(handle));
+			return value;
+		}
+	}
+
+	struct OwnedThread {
+		pthread_t handle;
+
+		bool joinable;
+
+		explicit OwnedThread(void (*entry)(void*), void* argument)
+		:	handle{}, joinable{false} {
+			void* raw = Heap::Allocate(sizeof(Launch));
+			auto* launch = ::new (raw) Launch{entry, argument};
+			pthread_attr_t attr;
+			if (pthread_attr_init(&attr) != 0) {
+				launch->~Launch();
+				Heap::Free(raw);
+				throw AllocationError();
+			}
+			const int sized = pthread_attr_setstacksize(&attr, ThreadStackBytes);
+			const int created = sized == 0 ? pthread_create(&handle, &attr, RunLaunch, launch) : sized;
+			pthread_attr_destroy(&attr);
+			if (created != 0) {
+				launch->~Launch();
+				Heap::Free(raw);
+				throw AllocationError();
+			}
+			joinable = true;
+		}
+	};
+
+	void* ThreadStart(void (*entry)(void*), void* argument) {
+		void* raw = Heap::Allocate(sizeof(OwnedThread));
+		try {
+			return ::new (raw) OwnedThread(entry, argument);
+		}
+		catch (...) {
+			Heap::Free(raw);
+			throw AllocationError();
+		}
+	}
+
+	void ThreadDestroy(void* thread) noexcept {
+		if (thread == nullptr)
+			return;
+		OwnedThread* owned = static_cast<OwnedThread*>(thread);
+		if (owned->joinable)
+			std::terminate();
+		owned->~OwnedThread();
+		Heap::Free(thread);
+	}
+
+	bool ThreadJoinable(void* thread) noexcept {
+		return static_cast<OwnedThread*>(thread)->joinable;
+	}
+
+	void ThreadJoin(void* thread) {
+		OwnedThread* owned = static_cast<OwnedThread*>(thread);
+		if (owned == nullptr || !owned->joinable)
+			throw Exception("Thread is not joinable");
+		if (pthread_join(owned->handle, nullptr) != 0)
+			throw Exception("Thread is not joinable");
+		owned->joinable = false;
+	}
+
+	void ThreadDetach(void* thread) {
+		OwnedThread* owned = static_cast<OwnedThread*>(thread);
+		if (owned == nullptr || !owned->joinable)
+			throw Exception("Thread is not joinable");
+		if (pthread_detach(owned->handle) != 0)
+			throw Exception("Thread is not joinable");
+		owned->joinable = false;
+	}
+
+	std::uint64_t ThreadId(void* thread) noexcept {
+		OwnedThread* owned = static_cast<OwnedThread*>(thread);
+		if (owned == nullptr || !owned->joinable)
+			return 0;
+		return static_cast<std::uint64_t>(AsHandle(owned->handle));
+	}
+
+	std::uintptr_t ThreadNative(void* thread) noexcept {
+		OwnedThread* owned = static_cast<OwnedThread*>(thread);
+		if (owned == nullptr || !owned->joinable)
+			return 0;
+		return AsHandle(owned->handle);
+	}
+
+	std::uint64_t ThreadSelf() noexcept {
+		return static_cast<std::uint64_t>(AsHandle(pthread_self()));
+	}
+#else
 	struct OwnedThread {
 		std::thread thread;
 
@@ -123,6 +248,7 @@ namespace StormByte::Safe::Detail {
 	std::uint64_t ThreadSelf() noexcept {
 		return Identify(std::this_thread::get_id());
 	}
+#endif
 
 	unsigned ThreadHardware() noexcept {
 		return std::thread::hardware_concurrency();

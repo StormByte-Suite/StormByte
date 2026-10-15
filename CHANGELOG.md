@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Fixed
+
+- `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
+
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.0.0...HEAD
 
 ## [2.0.0] - 2026-10-10

@@ -231,6 +231,7 @@ namespace StormByte {
 		 * @brief Execution owned by Base.
 		 *
 		 * Not an alias of `std::thread`. The native thread is started and joined in Base. Destroying a joinable thread terminates the process, as `std::thread` does.
+		 * A UNIX execution has an 8 MiB stack. musl's default of 128 KiB is not used. Windows keeps the system default.
 		 * A @ref Function is stored by value and invoked with @c Call. The creator-module release stays with the function.
 		 */
 		class STORMBYTE_PUBLIC Thread {

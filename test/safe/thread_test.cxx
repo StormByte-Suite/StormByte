@@ -37,6 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/platform.h>
 #include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/function.hxx>
 #include <StormByte/safe/thread.hxx>
@@ -68,6 +69,20 @@ namespace {
 	void Add(std::atomic<int>* value, int delta) {
 		value->fetch_add(delta);
 	}
+
+#ifdef UNIX
+	// Each frame stays under a page, so the stack grows into the guard instead of jumping it.
+	// 512 frames are a megabyte: musl's 128 KiB default dies, an 8 MiB stack does not.
+	[[gnu::noinline]] int BurnStack(int pages) {
+		volatile unsigned char page[2048];
+		page[0] = 1;
+		page[2047] = static_cast<unsigned char>(pages);
+		if (pages == 0)
+			return page[0];
+		const int deeper = BurnStack(pages - 1);
+		return deeper + page[0] + page[2047];
+	}
+#endif
 
 	void* CloneCounter(const void* raw) noexcept {
 		auto* source = static_cast<const Counter*>(raw);
@@ -443,6 +458,22 @@ int test_yield_returns() {
 	RETURN_TEST(0);
 }
 
+// -------------------
+// Stack
+// -------------------
+
+int test_stack_holds_a_megabyte() {
+#ifdef UNIX
+	std::atomic<int> seen{0};
+	Safe::Thread thread([&seen]() {
+		seen.store(BurnStack(511));
+	});
+	thread.join();
+	ASSERT_TRUE(seen.load() != 0);
+#endif
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -485,6 +516,11 @@ int main() {
 	result += test_not_copyable_and_is_movable();
 	result += test_several_threads_all_join();
 	result += test_swap_exchanges_joinable();
+
+	// -------------------
+	// Stack
+	// -------------------
+	result += test_stack_holds_a_megabyte();
 
 	// -------------------
 	// This thread
