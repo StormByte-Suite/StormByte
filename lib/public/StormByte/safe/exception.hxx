@@ -77,7 +77,7 @@ namespace StormByte {
 				 * @param message Body. Moved. Not a path.
 				 */
 				template<class Message>
-					requires std::is_same_v<std::remove_cvref_t<Message>, String> && !std::is_lvalue_reference_v<Message>
+					requires std::is_same_v<std::remove_cvref_t<Message>, String> && (!std::is_lvalue_reference_v<Message>)
 				explicit Exception(Message&& message)
 					: StormByte::Exception(StormByte::Exception::Path{"Safe"}, std::forward<Message>(message)) {}
 
@@ -203,7 +203,7 @@ namespace StormByte {
 				 * @param message Body. Moved. Not a path.
 				 */
 				template<class Message>
-					requires std::is_same_v<std::remove_cvref_t<Message>, String> && !std::is_lvalue_reference_v<Message>
+					requires std::is_same_v<std::remove_cvref_t<Message>, String> && (!std::is_lvalue_reference_v<Message>)
 				explicit ExpiredWeakPointerError(Message&& message)
 					: Exception(std::forward<Message>(message)) {}
 
@@ -273,7 +273,7 @@ namespace StormByte {
 				 * @param message Body. Moved. Not a path.
 				 */
 				template<class Message>
-					requires std::is_same_v<std::remove_cvref_t<Message>, String> && !std::is_lvalue_reference_v<Message>
+					requires std::is_same_v<std::remove_cvref_t<Message>, String> && (!std::is_lvalue_reference_v<Message>)
 				explicit OutOfBoundsError(Message&& message)
 					: Exception(std::forward<Message>(message)) {}
 
@@ -394,7 +394,7 @@ namespace StormByte {
 				 * @param message Body. Moved. Not a path.
 				 */
 				template<class Message>
-					requires std::is_same_v<std::remove_cvref_t<Message>, String> && !std::is_lvalue_reference_v<Message>
+					requires std::is_same_v<std::remove_cvref_t<Message>, String> && (!std::is_lvalue_reference_v<Message>)
 				explicit BadVariantAccess(Message&& message)
 					: Exception(std::forward<Message>(message)) {}
 
