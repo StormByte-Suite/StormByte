@@ -661,13 +661,17 @@ namespace StormByte {
 				 * @return New Base-owned string. No arguments, or no token, yields an unchanged copy.
 				 * @throws AllocationError The result could not be allocated.
 				 */
-				template<class Self, class... Args>
-					requires Type::SameAs<Self, WString> && (Type::Const<std::remove_reference_t<Self>> || (!Type::LvalueReference<Self>))
-				WString ReplaceToken(this Self&& self, Args&&... args) {
+				template<class... Args>
+				WString ReplaceToken(Args&&... args) const & {
 					if constexpr (sizeof...(Args) == 0)
-						return self;
+						return *this;
 					else
-						return ReplaceToken(static_cast<std::wstring_view>(self), std::forward<Args>(args)...);
+						return WString::ReplaceToken<Args...>(static_cast<std::wstring_view>(*this), std::forward<Args>(args)...);
+				}
+
+				template<class... Args>
+				WString ReplaceToken(Args&&... args) && {
+					return static_cast<const WString&>(*this).ReplaceToken(std::forward<Args>(args)...);
 				}
 
 				/**
@@ -677,17 +681,16 @@ namespace StormByte {
 				 * @return This string. No arguments, or no token, leaves it unchanged.
 				 * @throws AllocationError The result could not be allocated.
 				 */
-				template<class Self, class... Args>
-					requires Type::SameAs<Self, WString> && Type::LvalueReference<Self> && (!Type::Const<std::remove_reference_t<Self>>)
-				WString& ReplaceToken(this Self&& self, Args&&... args) {
+				template<class... Args>
+				WString& ReplaceToken(Args&&... args) & {
 					if constexpr (sizeof...(Args) == 0)
-						return self;
+						return *this;
 					else {
-						const std::wstring_view view(self);
+						const std::wstring_view view(*this);
 						if (view.find(L"{}") == std::wstring_view::npos)
-							return self;
-						self = ReplaceToken(view, std::forward<Args>(args)...);
-						return self;
+							return *this;
+						*this = WString::ReplaceToken<Args...>(view, std::forward<Args>(args)...);
+						return *this;
 					}
 				}
 

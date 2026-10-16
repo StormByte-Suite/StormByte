@@ -43,6 +43,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 
+- `String::ReplaceToken` / `WString::ReplaceToken` no longer use an explicit object parameter. GCC treated that overload as the static call and then rejected it for lack of an object. The call syntax is unchanged.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.0.0...HEAD

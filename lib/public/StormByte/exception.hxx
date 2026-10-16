@@ -157,7 +157,7 @@ namespace StormByte {
 			template <typename... Args>
 				requires (sizeof...(Args) >= 1)
 			Exception(Path path, std::string_view pattern, Args&&... args)
-				: Exception(path, Safe::String::ReplaceToken(pattern, std::forward<Args>(args)...)) {}
+				: Exception(path, Safe::String::ReplaceToken<Args...>(pattern, std::forward<Args>(args)...)) {}
 
 		private:
 			Safe::String m_what;	///< Owned message. Empty when @ref what is overridden.
