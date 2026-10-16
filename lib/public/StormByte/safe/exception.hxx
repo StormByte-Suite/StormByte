@@ -44,6 +44,7 @@
 #include <StormByte/visibility.h>
 
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 /**
@@ -71,10 +72,14 @@ namespace StormByte {
 				explicit Exception(std::string_view message);
 
 				/**
-				 * @brief Takes a body into `StormByte.Safe: message`.
+				 * @brief Takes an rvalue body into `StormByte.Safe: message`.
+				 * @tparam Message An rvalue @ref String. A literal uses the view constructor.
 				 * @param message Body. Moved. Not a path.
 				 */
-				explicit Exception(String&& message);
+				template<class Message>
+					requires std::is_same_v<std::remove_cvref_t<Message>, String> && !std::is_lvalue_reference_v<Message>
+				explicit Exception(Message&& message)
+					: StormByte::Exception(StormByte::Exception::Path{"Safe"}, std::forward<Message>(message)) {}
 
 				/**
 				 * @brief Copy constructor. Defined in the Base DLL.
@@ -193,10 +198,14 @@ namespace StormByte {
 				explicit ExpiredWeakPointerError(std::string_view message);
 
 				/**
-				 * @brief Takes a body into `StormByte.Safe: message`.
+				 * @brief Takes an rvalue body into `StormByte.Safe: message`.
+				 * @tparam Message An rvalue @ref String. A literal uses the view constructor.
 				 * @param message Body. Moved. Not a path.
 				 */
-				explicit ExpiredWeakPointerError(String&& message);
+				template<class Message>
+					requires std::is_same_v<std::remove_cvref_t<Message>, String> && !std::is_lvalue_reference_v<Message>
+				explicit ExpiredWeakPointerError(Message&& message)
+					: Exception(std::forward<Message>(message)) {}
 
 			protected:
 				/**
@@ -259,10 +268,14 @@ namespace StormByte {
 				explicit OutOfBoundsError(std::string_view message);
 
 				/**
-				 * @brief Takes a body into `StormByte.Safe: message`.
+				 * @brief Takes an rvalue body into `StormByte.Safe: message`.
+				 * @tparam Message An rvalue @ref String. A literal uses the view constructor.
 				 * @param message Body. Moved. Not a path.
 				 */
-				explicit OutOfBoundsError(String&& message);
+				template<class Message>
+					requires std::is_same_v<std::remove_cvref_t<Message>, String> && !std::is_lvalue_reference_v<Message>
+				explicit OutOfBoundsError(Message&& message)
+					: Exception(std::forward<Message>(message)) {}
 
 			protected:
 				/**
@@ -376,10 +389,14 @@ namespace StormByte {
 				explicit BadVariantAccess(std::string_view message);
 
 				/**
-				 * @brief Takes a body into `StormByte.Safe: message`.
+				 * @brief Takes an rvalue body into `StormByte.Safe: message`.
+				 * @tparam Message An rvalue @ref String. A literal uses the view constructor.
 				 * @param message Body. Moved. Not a path.
 				 */
-				explicit BadVariantAccess(String&& message);
+				template<class Message>
+					requires std::is_same_v<std::remove_cvref_t<Message>, String> && !std::is_lvalue_reference_v<Message>
+				explicit BadVariantAccess(Message&& message)
+					: Exception(std::forward<Message>(message)) {}
 
 			protected:
 				/**

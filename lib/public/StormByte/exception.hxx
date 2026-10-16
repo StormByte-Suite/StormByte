@@ -43,6 +43,7 @@
 #include <StormByte/visibility.h>
 
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 /**
@@ -71,10 +72,14 @@ namespace StormByte {
 			explicit Exception(std::string_view message);
 
 			/**
-			 * @brief Takes a body into `StormByte: message`.
+			 * @brief Takes an rvalue body into `StormByte: message`.
+			 * @tparam Message An rvalue @ref Safe::String. A literal uses the view constructor.
 			 * @param message Body. Moved. Not a path.
 			 */
-			explicit Exception(Safe::String&& message);
+			template<class Message>
+				requires std::is_same_v<std::remove_cvref_t<Message>, Safe::String> && !std::is_lvalue_reference_v<Message>
+			explicit Exception(Message&& message)
+				: Exception(Path{}, std::forward<Message>(message)) {}
 
 			/**
 			 * @brief Copy constructor. Defined in the Base DLL.
@@ -181,10 +186,14 @@ namespace StormByte {
 			explicit DeserializeError(std::string_view message);
 
 			/**
-			 * @brief Takes a body into `StormByte: message`.
+			 * @brief Takes an rvalue body into `StormByte: message`.
+			 * @tparam Message An rvalue @ref Safe::String. A literal uses the view constructor.
 			 * @param message Body. Moved. Not a path.
 			 */
-			explicit DeserializeError(Safe::String&& message);
+			template<class Message>
+				requires std::is_same_v<std::remove_cvref_t<Message>, Safe::String> && !std::is_lvalue_reference_v<Message>
+			explicit DeserializeError(Message&& message)
+				: Exception(std::forward<Message>(message)) {}
 
 		protected:
 			/**
@@ -247,10 +256,14 @@ namespace StormByte {
 			explicit OperationError(std::string_view message);
 
 			/**
-			 * @brief Takes a body into `StormByte: message`.
+			 * @brief Takes an rvalue body into `StormByte: message`.
+			 * @tparam Message An rvalue @ref Safe::String. A literal uses the view constructor.
 			 * @param message Body. Moved. Not a path.
 			 */
-			explicit OperationError(Safe::String&& message);
+			template<class Message>
+				requires std::is_same_v<std::remove_cvref_t<Message>, Safe::String> && !std::is_lvalue_reference_v<Message>
+			explicit OperationError(Message&& message)
+				: Exception(std::forward<Message>(message)) {}
 
 		protected:
 			/**
@@ -313,10 +326,14 @@ namespace StormByte {
 			explicit Base64Error(std::string_view message);
 
 			/**
-			 * @brief Takes a body into `StormByte: message`.
+			 * @brief Takes an rvalue body into `StormByte: message`.
+			 * @tparam Message An rvalue @ref Safe::String. A literal uses the view constructor.
 			 * @param message Body. Moved. Not a path.
 			 */
-			explicit Base64Error(Safe::String&& message);
+			template<class Message>
+				requires std::is_same_v<std::remove_cvref_t<Message>, Safe::String> && !std::is_lvalue_reference_v<Message>
+			explicit Base64Error(Message&& message)
+				: Exception(std::forward<Message>(message)) {}
 
 		protected:
 			/**
