@@ -1,11 +1,11 @@
 name: Release
 
-# Manual only. Run it from the Actions tab after the GitHub release is
-# published. Drafts and prereleases are not "latest". Assets with the same
-# name are replaced, so a retag can be rebuilt.
+# Manual only. In the Actions tab, pick a tag. master (or any branch)
+# fails before the build. The zips replace the assets of that tag's release,
+# which does not have to be the latest. A retag of the same name is replaced.
 #
 # Same jobs as ci.yml, without the doc deploy. Each build also installs and
-# zips the prefix. One job then attaches those zips to the latest release.
+# zips the prefix. One job then attaches those zips.
 
 on:
   workflow_dispatch:
@@ -22,11 +22,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a tag
+        run: |
+          set -euo pipefail
+          if [ "${{ github.ref_type }}" != "tag" ]; then
+            echo "::error::Selected ref is '${{ github.ref_name }}'. Run this workflow on a tag, not on master."
+            exit 1
+          fi
+          echo "Release tag: ${{ github.ref_name }}"
+
   ###########################################################################
   # Bootstraps (warm shared caches; other jobs still check out on their runner)
   # Submodule cache is OS-scoped by Actions — one warm job per OS.
   ###########################################################################
   checkout-bootstrap:
+    needs: guard
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +54,7 @@ jobs:
           submodules: recursive
 
   apt-bootstrap:
+    needs: guard
     runs-on: ubuntu-latest
     name: apt-bootstrap
     steps:
@@ -49,31 +63,12 @@ jobs:
         with:
           cache-key: apt-lists
 
-  resolve:
-    runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.tag.outputs.tag }}
-    steps:
-      - name: Read the latest published release
-        id: tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          tag="$(gh release view --json tagName --jq .tagName)"
-          if [ -z "$tag" ]; then
-            echo "::error::No published release. Publish it, then run this workflow."
-            exit 1
-          fi
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "Latest release: ${tag}"
-
   ###########################################################################
   # Linux
   # clang is libstdc++ (same ABI as gcc). clang-libc++ is the other one.
   ###########################################################################
   build-linux:
-    needs: [checkout-bootstrap, apt-bootstrap, resolve]
+    needs: [checkout-bootstrap, apt-bootstrap]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -115,7 +110,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          name="${{ github.event.repository.name }}-${{ needs.resolve.outputs.tag }}-${{ matrix.asset }}.zip"
+          name="${{ github.event.repository.name }}-${{ github.ref_name }}-${{ matrix.asset }}.zip"
           (
             cd package
             cmake -E tar cf "../${name}" --format=zip -- .
@@ -135,7 +130,7 @@ jobs:
   # macOS (Apple Clang for "clang"; no apt bootstrap)
   ###########################################################################
   build-macos:
-    needs: [checkout-bootstrap, resolve]
+    needs: [checkout-bootstrap]
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -174,7 +169,7 @@ jobs:
           if [ "${{ matrix.compiler }}" != "clang" ]; then
             suffix="-${{ matrix.compiler }}"
           fi
-          name="${{ github.event.repository.name }}-${{ needs.resolve.outputs.tag }}-macos-arm64${suffix}.zip"
+          name="${{ github.event.repository.name }}-${{ github.ref_name }}-macos-arm64${suffix}.zip"
           (
             cd package
             cmake -E tar cf "../${name}" --format=zip -- .
@@ -194,7 +189,7 @@ jobs:
   # Windows
   ###########################################################################
   build-windows:
-    needs: [checkout-bootstrap, resolve]
+    needs: [checkout-bootstrap]
     runs-on: windows-latest
     name: windows-clang-cl
 
@@ -229,7 +224,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          name="${{ github.event.repository.name }}-${{ needs.resolve.outputs.tag }}-windows-x64.zip"
+          name="${{ github.event.repository.name }}-${{ github.ref_name }}-windows-x64.zip"
           (
             cd package
             cmake -E tar cf "../${name}" --format=zip -- .
@@ -249,7 +244,7 @@ jobs:
   # Attach the archives to the latest published release
   ###########################################################################
   publish:
-    needs: [resolve, build-linux, build-macos, build-windows]
+    needs: [build-linux, build-macos, build-windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -260,12 +255,12 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Attach archives to the latest release
+      - name: Attach archives to this tag's release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="${{ needs.resolve.outputs.tag }}"
+          tag="${{ github.ref_name }}"
           shopt -s nullglob
           files=(dist/*.zip)
           if [ "${#files[@]}" -eq 0 ]; then
