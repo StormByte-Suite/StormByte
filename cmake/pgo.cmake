@@ -92,8 +92,10 @@ if(PGO_STAGE STREQUAL "use")
 endif()
 
 set(${PGO_TEST_OPTION} ON CACHE BOOL "Forced ON by the PGO training build" FORCE)
-# Project install() rules would ship the instrumented binaries. The deferred
-# hook turns this off and installs the optimized rebuild instead.
+# install() in this tree would ship the instrumented binaries. Skip those
+# rules and install the optimized rebuild from cmake --install instead.
+# Subdirectories keep this variable ON, so CMake will not write their
+# cmake_install.cmake. The top-level script still includes them.
 set(CMAKE_SKIP_INSTALL_RULES TRUE)
 
 if(_pgo_kind STREQUAL "GNU")
@@ -133,9 +135,21 @@ function(_pgo_collect_targets dir out)
 	set(${out} "${found}" PARENT_SCOPE)
 endfunction()
 
+function(_pgo_stub_install_scripts dir)
+	get_property(subs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+	foreach(sub IN LISTS subs)
+		# CMake skips this file while CMAKE_SKIP_INSTALL_RULES is ON, but the
+		# parent script includes it unconditionally.
+		file(WRITE "${sub}/cmake_install.cmake"
+			"# ENABLE_PGO: instrumented install rules are not shipped.\n")
+		_pgo_stub_install_scripts("${sub}")
+	endforeach()
+endfunction()
+
 function(pgo_attach_training)
 	set(CMAKE_SKIP_INSTALL_RULES FALSE)
 	set(CMAKE_SKIP_INSTALL_RULES FALSE PARENT_SCOPE)
+	_pgo_stub_install_scripts("${CMAKE_SOURCE_DIR}")
 	_pgo_collect_targets("${CMAKE_SOURCE_DIR}" _pgo_deps)
 
 	set(_pgo_profdata "")

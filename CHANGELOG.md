@@ -46,6 +46,7 @@ If you landed here from a release link and have not read the tree:
 ### Fixed
 
 - `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
+- `cmake --install` with `ENABLE_PGO` installs the optimized rebuild. Directories configured without install rules no longer abort the script with a missing `cmake_install.cmake`.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD
