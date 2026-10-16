@@ -356,6 +356,96 @@ int test_format_as_text() {
 	RETURN_TEST(0);
 }
 
+
+int test_replace_token_sso_and_heap() {
+	const Safe::WString original(L"Hello {}");
+	const Safe::WString copy = original.ReplaceToken(L"Ann");
+	ASSERT_EQUAL(L"Hello {}", original);
+	ASSERT_EQUAL(L"Hello Ann", copy);
+	ASSERT_SIZE(copy, Size{9});
+	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, copy.capacity());
+
+	Safe::WString mut(L"id={} n={}");
+	mut.ReplaceToken(L"7", L"Ada");
+	ASSERT_EQUAL(L"id=7 n=Ada", mut);
+	ASSERT_SIZE(mut, Size{10});
+	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, mut.capacity());
+
+	Safe::WString extra(L"a {} b {}");
+	extra.ReplaceToken(L"X", L"Y", L"Z");
+	ASSERT_EQUAL(L"a X b Y", extra);
+
+	const Safe::WString once = Safe::WString(L"{} and {}").ReplaceToken(L"only");
+	ASSERT_EQUAL(L"only and {}", once);
+
+	Safe::WString none(L"plain");
+	none.ReplaceToken(L"nope");
+	ASSERT_EQUAL(L"plain", none);
+
+	Safe::WString empty_tok(L"x{}y");
+	empty_tok.ReplaceToken(L"");
+	ASSERT_EQUAL(L"xy", empty_tok);
+	ASSERT_SIZE(empty_tok, Size{2});
+
+	Safe::WString self(L"Hello {}");
+	self.ReplaceToken(std::wstring_view(self).substr(0, 5));
+	ASSERT_EQUAL(L"Hello Hello", self);
+
+	const std::wstring big(40, L'Q');
+	Safe::WString long_text(std::wstring(L"{}-") + big);
+	const Safe::WString grown = long_text.ReplaceToken(L"HEAD");
+	ASSERT_EQUAL(Safe::WString(std::wstring(L"HEAD-") + big), grown);
+	ASSERT_SIZE(grown, Size{45});
+	ASSERT_TRUE(grown.capacity() > Size{Safe::WString::SSO_CAPACITY});
+
+	Safe::WString holes(std::wstring(10, L'A') + L"{}");
+	ASSERT_TRUE(holes.capacity() > Size{Safe::WString::SSO_CAPACITY});
+	ASSERT_SIZE(holes, Size{12});
+	holes.ReplaceToken(L"");
+	ASSERT_EQUAL(Safe::WString(std::wstring(10, L'A')), holes);
+	ASSERT_SIZE(holes, Size{10});
+	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, holes.capacity());
+
+
+	const Safe::WString owned(L"Ada");
+	const std::wstring stl(L"Bob");
+	const std::wstring_view view(L"Cyd");
+	const int id = 7;
+	Safe::WString typed(L"{} / {} / {} / {}");
+	typed.ReplaceToken(owned, stl, view, std::to_wstring(id));
+	ASSERT_EQUAL(L"Ada / Bob / Cyd / 7", typed);
+	ASSERT_SIZE(typed, Size{19});
+
+	const Safe::WString mixed = Safe::WString(L"n={} s={}").ReplaceToken(std::to_wstring(3), Safe::WString(L"ok"));
+	ASSERT_EQUAL(L"n=3 s=ok", mixed);
+	ASSERT_SIZE(mixed, Size{8});
+
+	const Safe::WString from_static = Safe::WString::ReplaceToken(std::wstring_view(L"Hello {}"), L"Ann");
+	ASSERT_EQUAL(L"Hello Ann", from_static);
+	ASSERT_SIZE(from_static, Size{9});
+	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, from_static.capacity());
+
+	const Safe::WString from_many = Safe::WString::ReplaceToken(L"a {} b {}", Safe::WString(L"X"), std::wstring(L"Y"));
+	ASSERT_EQUAL(L"a X b Y", from_many);
+	ASSERT_SIZE(from_many, Size{7});
+
+	const std::wstring long_pattern(20, L'Z');
+	const Safe::WString from_long = Safe::WString::ReplaceToken(std::wstring_view(long_pattern + L" {}"), L"ok");
+	ASSERT_EQUAL(Safe::WString(long_pattern + L" ok"), from_long);
+	ASSERT_SIZE(from_long, Size{23});
+	ASSERT_TRUE(from_long.capacity() > Size{Safe::WString::SSO_CAPACITY});
+
+	const std::wstring shrink_pattern = std::wstring(10, L'A') + L"{}";
+	const Safe::WString from_shrink = Safe::WString::ReplaceToken(std::wstring_view(shrink_pattern), L"");
+	ASSERT_EQUAL(Safe::WString(std::wstring(10, L'A')), from_shrink);
+	ASSERT_SIZE(from_shrink, Size{10});
+	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, from_shrink.capacity());
+
+	ASSERT_EQUAL(L"plain", Safe::WString::ReplaceToken(L"plain", L"z"));
+	ASSERT_EQUAL(L"n=3", Safe::WString::ReplaceToken(L"n={}", std::to_wstring(3)));
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -383,6 +473,8 @@ int main() {
 	// Format
 	// -------------------
 	result += test_format_as_text();
+
+	result += test_replace_token_sso_and_heap();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

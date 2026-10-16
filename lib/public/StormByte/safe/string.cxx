@@ -47,6 +47,7 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <vector>
 
 extern "C" {
 	typedef char* sds;
@@ -470,4 +471,89 @@ Queue<String> String::Explode(std::string_view str, char delimiter) {
 
 Queue<String> String::Explode(char delimiter) const {
 	return Explode(static_cast<std::string_view>(*this), delimiter);
+}
+
+String String::ReplaceTokens(std::string_view text, std::span<const std::string_view> tokens) {
+	const std::string_view self = text;
+	if (tokens.empty() || self.size() < 2)
+		return String(text);
+
+	constexpr std::size_t kStack = 32;
+	std::size_t stack_offsets[kStack];
+	std::vector<std::size_t> heap_offsets;
+	const bool many = tokens.size() > kStack;
+	if (many)
+		heap_offsets.reserve(tokens.size());
+	std::size_t found = 0;
+	std::size_t from = 0;
+	while (found < tokens.size()) {
+		const std::size_t at = self.find("{}", from);
+		if (at == std::string_view::npos)
+			break;
+		if (many)
+			heap_offsets.push_back(at);
+		else
+			stack_offsets[found] = at;
+		++found;
+		from = at + 2;
+	}
+	if (found == 0)
+		return String(text);
+	const std::size_t* offsets = many ? heap_offsets.data() : stack_offsets;
+
+	std::size_t bytes = self.size() - 2 * found;
+	for (std::size_t i = 0; i < found; ++i)
+		bytes += tokens[i].size();
+
+	auto write = [&](char* dest) {
+		std::size_t cursor = 0;
+		std::size_t out = 0;
+		for (std::size_t i = 0; i < found; ++i) {
+			const std::size_t gap = offsets[i] - cursor;
+			if (gap != 0) {
+				std::memcpy(dest + out, self.data() + cursor, gap);
+				out += gap;
+			}
+			if (!tokens[i].empty()) {
+				std::memcpy(dest + out, tokens[i].data(), tokens[i].size());
+				out += tokens[i].size();
+			}
+			cursor = offsets[i] + 2;
+		}
+		if (cursor < self.size())
+			std::memcpy(dest + out, self.data() + cursor, self.size() - cursor);
+	};
+
+	String out;
+	if (bytes <= SSO_CAPACITY) {
+		char local[SSO_CAPACITY + 1];
+		write(local);
+		out.SetShort(local, bytes);
+		return out;
+	}
+	sds created = sdsnewlen("", 0);
+	if (!created)
+		throw AllocationError();
+	sds grown = sdsMakeRoomFor(created, bytes);
+	if (!grown) {
+		sdsfree(created);
+		throw AllocationError();
+	}
+	write(grown);
+	sdsIncrLen(grown, static_cast<ptrdiff_t>(bytes));
+	out.m_storage.long_ = grown;
+	out.m_storage.m_tag = kLongBit;
+	return out;
+}
+
+String String::ReplaceToken(std::string_view token) const {
+	return ReplaceTokens(static_cast<std::string_view>(*this), std::span<const std::string_view>(&token, 1));
+}
+
+String& String::ReplaceToken(std::string_view token) {
+	const std::string_view self(*this);
+	if (self.find("{}") == std::string_view::npos)
+		return *this;
+	*this = ReplaceTokens(self, std::span<const std::string_view>(&token, 1));
+	return *this;
 }

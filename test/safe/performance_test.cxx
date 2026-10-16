@@ -175,6 +175,30 @@ void TouchTextAndPointers() {
 		ps.push_back(Pair<String, int>{String("p"), i});
 }
 
+
+void TouchReplaceToken() {
+	const String pattern("user={} id={} ok");
+	const String long_pattern(std::string(64, 'a') + " {} {}");
+	const WString wide(L"w={} {}");
+	for (int i = 0; i < 256; ++i) {
+		const String built = pattern.ReplaceToken("ann", std::to_string(i));
+		(void)built.size();
+		String mut("x={} y={}");
+		mut.ReplaceToken("p", "q");
+		String none("plain");
+		none.ReplaceToken("z");
+		String heap = long_pattern;
+		heap.ReplaceToken("L", "R");
+		(void)heap.size();
+		WString w = wide;
+		w.ReplaceToken(L"A", L"B");
+		const WString copied = wide.ReplaceToken(L"A");
+		(void)String::ReplaceToken(std::string_view(pattern), "ann", std::to_string(i)).size();
+		(void)WString::ReplaceToken(std::wstring_view(wide), L"A", L"B").size();
+		(void)copied.size();
+	}
+}
+
 void TouchSerializable() {
 	// Exercise the exported Serializable specializations lightly
 	(void)Serializable<int>::Size(1);
@@ -218,6 +242,7 @@ void AllExported() {
 	TouchMap<String, String>();
 
 	TouchTextAndPointers();
+	TouchReplaceToken();
 	TouchSerializable();
 }
 

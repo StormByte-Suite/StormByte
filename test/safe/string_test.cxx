@@ -409,6 +409,99 @@ int test_format_as_text() {
 	RETURN_TEST(0);
 }
 
+
+int test_replace_token_sso_and_heap() {
+	const Safe::String original("Hello {}");
+	const Safe::String copy = original.ReplaceToken("Ann");
+	ASSERT_EQUAL("Hello {}", original);
+	ASSERT_EQUAL("Hello Ann", copy);
+	ASSERT_SIZE(copy, Size{9});
+	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, copy.capacity());
+
+	Safe::String mut("id={} n={}");
+	mut.ReplaceToken("7", "Ada");
+	ASSERT_EQUAL("id=7 n=Ada", mut);
+	ASSERT_SIZE(mut, Size{10});
+	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, mut.capacity());
+
+	Safe::String extra("a {} b {}");
+	extra.ReplaceToken("X", "Y", "Z");
+	ASSERT_EQUAL("a X b Y", extra);
+
+	Safe::String leftover("{} and {}");
+	const Safe::String once = leftover.ReplaceToken("only");
+	ASSERT_EQUAL("only and {}", once);
+
+	Safe::String none("plain");
+	none.ReplaceToken("nope");
+	ASSERT_EQUAL("plain", none);
+	const Safe::String none_copy = Safe::String("plain").ReplaceToken("a", "b");
+	ASSERT_EQUAL("plain", none_copy);
+
+	Safe::String empty_tok("x{}y");
+	empty_tok.ReplaceToken("");
+	ASSERT_EQUAL("xy", empty_tok);
+	ASSERT_SIZE(empty_tok, Size{2});
+
+	Safe::String self("Hello {}");
+	self.ReplaceToken(std::string_view(self).substr(0, 5));
+	ASSERT_EQUAL("Hello Hello", self);
+
+	const std::string big(80, 'Q');
+	Safe::String long_text(std::string("{}-") + big);
+	const Safe::String grown = long_text.ReplaceToken("HEAD");
+	ASSERT_EQUAL(Safe::String(std::string("HEAD-") + big), grown);
+	ASSERT_SIZE(grown, Size{85});
+	ASSERT_TRUE(grown.capacity() > Size{Safe::String::SSO_CAPACITY});
+
+	Safe::String holes(std::string(30, 'A') + "{}" + "BB");
+	ASSERT_TRUE(holes.capacity() > Size{Safe::String::SSO_CAPACITY});
+	ASSERT_SIZE(holes, Size{34});
+	holes.ReplaceToken("");
+	ASSERT_EQUAL(Safe::String(std::string(30, 'A') + "BB"), holes);
+	ASSERT_SIZE(holes, Size{32});
+	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, holes.capacity());
+
+
+	const Safe::String owned("Ada");
+	const std::string stl("Bob");
+	const std::string_view view("Cyd");
+	const int id = 7;
+	Safe::String typed("{} / {} / {} / {}");
+	typed.ReplaceToken(owned, stl, view, std::to_string(id));
+	ASSERT_EQUAL("Ada / Bob / Cyd / 7", typed);
+	ASSERT_SIZE(typed, Size{19});
+
+	const Safe::String mixed = Safe::String("n={} s={}").ReplaceToken(std::to_string(3), Safe::String("ok"));
+	ASSERT_EQUAL("n=3 s=ok", mixed);
+	ASSERT_SIZE(mixed, Size{8});
+
+	const Safe::String from_static = Safe::String::ReplaceToken(std::string_view("Hello {}"), "Ann");
+	ASSERT_EQUAL("Hello Ann", from_static);
+	ASSERT_SIZE(from_static, Size{9});
+	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, from_static.capacity());
+
+	const Safe::String from_many = Safe::String::ReplaceToken("a {} b {}", Safe::String("X"), std::string("Y"));
+	ASSERT_EQUAL("a X b Y", from_many);
+	ASSERT_SIZE(from_many, Size{7});
+
+	const std::string long_pattern(40, 'Z');
+	const Safe::String from_long = Safe::String::ReplaceToken(std::string_view(long_pattern + " {}"), "ok");
+	ASSERT_EQUAL(Safe::String(long_pattern + " ok"), from_long);
+	ASSERT_SIZE(from_long, Size{43});
+	ASSERT_TRUE(from_long.capacity() > Size{Safe::String::SSO_CAPACITY});
+
+	const std::string shrink_pattern = std::string(30, 'A') + "{}" + "BB";
+	const Safe::String from_shrink = Safe::String::ReplaceToken(std::string_view(shrink_pattern), "");
+	ASSERT_EQUAL(Safe::String(std::string(30, 'A') + "BB"), from_shrink);
+	ASSERT_SIZE(from_shrink, Size{32});
+	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, from_shrink.capacity());
+
+	ASSERT_EQUAL("plain", Safe::String::ReplaceToken("plain", "z"));
+	ASSERT_EQUAL("n=3", Safe::String::ReplaceToken("n={}", std::to_string(3)));
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -436,6 +529,8 @@ int main() {
 	// Format
 	// -------------------
 	result += test_format_as_text();
+
+	result += test_replace_token_sso_and_heap();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

@@ -47,6 +47,7 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <vector>
 
 extern "C" {
 	typedef struct WBuf WBuf;
@@ -460,4 +461,83 @@ Queue<WString> WString::Explode(std::wstring_view str, wchar_t delimiter) {
 
 Queue<WString> WString::Explode(wchar_t delimiter) const {
 	return Explode(static_cast<std::wstring_view>(*this), delimiter);
+}
+
+WString WString::ReplaceTokens(std::wstring_view text, std::span<const std::wstring_view> tokens) {
+	const std::wstring_view self = text;
+	if (tokens.empty() || self.size() < 2)
+		return WString(text);
+
+	constexpr std::size_t kStack = 32;
+	std::size_t stack_offsets[kStack];
+	std::vector<std::size_t> heap_offsets;
+	const bool many = tokens.size() > kStack;
+	if (many)
+		heap_offsets.reserve(tokens.size());
+	std::size_t found = 0;
+	std::size_t from = 0;
+	while (found < tokens.size()) {
+		const std::size_t at = self.find(L"{}", from);
+		if (at == std::wstring_view::npos)
+			break;
+		if (many)
+			heap_offsets.push_back(at);
+		else
+			stack_offsets[found] = at;
+		++found;
+		from = at + 2;
+	}
+	if (found == 0)
+		return WString(text);
+	const std::size_t* offsets = many ? heap_offsets.data() : stack_offsets;
+
+	std::size_t units = self.size() - 2 * found;
+	for (std::size_t i = 0; i < found; ++i)
+		units += tokens[i].size();
+
+	auto write = [&](wchar_t* dest) {
+		std::size_t cursor = 0;
+		std::size_t out = 0;
+		for (std::size_t i = 0; i < found; ++i) {
+			const std::size_t gap = offsets[i] - cursor;
+			if (gap != 0) {
+				std::memcpy(dest + out, self.data() + cursor, gap * sizeof(wchar_t));
+				out += gap;
+			}
+			if (!tokens[i].empty()) {
+				std::memcpy(dest + out, tokens[i].data(), tokens[i].size() * sizeof(wchar_t));
+				out += tokens[i].size();
+			}
+			cursor = offsets[i] + 2;
+		}
+		if (cursor < self.size())
+			std::memcpy(dest + out, self.data() + cursor, (self.size() - cursor) * sizeof(wchar_t));
+	};
+
+	WString out;
+	if (units <= SSO_CAPACITY) {
+		wchar_t local[SSO_CAPACITY + 1];
+		write(local);
+		out.SetShort(local, units);
+		return out;
+	}
+	WBuf* created = wbuf_new(nullptr, units);
+	if (!created)
+		throw AllocationError();
+	write(wbuf_data(created));
+	out.m_storage.long_ = created;
+	out.m_storage.m_tag = kLongBit;
+	return out;
+}
+
+WString WString::ReplaceToken(std::wstring_view token) const {
+	return ReplaceTokens(static_cast<std::wstring_view>(*this), std::span<const std::wstring_view>(&token, 1));
+}
+
+WString& WString::ReplaceToken(std::wstring_view token) {
+	const std::wstring_view self(*this);
+	if (self.find(L"{}") == std::wstring_view::npos)
+		return *this;
+	*this = ReplaceTokens(self, std::span<const std::wstring_view>(&token, 1));
+	return *this;
 }

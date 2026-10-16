@@ -65,6 +65,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -615,6 +616,77 @@ namespace StormByte {
 				 * @throws AllocationError The long path could not be allocated.
 				 */
 				String& replace(const_iterator first, const_iterator last, std::string_view text);
+				/**
+				 * @brief Copy @p text with each literal `{}` replaced, in order, by one argument.
+				 * @tparam Args Types convertible to `std::string_view`.
+				 * @param text Pattern. A long pattern is not stored; only the result is owned.
+				 * @param args Non-owning replacements. At least one. Extra arguments are ignored. Leftover `{}` stay.
+				 * @return New Base-owned string. No token yields an owned copy of @p text.
+				 * @throws AllocationError The result could not be allocated.
+				 */
+				template<class... Args>
+					requires (sizeof...(Args) >= 1)
+				static String ReplaceToken(std::string_view text, Args&&... args) {
+					const std::string_view tokens[]{std::string_view(args)...};
+					return ReplaceTokens(text, std::span<const std::string_view>(tokens, sizeof...(Args)));
+				}
+
+				/**
+				 * @brief Copy with the first literal `{}` replaced by @p token.
+				 * @param token Non-owning replacement. Valid only for this call; it does not allocate.
+				 * @return New Base-owned string. No `{}` yields an unchanged copy.
+				 * @throws AllocationError The result could not be allocated.
+				 */
+				String ReplaceToken(std::string_view token) const;
+
+				/**
+				 * @brief Replace the first literal `{}` with @p token.
+				 * @param token Non-owning replacement. Valid only for this call; it does not allocate.
+				 * @return This string. No `{}` leaves it unchanged.
+				 * @throws AllocationError The result could not be allocated.
+				 */
+				String& ReplaceToken(std::string_view token);
+
+				/**
+				 * @brief Copy with each literal `{}` replaced, in order, by one argument.
+				 * @tparam Args Types convertible to `std::string_view`.
+				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
+				 * @return New Base-owned string. No arguments, or no token, yields an unchanged copy.
+				 * @throws AllocationError The result could not be allocated.
+				 */
+				template<class Self, class... Args>
+					requires std::is_same_v<std::remove_cvref_t<Self>, String> && (std::is_const_v<std::remove_reference_t<Self>> || !std::is_lvalue_reference_v<Self>)
+				String ReplaceToken(this Self&& self, Args&&... args) {
+					if constexpr (sizeof...(Args) == 0)
+						return self;
+					else {
+						const std::string_view tokens[]{std::string_view(args)...};
+						return ReplaceTokens(static_cast<std::string_view>(self), std::span<const std::string_view>(tokens, sizeof...(Args)));
+					}
+				}
+
+				/**
+				 * @brief Replace each literal `{}`, in order, by one argument.
+				 * @tparam Args Types convertible to `std::string_view`.
+				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
+				 * @return This string. No arguments, or no token, leaves it unchanged.
+				 * @throws AllocationError The result could not be allocated.
+				 */
+				template<class Self, class... Args>
+					requires std::is_same_v<std::remove_cvref_t<Self>, String> && std::is_lvalue_reference_v<Self> && (!std::is_const_v<std::remove_reference_t<Self>>)
+				String& ReplaceToken(this Self&& self, Args&&... args) {
+					if constexpr (sizeof...(Args) == 0)
+						return self;
+					else {
+						const std::string_view view(self);
+						if (view.find("{}") == std::string_view::npos)
+							return self;
+						const std::string_view tokens[]{std::string_view(args)...};
+						self = ReplaceTokens(view, std::span<const std::string_view>(tokens, sizeof...(Args)));
+						return self;
+					}
+				}
+
 
 				/**
 				 * @brief Character at @p index.
@@ -1295,6 +1367,14 @@ namespace StormByte {
 					return FromIndex(self.rfind(needle, start));
 				}
 
+
+				/**
+				 * @brief Build a copy replacing up to one literal `{}` per view, in order.
+				 * @param tokens Non-owning replacements. Read only during this call.
+				 * @return New Base-owned string.
+				 * @throws AllocationError The result could not be allocated.
+				 */
+				static String ReplaceTokens(std::string_view text, std::span<const std::string_view> tokens);
 				Storage m_storage{};	///< Short buffer or SDS pointer
 		};
 

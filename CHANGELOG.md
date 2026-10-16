@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Added
+
+- `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` replace literal `{}` placeholders. The single-argument form replaces the first token; the variadic form replaces one token per argument, in order. Both have a copying `const` overload, a mutating overload, and a static `ReplaceToken(view, args...)` that reads the pattern without storing a long pattern in SDS. A result that fits SSO is written into the inline array and does not call SDS / `wbuf`. A longer result is one exact Base allocation. Missing tokens leave the text unchanged. `string_view` / `wstring_view` arguments do not allocate and do not cross the DLL as owning containers.
+
 ### Changed
 - Added full-coverage `PerformanceTests` that exercises every explicit template instantiation exported by the library (`Vector`, `Deque`, `List`, `Set`, `UnorderedSet`, `Map`, `UnorderedMap`, `Queue`, `Atomic` for all scalar types plus `String`, and the four `Map`/`UnorderedMap` key/value combinations), together with `Optional`, `Variant`, smart pointers, `Binary` and both SSO/long text paths.
 
