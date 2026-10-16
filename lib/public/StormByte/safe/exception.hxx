@@ -112,6 +112,17 @@ namespace StormByte {
 				 */
 				Exception& operator=(Exception&& other) noexcept;
 
+				/**
+				 * @brief Replace literal `{}` under the `Safe` path.
+				 * @tparam Args Views, or numbers. A number is converted with `std::to_string`.
+				 * @param pattern Body with literal `{}` tokens.
+				 * @param args Replacements. One per token, in order.
+				 */
+				template <typename... Args>
+					requires (sizeof...(Args) >= 1)
+				Exception(std::string_view pattern, Args&&... args)
+					: StormByte::Exception(StormByte::Exception::Path{"Safe"}, pattern, std::forward<Args>(args)...) {}
+
 			protected:
 				/**
 				 * @brief Construct without allocating message storage.
@@ -120,16 +131,6 @@ namespace StormByte {
 				 */
 				Exception() noexcept;
 
-				/**
-				 * @brief Replace literal `{}` under the `Safe` path. For a further derived class.
-				 * @tparam Args Types convertible to `std::string_view`.
-				 * @param pattern Body with literal `{}` tokens.
-				 * @param args Replacements. One per token, in order.
-				 */
-				template <typename... Args>
-					requires (sizeof...(Args) >= 1)
-				Exception(std::string_view pattern, Args&&... args)
-					: StormByte::Exception(StormByte::Exception::Path{"Safe"}, pattern, std::forward<Args>(args)...) {}
 		};
 
 		/**
@@ -207,10 +208,9 @@ namespace StormByte {
 				explicit ExpiredWeakPointerError(Message&& message)
 					: Exception(std::forward<Message>(message)) {}
 
-			protected:
 				/**
-				 * @brief Replace literal `{}` in @p pattern. For a further derived class.
-				 * @tparam Args Types convertible to `std::string_view`.
+				 * @brief Replace literal `{}` in @p pattern.
+				 * @tparam Args Views, or numbers. A number is converted with `std::to_string`.
 				 * @param pattern Body with literal `{}` tokens.
 				 * @param args Replacements. One per token, in order.
 				 */
@@ -218,8 +218,6 @@ namespace StormByte {
 					requires (sizeof...(Args) >= 1)
 				ExpiredWeakPointerError(std::string_view pattern, Args&&... args)
 					: Exception(pattern, std::forward<Args>(args)...) {}
-
-			public:
 
 				/**
 				 * @brief Copy constructor. Defined in the Base DLL.
@@ -277,10 +275,9 @@ namespace StormByte {
 				explicit OutOfBoundsError(Message&& message)
 					: Exception(std::forward<Message>(message)) {}
 
-			protected:
 				/**
-				 * @brief Replace literal `{}` in @p pattern. For a further derived class.
-				 * @tparam Args Types convertible to `std::string_view`.
+				 * @brief Replace literal `{}` in @p pattern.
+				 * @tparam Args Views, or numbers. A number is converted with `std::to_string`.
 				 * @param pattern Body with literal `{}` tokens.
 				 * @param args Replacements. One per token, in order.
 				 */
@@ -288,8 +285,6 @@ namespace StormByte {
 					requires (sizeof...(Args) >= 1)
 				OutOfBoundsError(std::string_view pattern, Args&&... args)
 					: Exception(pattern, std::forward<Args>(args)...) {}
-
-			public:
 
 				/**
 				 * @brief Copy constructor. Defined in the Base DLL.
@@ -398,10 +393,9 @@ namespace StormByte {
 				explicit BadVariantAccess(Message&& message)
 					: Exception(std::forward<Message>(message)) {}
 
-			protected:
 				/**
-				 * @brief Replace literal `{}` in @p pattern. For a further derived class.
-				 * @tparam Args Types convertible to `std::string_view`.
+				 * @brief Replace literal `{}` in @p pattern.
+				 * @tparam Args Views, or numbers. A number is converted with `std::to_string`.
 				 * @param pattern Body with literal `{}` tokens.
 				 * @param args Replacements. One per token, in order.
 				 */
@@ -409,8 +403,6 @@ namespace StormByte {
 					requires (sizeof...(Args) >= 1)
 				BadVariantAccess(std::string_view pattern, Args&&... args)
 					: Exception(pattern, std::forward<Args>(args)...) {}
-
-			public:
 
 				/**
 				 * @brief Copy constructor. Defined in the Base DLL.

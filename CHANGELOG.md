@@ -24,7 +24,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Breaking
 
-- **Exception.** Public constructors no longer take `std::format_string`. `Exception`, `Safe::Exception`, `DeserializeError`, `OperationError`, `Base64Error`, `ExpiredWeakPointerError`, `OutOfBoundsError` and `BadVariantAccess` take `std::string_view` (copied) or `Safe::String&&` (moved). A derived class formats through a protected constructor that calls `Safe::String::ReplaceToken`: only literal `{}`, and every argument must convert to a view. A throw site that is not a derived constructor builds the body with `ReplaceToken` and moves it in. A string literal binds only to the view constructor; the move constructor accepts an rvalue `Safe::String` and nothing convertible to one. `std::format` specifications and non-string arguments are not accepted.
+- **Exception.** Public constructors no longer take `std::format_string`. `Exception`, `Safe::Exception`, `DeserializeError`, `OperationError`, `Base64Error`, `ExpiredWeakPointerError`, `OutOfBoundsError` and `BadVariantAccess` take `std::string_view` (copied) or `Safe::String&&` (moved). A derived class formats through a protected constructor that calls `Safe::String::ReplaceToken`: only literal `{}`, and a view is used as-is and a number is converted internally with `std::to_string`. A throw site that is not a derived constructor builds the body with `ReplaceToken` and moves it in. A string literal binds only to the view constructor; the move constructor accepts an rvalue `Safe::String` and nothing convertible to one. `std::format` specifications and non-string arguments are not accepted.
 
 ### Added
 
