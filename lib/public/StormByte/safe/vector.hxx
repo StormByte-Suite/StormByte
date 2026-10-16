@@ -67,6 +67,7 @@ namespace StormByte {
 		 * @throws OutOfBoundsError Always.
 		 */
 		[[noreturn]] STORMBYTE_PUBLIC void ThrowVectorOutOfBounds();
+		[[noreturn]] STORMBYTE_PUBLIC void ThrowVectorOutOfBounds(const Size& index);
 
 		/**
 		 * @class Vector

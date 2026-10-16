@@ -109,7 +109,7 @@ WString::WString(size_type count, wchar_t character) {
 WString::WString(const WString& other, size_type pos, size_type count) {
 	SetEmpty();
 	if (static_cast<std::size_t>(pos) > static_cast<std::size_t>(other.size()))
-		throw OutOfBoundsError("position is past size");
+		throw OutOfBoundsError(pos);
 	assign(static_cast<std::wstring_view>(other.substr(pos, count)));
 }
 
@@ -273,7 +273,7 @@ void WString::reserve(size_type new_capacity) {
 		return;
 	const std::size_t requested = static_cast<std::size_t>(new_capacity);
 	if (requested > std::numeric_limits<std::size_t>::max() / sizeof(wchar_t) - 1)
-		throw OutOfBoundsError("reserve capacity is too large");
+		throw OutOfBoundsError(new_capacity);
 	if (!IsLong()) {
 		const std::size_t n = static_cast<std::size_t>(size());
 		WBuf* created = wbuf_new(m_storage.data, n);
@@ -315,7 +315,7 @@ void WString::resize(size_type count, wchar_t character) {
 WString& WString::insert(size_type position, std::wstring_view text) {
 	const std::wstring_view view = *this;
 	if (static_cast<std::size_t>(position) > view.size())
-		throw OutOfBoundsError("insert position is past size");
+		throw OutOfBoundsError(position);
 	std::wstring merged;
 	merged.reserve(view.size() + text.size());
 	merged.append(view.substr(0, static_cast<std::size_t>(position)));
@@ -338,7 +338,7 @@ WString::iterator WString::insert(const_iterator pos, std::initializer_list<wcha
 WString& WString::erase(size_type position, size_type count) {
 	const std::wstring_view view = *this;
 	if (static_cast<std::size_t>(position) > view.size())
-		throw OutOfBoundsError("erase position is past size");
+		throw OutOfBoundsError(position);
 	const std::size_t start = static_cast<std::size_t>(position);
 	const std::size_t n = count == npos ? view.size() - start : std::min(static_cast<std::size_t>(count), view.size() - start);
 	std::wstring merged;
@@ -371,19 +371,19 @@ WString& WString::replace(const_iterator first, const_iterator last, std::wstrin
 
 wchar_t& WString::at(size_type index) {
 	if (index >= size())
-		throw OutOfBoundsError("index is past size");
+		throw OutOfBoundsError(index);
 	return data()[static_cast<std::size_t>(index)];
 }
 
 const wchar_t& WString::at(size_type index) const {
 	if (index >= size())
-		throw OutOfBoundsError("index is past size");
+		throw OutOfBoundsError(index);
 	return data()[static_cast<std::size_t>(index)];
 }
 
 WString::size_type WString::copy(wchar_t* dest, size_type count, size_type pos) const {
 	if (static_cast<std::size_t>(pos) > static_cast<std::size_t>(size()))
-		throw OutOfBoundsError("copy position is past size");
+		throw OutOfBoundsError(pos);
 	const std::size_t available = static_cast<std::size_t>(size() - pos);
 	const std::size_t n = std::min(available, static_cast<std::size_t>(count));
 	if (n != 0)

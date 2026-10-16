@@ -285,7 +285,7 @@ namespace StormByte::Safe {
 	template<Type::SafeValue T>
 	T& Deque<T>::at(size_type index) {
 		if (index >= m_size)
-			ThrowDequeOutOfBounds();
+			ThrowDequeOutOfBounds(index);
 		return Slot(index);
 	}
 

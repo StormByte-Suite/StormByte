@@ -309,7 +309,7 @@ namespace StormByte::Safe {
 	V& UnorderedMap<K, V, Hash, KeyEqual>::at(const K& key) {
 		Node* node = FindNode(key, m_hash(key));
 		if (node == nullptr)
-			throw OutOfBoundsError(Safe::String("unordered map key"));
+			throw OutOfBoundsError();
 		return node->Entry.second;
 	}
 
@@ -317,7 +317,7 @@ namespace StormByte::Safe {
 	const V& UnorderedMap<K, V, Hash, KeyEqual>::at(const K& key) const {
 		Node* node = FindNode(key, m_hash(key));
 		if (node == nullptr)
-			throw OutOfBoundsError(Safe::String("unordered map key"));
+			throw OutOfBoundsError();
 		return node->Entry.second;
 	}
 

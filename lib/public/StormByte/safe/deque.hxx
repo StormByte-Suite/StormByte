@@ -66,6 +66,7 @@ namespace StormByte {
 		 * @throws OutOfBoundsError Always.
 		 */
 		[[noreturn]] STORMBYTE_PUBLIC void ThrowDequeOutOfBounds();
+		[[noreturn]] STORMBYTE_PUBLIC void ThrowDequeOutOfBounds(const Size& index);
 
 		/**
 		 * @class Deque

@@ -237,14 +237,14 @@ namespace StormByte {
 		template<Type::SafeValue T>
 		Vector<T>::reference Vector<T>::at(size_type index) {
 			if (index >= m_size)
-				ThrowVectorOutOfBounds();
+				ThrowVectorOutOfBounds(index);
 			return m_data[index];
 		}
 
 		template<Type::SafeValue T>
 		Vector<T>::const_reference Vector<T>::at(size_type index) const {
 			if (index >= m_size)
-				ThrowVectorOutOfBounds();
+				ThrowVectorOutOfBounds(index);
 			return m_data[index];
 		}
 

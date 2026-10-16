@@ -76,7 +76,7 @@ Binary::Binary(std::span<const std::byte> bytes) {
 
 Binary::Binary(const std::byte* bytes, const ByteSize& count) {
 	if (bytes == nullptr && count != ByteSize{0})
-		throw OutOfBoundsError("null source with non-zero count");
+		throw OutOfBoundsError(StormByte::Size{static_cast<std::size_t>(count)});
 	if (count == ByteSize{0})
 		return;
 	m_bytes.assign(bytes, bytes + AsIndex(count));
@@ -231,13 +231,13 @@ const std::byte& Binary::operator[](const ByteSize& index) const noexcept {
 
 std::byte& Binary::at(const ByteSize& index) {
 	if (index >= size())
-		throw OutOfBoundsError("index out of range");
+		throw OutOfBoundsError(StormByte::Size{static_cast<std::size_t>(index)});
 	return m_bytes[AsIndex(index)];
 }
 
 const std::byte& Binary::at(const ByteSize& index) const {
 	if (index >= size())
-		throw OutOfBoundsError("index out of range");
+		throw OutOfBoundsError(StormByte::Size{static_cast<std::size_t>(index)});
 	return m_bytes[AsIndex(index)];
 }
 
@@ -299,7 +299,7 @@ void Binary::append(std::span<const std::byte> bytes) {
 
 void Binary::append(const std::byte* bytes, const ByteSize& count) {
 	if (bytes == nullptr && count != ByteSize{0})
-		throw OutOfBoundsError("null source with non-zero count");
+		throw OutOfBoundsError(StormByte::Size{static_cast<std::size_t>(count)});
 	if (count == ByteSize{0})
 		return;
 	append(std::span<const std::byte>(bytes, AsIndex(count)));

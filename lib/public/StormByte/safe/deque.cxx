@@ -62,7 +62,11 @@ namespace StormByte {
 		template class STORMBYTE_INSTANTIATE Deque<String>;
 
 		void ThrowDequeOutOfBounds() {
-			throw OutOfBoundsError("deque index is outside the range");
+			throw OutOfBoundsError();
+		}
+
+		void ThrowDequeOutOfBounds(const Size& index) {
+			throw OutOfBoundsError(index);
 		}
 	}
 }

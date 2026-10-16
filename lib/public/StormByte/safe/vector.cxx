@@ -62,7 +62,11 @@ namespace StormByte {
 		template class STORMBYTE_INSTANTIATE Vector<String>;
 
 		void ThrowVectorOutOfBounds() {
-			throw OutOfBoundsError("vector index is outside the range");
+			throw OutOfBoundsError();
+		}
+
+		void ThrowVectorOutOfBounds(const Size& index) {
+			throw OutOfBoundsError(index);
 		}
 	}
 }

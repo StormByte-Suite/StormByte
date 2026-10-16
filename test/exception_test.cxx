@@ -201,9 +201,9 @@ int test_root_leaves_add_no_segment() {
 
 int test_safe_path_and_catch() {
 	try {
-		throw Safe::OutOfBoundsError("index");
+		throw Safe::OutOfBoundsError(Size{4});
 	} catch (const Safe::OutOfBoundsError& error) {
-		ASSERT_EQUAL(std::string{"StormByte.Safe: index"}, std::string{error.what()});
+		ASSERT_EQUAL(std::string{"StormByte.Safe: index 4 is out of range"}, std::string{error.what()});
 	} catch (const Exception&) {
 		ASSERT_FAIL("OutOfBoundsError missed its own catch");
 	}

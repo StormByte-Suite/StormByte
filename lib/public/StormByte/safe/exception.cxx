@@ -39,6 +39,8 @@
 
 #include <StormByte/safe/exception.hxx>
 
+#include <string>
+
 using namespace StormByte::Safe;
 
 Exception::Exception() noexcept = default;
@@ -85,8 +87,11 @@ ExpiredWeakPointerError& ExpiredWeakPointerError::operator=(const ExpiredWeakPoi
 
 ExpiredWeakPointerError& ExpiredWeakPointerError::operator=(ExpiredWeakPointerError&& other) noexcept = default;
 
-OutOfBoundsError::OutOfBoundsError(std::string_view message)
-	: Exception(message) {}
+OutOfBoundsError::OutOfBoundsError(const StormByte::Size& index)
+	: Exception("index {} is out of range", static_cast<std::string>(index)) {}
+
+OutOfBoundsError::OutOfBoundsError()
+	: Exception("index is out of range") {}
 
 OutOfBoundsError::OutOfBoundsError(const OutOfBoundsError& other) = default;
 

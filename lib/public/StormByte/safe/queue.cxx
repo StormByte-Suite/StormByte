@@ -62,7 +62,7 @@ namespace StormByte {
 		template class STORMBYTE_INSTANTIATE Queue<String>;
 
 		void ThrowQueueOutOfBounds() {
-			throw OutOfBoundsError("queue is empty");
+			throw OutOfBoundsError();
 		}
 	}
 }

@@ -737,7 +737,7 @@ namespace StormByte {
 		V& Map<K, V, Compare>::at(const K& key) {
 			Node* node = FindNode(key);
 			if (node == nullptr)
-				throw OutOfBoundsError(AbsentKey(key));
+				throw OutOfBoundsError();
 			return node->Entry.second;
 		}
 
@@ -746,7 +746,7 @@ namespace StormByte {
 		const V& Map<K, V, Compare>::at(const K& key) const {
 			Node* node = FindNode(key);
 			if (node == nullptr)
-				throw OutOfBoundsError(AbsentKey(key));
+				throw OutOfBoundsError();
 			return node->Entry.second;
 		}
 
@@ -1124,18 +1124,5 @@ namespace StormByte {
 			}
 		}
 
-		template<Type::SafeValue K, Type::SafeValue V, class Compare>
-		requires std::strict_weak_order<Compare, const K&, const K&>
-		String Map<K, V, Compare>::AbsentKey(const K& key) {
-			String message("map key '");
-			if constexpr (requires { String(key); })
-				message += String(key);
-			else if constexpr (requires { key.data(); key.size(); })
-				message += String(key.data(), static_cast<std::size_t>(key.size()));
-			else
-				message += "?";
-			message += "' is absent";
-			return message;
-		}
 	}
 }

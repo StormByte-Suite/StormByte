@@ -40,6 +40,7 @@
 #pragma once
 
 #include <StormByte/exception.hxx>
+#include <StormByte/size.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
@@ -237,27 +238,22 @@ namespace StormByte {
 		 * @class OutOfBoundsError
 		 * @brief An index or range is out of bounds.
 		 *
-		 * The message is the body only. The path `Safe` is applied by @ref Exception.
+		 * The text is fixed. A @ref Size is written into it. No size means there is no numeric bound, as with a missing map key. The path `Safe` is applied by @ref Exception.
 		 */
 		class STORMBYTE_PUBLIC OutOfBoundsError: public Exception {
 			public:
 				/**
-				 * @brief Copy a body into `StormByte.Safe: message`.
-				 * @param message Body. Not a path and not a format string.
+				 * @brief Report @p index. Text is `index <index> is out of range`.
+				 * @param index Bound that was outside the range.
 				 */
-				explicit OutOfBoundsError(std::string_view message);
-
+				explicit OutOfBoundsError(const Size& index);
 
 				/**
-				 * @brief Replace literal `{}` in @p pattern.
-				 * @tparam Args Views, or numbers. A number is converted with `std::to_string`.
-				 * @param pattern Body with literal `{}` tokens.
-				 * @param args Replacements. One per token, in order.
+				 * @brief Report an out-of-range access that has no numeric bound.
+				 *
+				 * Text is `index is out of range`.
 				 */
-				template <typename... Args>
-					requires (sizeof...(Args) >= 1)
-				OutOfBoundsError(std::string_view pattern, Args&&... args)
-					: Exception(pattern, std::forward<Args>(args)...) {}
+				OutOfBoundsError();
 
 				/**
 				 * @brief Copy constructor. Defined in the Base DLL.

@@ -937,7 +937,7 @@ namespace StormByte {
 				 * @brief Return the mapped value.
 				 * @param key Lookup key.
 				 * @return Mapped value. Valid until the entry is erased.
-				 * @throws OutOfBoundsError The key is absent. The message includes the key when it can be printed.
+				 * @throws OutOfBoundsError The key is absent. There is no numeric bound, so the error carries no index.
 				 */
 				V& at(const K& key);
 
@@ -945,7 +945,7 @@ namespace StormByte {
 				 * @brief Return the mapped value.
 				 * @param key Lookup key.
 				 * @return Mapped value. Valid until the entry is erased.
-				 * @throws OutOfBoundsError The key is absent. The message includes the key when it can be printed.
+				 * @throws OutOfBoundsError The key is absent. There is no numeric bound, so the error carries no index.
 				 */
 				const V& at(const K& key) const;
 
@@ -1108,13 +1108,6 @@ namespace StormByte {
 				 * @param node Pivot.
 				 */
 				void RotateRight(Node* node) noexcept;
-
-				/**
-				 * @brief Format the missing-key error.
-				 * @param key Absent key.
-				 * @return Error message. Owned by Base.
-				 */
-				static String AbsentKey(const K& key);
 
 				key_compare m_compare; ///< Key ordering.
 				Node* m_header; ///< Sentinel. Its parent is the root.

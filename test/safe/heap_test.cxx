@@ -123,7 +123,7 @@ int test_allocate_rejects_bad_alloc() {
 int test_throw_expired_and_rethrow() {
 	ASSERT_THROWS(Safe::Heap::ThrowExpiredWeakPointer(), Safe::ExpiredWeakPointerError);
 	try {
-		throw Safe::OutOfBoundsError("slot");
+		throw Safe::OutOfBoundsError();
 	}
 	catch (...) {
 		ASSERT_THROWS(Safe::Heap::RethrowException(), Safe::OutOfBoundsError);

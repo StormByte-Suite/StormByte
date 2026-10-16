@@ -63,9 +63,8 @@ int test_message_path_and_format() {
 	Safe::String body("slot");
 	ASSERT_CONTAINS(std::string_view(Safe::Exception("slot").what()), "StormByte.Safe: slot");
 	ASSERT_CONTAINS(std::string_view(Safe::Exception(body).what()), "slot");
-	ASSERT_CONTAINS(std::string_view(Safe::OutOfBoundsError("index").what()), "StormByte.Safe: index");
-	ASSERT_CONTAINS(std::string_view(Safe::OutOfBoundsError(body).what()), "slot");
-	ASSERT_CONTAINS(std::string_view(Safe::OutOfBoundsError("slot {}", 3).what()), "slot 3");
+	ASSERT_CONTAINS(std::string_view(Safe::OutOfBoundsError().what()), "StormByte.Safe: index is out of range");
+	ASSERT_CONTAINS(std::string_view(Safe::OutOfBoundsError(Size{3}).what()), "index 3 is out of range");
 	ASSERT_CONTAINS(std::string_view(Safe::ExpiredWeakPointerError("gone").what()), "StormByte.Safe: gone");
 	ASSERT_CONTAINS(std::string_view(Safe::ExpiredWeakPointerError("id {}", 9).what()), "id 9");
 	Safe::Exception copy(Safe::Exception("slot"));
