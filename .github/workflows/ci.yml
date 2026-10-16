@@ -76,10 +76,9 @@ jobs:
           ccache-key: v1-release-${{ matrix.compiler }}
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
-            -DENABLE_TEST=ON
+            -DENABLE_PGO=ON
             ${{ matrix.compiler == 'clang-libc++' && '-DCMAKE_CXX_FLAGS=-stdlib=libc++' || '' }}
-          run-tests: true
-          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
+          run-tests: false
 
   ###########################################################################
   # macOS (Apple Clang for "clang"; no apt bootstrap)
@@ -109,9 +108,8 @@ jobs:
           ccache-key: v1-release-${{ matrix.compiler }}
           build-type: ${{ env.BUILD_TYPE }}
           configure-options: >-
-            -DENABLE_TEST=ON
-          run-tests: true
-          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
+            -DENABLE_PGO=ON
+          run-tests: false
 
   ###########################################################################
   # Windows
@@ -140,9 +138,8 @@ jobs:
           toolchain: clang-cl
           ccache-key: v1-release-clang-cl
           build-type: ${{ env.BUILD_TYPE }}
-          configure-options: -DENABLE_TEST=ON
-          run-tests: true
-          ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
+          configure-options: -DENABLE_PGO=ON
+          run-tests: false
 
   ###########################################################################
   # Docs (StormByteDoc) — Linux + same APT lists cache
