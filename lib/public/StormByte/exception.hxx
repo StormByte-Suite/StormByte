@@ -62,7 +62,7 @@ namespace StormByte {
 	 *
 	 * A parent prepends its own segment and forwards the pattern and the arguments. A final leaf adds no segment. Copy, move and the destructor of each named type are defined in that module's `.cxx`, so the `typeinfo` is unique across a DLL.
 	 *
-	 * A leaf that must not allocate uses the empty constructor and overrides @ref what. That leaf does not fill `m_what`. The message constructor takes a view. An rvalue @ref Safe::String is taken by move. An lvalue converts to the view and is copied.
+	 * A leaf that must not allocate uses the empty constructor and overrides @ref what. That leaf does not fill `m_what`. The message constructor takes a view. A @ref Safe::String converts to that view and is copied.
 	 */
 	class STORMBYTE_PUBLIC Exception {
 		public:
@@ -72,15 +72,6 @@ namespace StormByte {
 			 */
 			explicit Exception(std::string_view message);
 
-			/**
-			 * @brief Takes an rvalue body into `StormByte: message`.
-			 * @tparam Message An rvalue @ref Safe::String. A literal uses the view constructor.
-			 * @param message Body. Moved. Not a path.
-			 */
-			template<class Message>
-				requires Type::SameAs<Message, Safe::String> && (!Type::LvalueReference<Message>)
-			explicit Exception(Message&& message)
-				: Exception(Path{}, std::forward<Message>(message)) {}
 
 			/**
 			 * @brief Copy constructor. Defined in the Base DLL.
@@ -186,15 +177,6 @@ namespace StormByte {
 			 */
 			explicit DeserializeError(std::string_view message);
 
-			/**
-			 * @brief Takes an rvalue body into `StormByte: message`.
-			 * @tparam Message An rvalue @ref Safe::String. A literal uses the view constructor.
-			 * @param message Body. Moved. Not a path.
-			 */
-			template<class Message>
-				requires Type::SameAs<Message, Safe::String> && (!Type::LvalueReference<Message>)
-			explicit DeserializeError(Message&& message)
-				: Exception(std::forward<Message>(message)) {}
 
 			/**
 			 * @brief Replace literal `{}` in @p pattern.
@@ -253,15 +235,6 @@ namespace StormByte {
 			 */
 			explicit OperationError(std::string_view message);
 
-			/**
-			 * @brief Takes an rvalue body into `StormByte: message`.
-			 * @tparam Message An rvalue @ref Safe::String. A literal uses the view constructor.
-			 * @param message Body. Moved. Not a path.
-			 */
-			template<class Message>
-				requires Type::SameAs<Message, Safe::String> && (!Type::LvalueReference<Message>)
-			explicit OperationError(Message&& message)
-				: Exception(std::forward<Message>(message)) {}
 
 			/**
 			 * @brief Replace literal `{}` in @p pattern.
@@ -320,15 +293,6 @@ namespace StormByte {
 			 */
 			explicit Base64Error(std::string_view message);
 
-			/**
-			 * @brief Takes an rvalue body into `StormByte: message`.
-			 * @tparam Message An rvalue @ref Safe::String. A literal uses the view constructor.
-			 * @param message Body. Moved. Not a path.
-			 */
-			template<class Message>
-				requires Type::SameAs<Message, Safe::String> && (!Type::LvalueReference<Message>)
-			explicit Base64Error(Message&& message)
-				: Exception(std::forward<Message>(message)) {}
 
 			/**
 			 * @brief Replace literal `{}` in @p pattern.

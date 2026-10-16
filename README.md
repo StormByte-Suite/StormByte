@@ -115,7 +115,7 @@ Headers are `#include <StormByte/….hxx>`. Namespace root is `StormByte`.
 
 ### Exceptions
 
-Base owns the exception system other modules inherit. A throw of `Exception` reads `StormByte: …`. A parent passes `Exception::Path` (a `string_view` of its segments) and forwards a pattern and view arguments. It does not call `std::format`. The protected constructor replaces literal `{}` with `Safe::String::ReplaceToken`. A bare string is not a path. Public constructors take `std::string_view` (copied) or `Safe::String&&` (moved). A throw site that is not a derived constructor builds the body with `ReplaceToken` and moves it in. An lvalue `Safe::String` converts to the view and is copied.
+Base owns the exception system other modules inherit. A throw of `Exception` reads `StormByte: …`. A parent passes `Exception::Path` (a `string_view` of its segments) and forwards a pattern and view arguments. It does not call `std::format`. The protected constructor replaces literal `{}` with `Safe::String::ReplaceToken`. A bare string is not a path. Public constructors take `std::string_view`. A `Safe::String` converts to that view and is copied.
 
 A final leaf adds no segment. A derived class formats in its constructor, so `EncryptError("bad key {}", id)` reads `StormByte.Crypto.Crypter: bad key …`. `id` may be a view or a number; a number is converted inside the constructor. `DeserializeError`, `OperationError` and `Base64Error` are leaves of the root: `StormByte: …`. `OutOfBoundsError` is a Safe leaf: `StormByte.Safe: …`.
 
