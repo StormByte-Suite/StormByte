@@ -46,6 +46,7 @@ If you landed here from a release link and have not read the tree:
 ### Fixed
 
 - `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
+- `ENABLE_PGO` on clang-cl no longer passes `/clang:-fprofile-*` to `lld-link`. That linker treats the flag as a file name. The instrumented link uses `clang_rt.profile` instead. The profile is applied at compile time.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD

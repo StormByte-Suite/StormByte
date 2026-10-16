@@ -62,6 +62,40 @@ if(_pgo_kind STREQUAL "MSVC")
 	endforeach()
 endif()
 
+# clang-cl links with lld-link. The profile runtime is not on the default LIB path.
+function(_pgo_link_clang_profile_runtime)
+	set(_dir "")
+	execute_process(
+		COMMAND "${CMAKE_CXX_COMPILER}" -print-runtime-dir
+		OUTPUT_VARIABLE _dir
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ERROR_QUIET
+	)
+	if(NOT EXISTS "${_dir}")
+		execute_process(
+			COMMAND "${CMAKE_CXX_COMPILER}" /clang:-print-runtime-dir
+			OUTPUT_VARIABLE _dir
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			ERROR_QUIET
+		)
+	endif()
+	string(STRIP "${_dir}" _dir)
+	if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
+		set(_arch aarch64)
+	elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+		set(_arch i386)
+	else()
+		set(_arch x86_64)
+	endif()
+	set(_lib "${_dir}/clang_rt.profile-${_arch}.lib")
+	if(NOT EXISTS "${_lib}")
+		message(FATAL_ERROR "ENABLE_PGO: clang profile runtime not found (${_lib})")
+	endif()
+	file(TO_CMAKE_PATH "${_dir}" _dir)
+	file(TO_CMAKE_PATH "${_lib}" _lib)
+	add_link_options("SHELL:/LIBPATH:${_dir}" "${_lib}")
+endfunction()
+
 if(PGO_STAGE STREQUAL "generate")
 	set(${PGO_TEST_OPTION} ON CACHE BOOL "Forced ON by the PGO training build" FORCE)
 	if(_pgo_kind STREQUAL "GNU")
@@ -75,8 +109,11 @@ if(PGO_STAGE STREQUAL "generate")
 		add_compile_options("SHELL:-fprofile-generate=${PGO_PROFILE_DIR}")
 		add_link_options("SHELL:-fprofile-generate=${PGO_PROFILE_DIR}")
 	elseif(_pgo_kind STREQUAL "CLANG_CL")
+		# lld-link is the linker, not clang-cl. A /clang: flag is an input file
+		# to lld-link ("could not open '/clang:-fprofile-generate=...'").
+		# Instrumentation is already in the objects; the link only needs the runtime.
 		add_compile_options("SHELL:/clang:-fprofile-generate=${PGO_PROFILE_DIR}")
-		add_link_options("SHELL:/clang:-fprofile-generate=${PGO_PROFILE_DIR}")
+		_pgo_link_clang_profile_runtime()
 	else()
 		add_compile_options(/GL)
 		add_link_options(/GENPROFILE)
@@ -107,7 +144,6 @@ elseif(_pgo_kind STREQUAL "CLANG_CL")
 		"SHELL:/clang:-Wno-profile-instr-unprofiled"
 		"SHELL:/clang:-Wno-profile-instr-out-of-date"
 	)
-	add_link_options("SHELL:/clang:-fprofile-use=${PGO_PROFILE_DIR}/default.profdata")
 else()
 	add_compile_options(/GL)
 	add_link_options(/USEPROFILE)
@@ -148,7 +184,28 @@ function(pgo_attach_training)
 	set(_pgo_profdata "")
 	if(_pgo_kind STREQUAL "CLANG" OR _pgo_kind STREQUAL "CLANG_CL")
 		get_filename_component(_pgo_bindir "${CMAKE_CXX_COMPILER}" DIRECTORY)
-		find_program(PGO_LLVM_PROFDATA NAMES llvm-profdata llvm-profdata.exe HINTS "${_pgo_bindir}" REQUIRED)
+		find_program(PGO_LLVM_PROFDATA NAMES llvm-profdata llvm-profdata.exe HINTS "${_pgo_bindir}")
+		if(NOT PGO_LLVM_PROFDATA AND APPLE)
+			execute_process(
+				COMMAND xcrun --find llvm-profdata
+				OUTPUT_VARIABLE PGO_LLVM_PROFDATA
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				ERROR_QUIET
+			)
+		endif()
+		if(NOT PGO_LLVM_PROFDATA OR NOT EXISTS "${PGO_LLVM_PROFDATA}")
+			file(GLOB _pgo_profdata_cands
+				"${_pgo_bindir}/llvm-profdata"
+				"${_pgo_bindir}/llvm-profdata-[0-9]*"
+				"${_pgo_bindir}/llvm-profdata.exe"
+			)
+			if(_pgo_profdata_cands)
+				list(GET _pgo_profdata_cands 0 PGO_LLVM_PROFDATA)
+			endif()
+		endif()
+		if(NOT PGO_LLVM_PROFDATA OR NOT EXISTS "${PGO_LLVM_PROFDATA}")
+			message(FATAL_ERROR "ENABLE_PGO: llvm-profdata not found. It ships with the Clang toolchain (xcrun llvm-profdata on Apple Clang).")
+		endif()
 		set(_pgo_profdata "${PGO_LLVM_PROFDATA}")
 	endif()
 
