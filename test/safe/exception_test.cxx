@@ -61,13 +61,19 @@ int test_hierarchy_and_static_text() {
 
 int test_message_path_and_format() {
 	Safe::String body("slot");
-	ASSERT_CONTAINS(std::string_view(Safe::Exception("slot").what()), "StormByte.Safe: slot");
-	ASSERT_CONTAINS(std::string_view(Safe::Exception(body).what()), "slot");
-	ASSERT_CONTAINS(std::string_view(Safe::OutOfBoundsError().what()), "StormByte.Safe: index is out of range");
-	ASSERT_CONTAINS(std::string_view(Safe::OutOfBoundsError(Size{3}).what()), "index 3 is out of range");
-	ASSERT_CONTAINS(std::string_view(Safe::ExpiredWeakPointerError("gone").what()), "StormByte.Safe: gone");
-	ASSERT_CONTAINS(std::string_view(Safe::ExpiredWeakPointerError("id {}", 9).what()), "id 9");
-	Safe::Exception copy(Safe::Exception("slot"));
+	const Safe::Exception slot("slot");
+	const Safe::Exception from_body(body);
+	const Safe::OutOfBoundsError bare;
+	const Safe::OutOfBoundsError indexed(Size{3});
+	const Safe::ExpiredWeakPointerError gone("gone");
+	const Safe::ExpiredWeakPointerError numbered("id {}", 9);
+	ASSERT_CONTAINS(std::string_view(slot.what()), "StormByte.Safe: slot");
+	ASSERT_CONTAINS(std::string_view(from_body.what()), "slot");
+	ASSERT_CONTAINS(std::string_view(bare.what()), "StormByte.Safe: index is out of range");
+	ASSERT_CONTAINS(std::string_view(indexed.what()), "index 3 is out of range");
+	ASSERT_CONTAINS(std::string_view(gone.what()), "StormByte.Safe: gone");
+	ASSERT_CONTAINS(std::string_view(numbered.what()), "id 9");
+	Safe::Exception copy(slot);
 	Safe::Exception moved(std::move(copy));
 	ASSERT_CONTAINS(std::string_view(moved.what()), "slot");
 	RETURN_TEST(0);
