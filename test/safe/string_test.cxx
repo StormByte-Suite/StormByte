@@ -498,7 +498,8 @@ int test_replace_token_sso_and_heap() {
 	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, from_shrink.capacity());
 
 	ASSERT_EQUAL("plain", Safe::String::ReplaceToken("plain", "z"));
-	ASSERT_EQUAL("n=3", Safe::String::ReplaceToken("n={}", std::to_string(3)));
+	ASSERT_EQUAL("n=3", Safe::String::ReplaceToken("n={}", 3));
+	ASSERT_EQUAL("id=A", Safe::String::ReplaceToken("id={}", 'A'));
 	RETURN_TEST(0);
 }
 

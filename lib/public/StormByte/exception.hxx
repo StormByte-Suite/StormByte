@@ -43,7 +43,6 @@
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>
 
-#include <string>
 #include <string_view>
 #include <utility>
 
@@ -52,42 +51,6 @@
  * @brief Root namespace of the StormByte suite.
  */
 namespace StormByte {
-
-	namespace Detail {
-		/**
-		 * @brief View of an exception token. A number is written with `std::to_string` into @p scratch.
-		 * @tparam T View or arithmetic type.
-		 * @param value Replacement.
-		 * @param scratch Storage for a number. Unused for a view.
-		 * @return View valid for this call. A number's view points at @p scratch.
-		 */
-		template<class T>
-		std::string_view ExceptionArgument(T&& value, std::string& scratch) {
-			using Bare = std::remove_cvref_t<T>;
-			if constexpr (Type::ConvertibleTo<Bare, std::string_view>)
-				return std::string_view(std::forward<T>(value));
-			else if constexpr (Type::Arithmetic<Bare>) {
-				scratch = std::to_string(value);
-				return scratch;
-			} else {
-				static_assert(Type::Arithmetic<Bare>, "An exception token must be a view or a number");
-				return {};
-			}
-		}
-
-		/**
-		 * @brief Replace literal `{}` tokens. Numbers are converted here, not by the caller.
-		 * @tparam Args View or arithmetic types.
-		 * @param pattern Body with literal `{}` tokens.
-		 * @param args Replacements, in order.
-		 * @return Owned body. The caller adds the path prefix.
-		 */
-		template<std::size_t... Index, class... Args>
-		Safe::String ReplaceExceptionTokens(std::index_sequence<Index...>, std::string_view pattern, Args&&... args) {
-			std::string scratch[sizeof...(Args)];
-			return Safe::String::ReplaceToken(pattern, ExceptionArgument(std::forward<Args>(args), scratch[Index])...);
-		}
-	}
 
 	/**
 	 * @class Exception
@@ -203,7 +166,7 @@ namespace StormByte {
 			template <typename... Args>
 				requires (sizeof...(Args) >= 1)
 			Exception(Path path, std::string_view pattern, Args&&... args)
-				: Exception(path, Detail::ReplaceExceptionTokens(std::index_sequence_for<Args...>{}, pattern, std::forward<Args>(args)...)) {}
+				: Exception(path, Safe::String::ReplaceToken(pattern, std::forward<Args>(args)...)) {}
 
 		private:
 			Safe::String m_what;	///< Owned message. Empty when @ref what is overridden.

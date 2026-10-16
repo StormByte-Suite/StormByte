@@ -618,7 +618,7 @@ namespace StormByte {
 				String& replace(const_iterator first, const_iterator last, std::string_view text);
 				/**
 				 * @brief Copy @p text with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Types convertible to `std::string_view`.
+				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
 				 * @param text Pattern. A long pattern is not stored; only the result is owned.
 				 * @param args Non-owning replacements. At least one. Extra arguments are ignored. Leftover `{}` stay.
 				 * @return New Base-owned string. No token yields an owned copy of @p text.
@@ -627,7 +627,24 @@ namespace StormByte {
 				template<class... Args>
 					requires (sizeof...(Args) >= 1)
 				static String ReplaceToken(std::string_view text, Args&&... args) {
-					const std::string_view tokens[]{std::string_view(args)...};
+					std::string scratch[sizeof...(Args)];
+					std::string_view tokens[sizeof...(Args)];
+					std::size_t index = 0;
+					auto store = [&](auto&& value) {
+						using Bare = std::remove_cvref_t<decltype(value)>;
+						if constexpr (requires { std::string_view(std::forward<decltype(value)>(value)); })
+							tokens[index] = std::string_view(std::forward<decltype(value)>(value));
+						else if constexpr (Type::SameAs<Bare, char>) {
+							scratch[index].assign(1, static_cast<char>(value));
+							tokens[index] = scratch[index];
+						} else if constexpr (Type::Arithmetic<Bare>) {
+							scratch[index] = std::to_string(value);
+							tokens[index] = scratch[index];
+						} else
+							static_assert(Type::Arithmetic<Bare>, "ReplaceToken argument must be text or a number");
+						++index;
+					};
+					(store(std::forward<Args>(args)), ...);
 					return ReplaceTokens(text, std::span<const std::string_view>(tokens, sizeof...(Args)));
 				}
 
@@ -649,7 +666,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Copy with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Types convertible to `std::string_view`.
+				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
 				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
 				 * @return New Base-owned string. No arguments, or no token, yields an unchanged copy.
 				 * @throws AllocationError The result could not be allocated.
@@ -659,15 +676,13 @@ namespace StormByte {
 				String ReplaceToken(this Self&& self, Args&&... args) {
 					if constexpr (sizeof...(Args) == 0)
 						return self;
-					else {
-						const std::string_view tokens[]{std::string_view(args)...};
-						return ReplaceTokens(static_cast<std::string_view>(self), std::span<const std::string_view>(tokens, sizeof...(Args)));
-					}
+					else
+						return ReplaceToken(static_cast<std::string_view>(self), std::forward<Args>(args)...);
 				}
 
 				/**
 				 * @brief Replace each literal `{}`, in order, by one argument.
-				 * @tparam Args Types convertible to `std::string_view`.
+				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
 				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
 				 * @return This string. No arguments, or no token, leaves it unchanged.
 				 * @throws AllocationError The result could not be allocated.
@@ -681,8 +696,7 @@ namespace StormByte {
 						const std::string_view view(self);
 						if (view.find("{}") == std::string_view::npos)
 							return self;
-						const std::string_view tokens[]{std::string_view(args)...};
-						self = ReplaceTokens(view, std::span<const std::string_view>(tokens, sizeof...(Args)));
+						self = ReplaceToken(view, std::forward<Args>(args)...);
 						return self;
 					}
 				}

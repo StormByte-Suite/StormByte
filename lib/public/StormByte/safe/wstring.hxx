@@ -610,7 +610,7 @@ namespace StormByte {
 				WString& replace(const_iterator first, const_iterator last, std::wstring_view text);
 				/**
 				 * @brief Copy @p text with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Types convertible to `std::wstring_view`.
+				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
 				 * @param text Pattern. A long pattern is not stored; only the result is owned.
 				 * @param args Non-owning replacements. At least one. Extra arguments are ignored. Leftover `{}` stay.
 				 * @return New Base-owned string. No token yields an owned copy of @p text.
@@ -619,7 +619,24 @@ namespace StormByte {
 				template<class... Args>
 					requires (sizeof...(Args) >= 1)
 				static WString ReplaceToken(std::wstring_view text, Args&&... args) {
-					const std::wstring_view tokens[]{std::wstring_view(args)...};
+					std::wstring scratch[sizeof...(Args)];
+					std::wstring_view tokens[sizeof...(Args)];
+					std::size_t index = 0;
+					auto store = [&](auto&& value) {
+						using Bare = std::remove_cvref_t<decltype(value)>;
+						if constexpr (requires { std::wstring_view(std::forward<decltype(value)>(value)); })
+							tokens[index] = std::wstring_view(std::forward<decltype(value)>(value));
+						else if constexpr (Type::SameAs<Bare, wchar_t>) {
+							scratch[index].assign(1, static_cast<wchar_t>(value));
+							tokens[index] = scratch[index];
+						} else if constexpr (Type::Arithmetic<Bare>) {
+							scratch[index] = std::to_wstring(value);
+							tokens[index] = scratch[index];
+						} else
+							static_assert(Type::Arithmetic<Bare>, "ReplaceToken argument must be text or a number");
+						++index;
+					};
+					(store(std::forward<Args>(args)), ...);
 					return ReplaceTokens(text, std::span<const std::wstring_view>(tokens, sizeof...(Args)));
 				}
 				/**
@@ -640,7 +657,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Copy with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Types convertible to `std::wstring_view`.
+				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
 				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
 				 * @return New Base-owned string. No arguments, or no token, yields an unchanged copy.
 				 * @throws AllocationError The result could not be allocated.
@@ -650,15 +667,13 @@ namespace StormByte {
 				WString ReplaceToken(this Self&& self, Args&&... args) {
 					if constexpr (sizeof...(Args) == 0)
 						return self;
-					else {
-						const std::wstring_view tokens[]{std::wstring_view(args)...};
-						return ReplaceTokens(static_cast<std::wstring_view>(self), std::span<const std::wstring_view>(tokens, sizeof...(Args)));
-					}
+					else
+						return ReplaceToken(static_cast<std::wstring_view>(self), std::forward<Args>(args)...);
 				}
 
 				/**
 				 * @brief Replace each literal `{}`, in order, by one argument.
-				 * @tparam Args Types convertible to `std::wstring_view`.
+				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
 				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
 				 * @return This string. No arguments, or no token, leaves it unchanged.
 				 * @throws AllocationError The result could not be allocated.
@@ -672,8 +687,7 @@ namespace StormByte {
 						const std::wstring_view view(self);
 						if (view.find(L"{}") == std::wstring_view::npos)
 							return self;
-						const std::wstring_view tokens[]{std::wstring_view(args)...};
-						self = ReplaceTokens(view, std::span<const std::wstring_view>(tokens, sizeof...(Args)));
+						self = ReplaceToken(view, std::forward<Args>(args)...);
 						return self;
 					}
 				}

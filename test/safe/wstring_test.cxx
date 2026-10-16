@@ -442,7 +442,8 @@ int test_replace_token_sso_and_heap() {
 	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, from_shrink.capacity());
 
 	ASSERT_EQUAL(L"plain", Safe::WString::ReplaceToken(L"plain", L"z"));
-	ASSERT_EQUAL(L"n=3", Safe::WString::ReplaceToken(L"n={}", std::to_wstring(3)));
+	ASSERT_EQUAL(L"n=3", Safe::WString::ReplaceToken(L"n={}", 3));
+	ASSERT_EQUAL(L"id=A", Safe::WString::ReplaceToken(L"id={}", L'A'));
 	RETURN_TEST(0);
 }
 
