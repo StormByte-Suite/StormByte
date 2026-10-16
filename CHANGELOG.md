@@ -22,14 +22,6 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
-### Changed
-
-- `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` accept any argument that converts to `std::string` / `std::wstring`, or to `Safe::String` / `Safe::WString`. An explicit conversion is enough. `Size` and `ByteSize` no longer need a cast. A view is still not copied. A number still uses `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is still that one character.
-
-### Fixed
-
-- Release builds with MSVC or clang-cl store `/arch:AVX2`, `/fp:fast` and `/DNDEBUG` in the CMake cache. `ENABLE_PGO` forwards that cache, so the instrumented tree compiles with the same flags instead of the bare compiler defaults.
-
 ## [2.1.0] - 2026-10-16
 
 ### Added
@@ -49,11 +41,13 @@ If you landed here from a release link and have not read the tree:
   - **`Safe::OutOfBoundsError`.** Constructors no longer take a message. `OutOfBoundsError(Size)` writes `index <n> is out of range`. `OutOfBoundsError()` is the same text without a number, for a failure that has no numeric bound (a missing map key, an empty container).
   - **`ReplaceToken` is static only.** `Safe::String` and `Safe::WString` no longer have member `ReplaceToken`. The call is `String::ReplaceToken(text, args...)` / `WString::ReplaceToken`. `text` is a view, so a literal converts. The result is a new string. There is no in-place overload.
 - `PerformanceTests` now trains `Explode`, `Implode`, `Split`, case conversion, in-place edit, in-range `at` and `ByteSize` text.
+- `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` accept any argument that converts to `std::string` / `std::wstring`, or to `Safe::String` / `Safe::WString`. An explicit conversion is enough. `Size` and `ByteSize` no longer need a cast. A view is still not copied. A number still uses `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is still that one character.
 - Added full-coverage `PerformanceTests` that exercises every explicit template instantiation exported by the library (`Vector`, `Deque`, `List`, `Set`, `UnorderedSet`, `Map`, `UnorderedMap`, `Queue`, `Atomic` for all scalar types plus `String`, and the four `Map`/`UnorderedMap` key/value combinations), together with `Optional`, `Variant`, smart pointers, `Binary` and both SSO/long text paths.
 - `Safe::String` SSO capacity raised to 32 code units (48-byte Storage, 16-byte aligned). `Safe::WString` set to 11 units with 16-byte alignment: 32 units would make the object ~136 bytes on 64-bit and hurt cache density; 11 keeps it compact while covering typical short wide strings.
 
 ### Fixed
 
+- Release builds with MSVC or clang-cl store `/arch:AVX2` and `/DNDEBUG` in the CMake cache. `ENABLE_PGO` forwards that cache, so the instrumented tree compiles with the same flags instead of the bare compiler defaults.
 - `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
 - `ENABLE_PGO` on clang-cl no longer passes `/clang:-fprofile-*` to `lld-link`. That linker treats the flag as a file name. The instrumented link uses `clang_rt.profile` instead. The profile is applied at compile time. The Windows LLVM installer keeps that library under `lib/windows`, not under the per-target directory `-print-runtime-dir` prints.
 - `ENABLE_PGO` gives the instrumented tree the same C, C++ and linker flags as the final build, including `-stdlib=`. GCC names the `.gcda` files with `-fprofile-prefix-path` so `pgo-instr` is not part of the path the final build looks up. The training step uses the console, so its compile log is not hidden behind `Re-checking globbed directories`. On Windows, `ctest` prepends `<build>/pgo-instr/lib` to `PATH` so the instrumented tests find the DLL. The CI path only covers the final build, and a missing DLL opens a modal dialog that never returns.
