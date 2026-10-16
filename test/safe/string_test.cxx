@@ -503,6 +503,42 @@ int test_replace_token_sso_and_heap() {
 	RETURN_TEST(0);
 }
 
+
+int test_implode_vector_and_queue() {
+	const Safe::Vector<Safe::String> none;
+	const Safe::Queue<Safe::String> none_q;
+	ASSERT_TRUE(Safe::String::Implode(none, ",").empty());
+	ASSERT_TRUE(Safe::String::Implode(none_q, ",").empty());
+
+	const Safe::Vector<Safe::String> one{Safe::String("only")};
+	const Safe::String single = Safe::String::Implode(one, ",");
+	ASSERT_EQUAL(std::string_view("only"), std::string_view(single));
+	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, single.capacity());
+
+	const Safe::Vector<Safe::String> words{Safe::String("a"), Safe::String(""), Safe::String("b")};
+	const Safe::String joined = Safe::String::Implode(words, ",");
+	ASSERT_EQUAL(std::string_view("a,,b"), std::string_view(joined));
+	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, joined.capacity());
+	ASSERT_EQUAL(std::string_view("a,,b"), std::string_view(Safe::String::Implode(Safe::String::Explode("a,,b", ','), ",")));
+
+	Safe::Queue<Safe::String> fifo;
+	fifo.push(Safe::String("x"));
+	fifo.push(Safe::String("y"));
+	const Safe::Queue<Safe::String>& fifo_ref = fifo;
+	ASSERT_EQUAL(std::string_view("x | y"), std::string_view(Safe::String::Implode(fifo_ref, " | ")));
+	ASSERT_EQUAL(std::string_view("xy"), std::string_view(Safe::String::Implode(fifo_ref, "")));
+
+	Safe::Vector<Safe::String> long_parts;
+	long_parts.push_back(Safe::String("0123456789abcdef"));
+	long_parts.push_back(Safe::String("0123456789abcdef"));
+	long_parts.push_back(Safe::String("0123456789abcdef"));
+	const Safe::String heap = Safe::String::Implode(long_parts, ",");
+	ASSERT_EQUAL(std::string_view("0123456789abcdef,0123456789abcdef,0123456789abcdef"), std::string_view(heap));
+	ASSERT_TRUE(heap.size() > Size{Safe::String::SSO_CAPACITY});
+	ASSERT_TRUE(heap.capacity() > Size{Safe::String::SSO_CAPACITY});
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -532,6 +568,7 @@ int main() {
 	result += test_format_as_text();
 
 	result += test_replace_token_sso_and_heap();
+	result += test_implode_vector_and_queue();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

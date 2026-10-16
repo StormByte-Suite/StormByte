@@ -31,6 +31,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Added
 
+- `Safe::String::Implode` and `Safe::WString::Implode` join a `Vector` or a `Queue` of text with a `string_view` / `wstring_view` delimiter. The containers are taken by const reference. The result size is counted first and reserved once, so a short join stays in SSO.
 - `std::numeric_limits<Size>` and `std::numeric_limits<ByteSize>` are specialized. `min()` is 0 and `max()` is `2^64 - 1`, the stored `uint64_t` range, not the host `std::size_t` range.
 - `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` replace literal `{}` placeholders. The single-argument form replaces the first token; the variadic form replaces one token per argument, in order. Both have a copying `const` overload, a mutating overload, and a static `ReplaceToken(view, args...)` that reads the pattern without storing a long pattern in SDS. A result that fits SSO is written into the inline array and does not call SDS / `wbuf`. A longer result is one exact Base allocation. Missing tokens leave the text unchanged. A view is used as-is and does not allocate. A number is converted inside the template with `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is that one character.
 

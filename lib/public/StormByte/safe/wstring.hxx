@@ -1154,6 +1154,23 @@ namespace StormByte {
 				 */
 				static Queue<WString> Explode(std::wstring_view str, wchar_t delimiter);
 
+
+				/**
+				 * @brief Join @p parts with @p delimiter. Parts are not copied before the result is built.
+				 * @param parts Tokens. Not modified.
+				 * @param delimiter Separator inserted between tokens. Not copied. Empty joins them directly.
+				 * @return One string. Empty when @p parts is empty. A short result stays in SSO.
+				 */
+				static WString Implode(const Vector<WString>& parts, std::wstring_view delimiter);
+
+				/**
+				 * @brief Join @p parts with @p delimiter, in queue order.
+				 * @param parts Tokens. Not modified.
+				 * @param delimiter Separator inserted between tokens. Not copied.
+				 * @return One string. Empty when @p parts is empty.
+				 */
+				static WString Implode(const Queue<WString>& parts, std::wstring_view delimiter);
+
 				/**
 				 * @brief ASCII-letter lower case of this text.
 				 * @return New text.

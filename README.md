@@ -375,7 +375,7 @@ These types own their nodes on the Base heap. They are not aliases of the STL co
 
 ##### Vector
 
-`Safe::Vector` is the contiguous sequence. It borrows as `std::span`. `Split` fills one.
+`Safe::Vector` is the contiguous sequence. It borrows as `std::span`. `Split` fills one. `Implode` joins one with a view delimiter and does not copy the parts first.
 
 ##### List
 
@@ -383,7 +383,7 @@ These types own their nodes on the Base heap. They are not aliases of the STL co
 
 ##### Queue
 
-`Safe::Queue` keeps FIFO `push` / `pop` and still exposes random-access iterators. `Explode` fills one.
+`Safe::Queue` keeps FIFO `push` / `pop` and still exposes random-access iterators. `Explode` fills one. `Implode` joins it again.
 
 ##### Map
 

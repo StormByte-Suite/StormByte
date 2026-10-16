@@ -1163,6 +1163,23 @@ namespace StormByte {
 				 */
 				static Queue<String> Explode(std::string_view str, char delimiter);
 
+
+				/**
+				 * @brief Join @p parts with @p delimiter. Parts are not copied before the result is built.
+				 * @param parts Tokens. Not modified.
+				 * @param delimiter Separator inserted between tokens. Not copied. Empty joins them directly.
+				 * @return One string. Empty when @p parts is empty. A short result stays in SSO.
+				 */
+				static String Implode(const Vector<String>& parts, std::string_view delimiter);
+
+				/**
+				 * @brief Join @p parts with @p delimiter, in queue order.
+				 * @param parts Tokens. Not modified.
+				 * @param delimiter Separator inserted between tokens. Not copied.
+				 * @return One string. Empty when @p parts is empty.
+				 */
+				static String Implode(const Queue<String>& parts, std::string_view delimiter);
+
 				/**
 				 * @brief ASCII-letter lower case of this text.
 				 * @return New text.

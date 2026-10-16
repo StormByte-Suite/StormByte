@@ -447,6 +447,41 @@ int test_replace_token_sso_and_heap() {
 	RETURN_TEST(0);
 }
 
+
+int test_implode_vector_and_queue() {
+	const Safe::Vector<Safe::WString> none;
+	const Safe::Queue<Safe::WString> none_q;
+	ASSERT_TRUE(Safe::WString::Implode(none, L",").empty());
+	ASSERT_TRUE(Safe::WString::Implode(none_q, L",").empty());
+
+	const Safe::Vector<Safe::WString> one{Safe::WString(L"only")};
+	const Safe::WString single = Safe::WString::Implode(one, L",");
+	ASSERT_EQUAL(std::wstring_view(L"only"), std::wstring_view(single));
+	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, single.capacity());
+
+	const Safe::Vector<Safe::WString> words{Safe::WString(L"a"), Safe::WString(L""), Safe::WString(L"b")};
+	const Safe::WString joined = Safe::WString::Implode(words, L",");
+	ASSERT_EQUAL(std::wstring_view(L"a,,b"), std::wstring_view(joined));
+	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, joined.capacity());
+	ASSERT_EQUAL(std::wstring_view(L"a,,b"), std::wstring_view(Safe::WString::Implode(Safe::WString::Explode(L"a,,b", L','), L",")));
+
+	Safe::Queue<Safe::WString> fifo;
+	fifo.push(Safe::WString(L"x"));
+	fifo.push(Safe::WString(L"y"));
+	const Safe::Queue<Safe::WString>& fifo_ref = fifo;
+	ASSERT_EQUAL(std::wstring_view(L"x | y"), std::wstring_view(Safe::WString::Implode(fifo_ref, L" | ")));
+	ASSERT_EQUAL(std::wstring_view(L"xy"), std::wstring_view(Safe::WString::Implode(fifo_ref, L"")));
+
+	Safe::Vector<Safe::WString> long_parts;
+	long_parts.push_back(Safe::WString(L"0123456789"));
+	long_parts.push_back(Safe::WString(L"0123456789"));
+	const Safe::WString heap = Safe::WString::Implode(long_parts, L",");
+	ASSERT_EQUAL(std::wstring_view(L"0123456789,0123456789"), std::wstring_view(heap));
+	ASSERT_TRUE(heap.size() > Size{Safe::WString::SSO_CAPACITY});
+	ASSERT_TRUE(heap.capacity() > Size{Safe::WString::SSO_CAPACITY});
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -476,6 +511,7 @@ int main() {
 	result += test_format_as_text();
 
 	result += test_replace_token_sso_and_heap();
+	result += test_implode_vector_and_queue();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

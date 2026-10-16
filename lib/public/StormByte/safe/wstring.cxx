@@ -463,6 +463,40 @@ Queue<WString> WString::Explode(wchar_t delimiter) const {
 	return Explode(static_cast<std::wstring_view>(*this), delimiter);
 }
 
+
+namespace {
+	template<class Parts>
+	WString ImplodeParts(const Parts& parts, std::wstring_view delimiter) {
+		Size bytes;
+		Size count;
+		for (const WString& part : parts) {
+			bytes += part.size();
+			++count;
+		}
+		if (count > Size{1})
+			bytes += Size{delimiter.size()} * (count - Size{1});
+		WString result;
+		result.reserve(bytes);
+		bool first = true;
+		for (const WString& part : parts) {
+			if (!first)
+				result.append(delimiter);
+			first = false;
+			result.append(static_cast<std::wstring_view>(part));
+		}
+		return result;
+	}
+}
+
+WString WString::Implode(const Vector<WString>& parts, std::wstring_view delimiter) {
+	return ImplodeParts(parts, delimiter);
+}
+
+WString WString::Implode(const Queue<WString>& parts, std::wstring_view delimiter) {
+	return ImplodeParts(parts, delimiter);
+}
+
+
 WString WString::ReplaceTokens(std::wstring_view text, std::span<const std::wstring_view> tokens) {
 	const std::wstring_view self = text;
 	if (tokens.empty() || self.size() < 2)

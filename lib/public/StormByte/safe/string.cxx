@@ -473,6 +473,40 @@ Queue<String> String::Explode(char delimiter) const {
 	return Explode(static_cast<std::string_view>(*this), delimiter);
 }
 
+
+namespace {
+	template<class Parts>
+	String ImplodeParts(const Parts& parts, std::string_view delimiter) {
+		Size bytes;
+		Size count;
+		for (const String& part : parts) {
+			bytes += part.size();
+			++count;
+		}
+		if (count > Size{1})
+			bytes += Size{delimiter.size()} * (count - Size{1});
+		String result;
+		result.reserve(bytes);
+		bool first = true;
+		for (const String& part : parts) {
+			if (!first)
+				result.append(delimiter);
+			first = false;
+			result.append(static_cast<std::string_view>(part));
+		}
+		return result;
+	}
+}
+
+String String::Implode(const Vector<String>& parts, std::string_view delimiter) {
+	return ImplodeParts(parts, delimiter);
+}
+
+String String::Implode(const Queue<String>& parts, std::string_view delimiter) {
+	return ImplodeParts(parts, delimiter);
+}
+
+
 String String::ReplaceTokens(std::string_view text, std::span<const std::string_view> tokens) {
 	const std::string_view self = text;
 	if (tokens.empty() || self.size() < 2)
