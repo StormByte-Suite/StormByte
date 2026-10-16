@@ -86,7 +86,7 @@ namespace StormByte {
 				using value_type = Pair<const K, V>; ///< Entry type. The key is immutable.
 				using hasher = Hash; ///< Key hash.
 				using key_equal = KeyEqual; ///< Key equality.
-				using size_type = std::size_t; ///< Entry count type.
+				using size_type = Size;	///< Element count. @ref Size, not `std::size_t`.
 				using difference_type = std::ptrdiff_t; ///< Iterator distance type.
 				using reference = value_type&; ///< Mutable entry reference.
 				using const_reference = const value_type&; ///< Read-only entry reference.
@@ -707,6 +707,16 @@ namespace StormByte {
 				};
 
 				/**
+				 * @brief Bucket of a hash. The mask is a `std::size_t`; @ref Size has no bitwise operators.
+				 * @param code Hash code.
+				 * @param count Power-of-two bucket count. Not zero.
+				 * @return Slot in `[0, count)`.
+				 */
+				static size_type BucketSlot(std::size_t code, Size count) noexcept {
+					return Size{code & (static_cast<std::size_t>(count) - 1)};
+				}
+
+				/**
 				 * @brief Round @p count up to a power of two. Zero stays zero.
 				 * @param count Requested count.
 				 * @return Power of two, at least eight when @p count is not zero.
@@ -738,6 +748,12 @@ namespace StormByte {
 				 * @return Node, or null.
 				 */
 				Node* FindNode(const K& key, std::size_t code) const noexcept;
+
+				/**
+				 * @brief Return the first occupied node.
+				 * @return Node, or null when every bucket is empty.
+				 */
+				Node* FirstNode() const noexcept;
 
 				/**
 				 * @brief Return the first node in a bucket after @p slot.

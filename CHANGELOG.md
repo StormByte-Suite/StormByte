@@ -24,12 +24,13 @@ If you landed here from a release link and have not read the tree:
 
 ### Breaking
 
+- **Container `size_type` is `Size`.** `Vector`, `Deque`, `List`, `Queue`, `Map`, `Set`, `UnorderedMap`, `UnorderedSet`, `Iterable` and `Binary` no longer use `std::size_t` as `size_type`. Counts convert implicitly to `std::size_t` when indexing memory. `UnorderedMap` keeps its power-of-two mask on `std::size_t`; `Size` has no bitwise operators.
 - **Exception.** Public constructors no longer take `std::format_string`. `Exception`, `Safe::Exception`, `DeserializeError`, `OperationError`, `Base64Error`, `ExpiredWeakPointerError` and `BadVariantAccess` take `std::string_view`. A `Safe::String` converts to that view and is copied; there is no move constructor. A derived class formats through a protected constructor that calls `Safe::String::ReplaceToken`: only literal `{}`, and a view is used as-is and a number is converted internally with `std::to_string`. A throw site that is not a derived constructor builds the body with `ReplaceToken` and copies it in. `std::format` specifications and non-string arguments are not accepted.
 - **Breaking: `Safe::OutOfBoundsError`.** Constructors no longer take a message. `OutOfBoundsError(Size)` writes `index <n> is out of range`. `OutOfBoundsError()` is the same text without a number, for a failure that has no numeric bound (a missing map key, an empty container).
 
 ### Added
 
-- `std::numeric_limits<Size>` is specialized. `min()` is 0 and `max()` is `2^64 - 1`, the stored `uint64_t` range, not the host `std::size_t` range.
+- `std::numeric_limits<Size>` and `std::numeric_limits<ByteSize>` are specialized. `min()` is 0 and `max()` is `2^64 - 1`, the stored `uint64_t` range, not the host `std::size_t` range.
 - `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` replace literal `{}` placeholders. The single-argument form replaces the first token; the variadic form replaces one token per argument, in order. Both have a copying `const` overload, a mutating overload, and a static `ReplaceToken(view, args...)` that reads the pattern without storing a long pattern in SDS. A result that fits SSO is written into the inline array and does not call SDS / `wbuf`. A longer result is one exact Base allocation. Missing tokens leave the text unchanged. A view is used as-is and does not allocate. A number is converted inside the template with `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is that one character.
 
 ### Changed

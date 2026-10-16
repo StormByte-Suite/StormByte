@@ -79,7 +79,7 @@ namespace StormByte {
 			public:
 				using container_type = Component; ///< Wrapped Safe component.
 				using value_type = typename container_type::value_type; ///< Element type.
-				using size_type = std::size_t; ///< Element count type.
+				using size_type = Size;	///< Element count. @ref Size, not `std::size_t`.
 				using difference_type = std::ptrdiff_t; ///< Cursor distance type.
 				static constexpr bool random_access = std::random_access_iterator<InnerIterator>; ///< Whether the suite selects the index cursor.
 

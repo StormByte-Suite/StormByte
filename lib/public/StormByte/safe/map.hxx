@@ -83,7 +83,7 @@ namespace StormByte {
 				using mapped_type = V; ///< Mapped type.
 				using value_type = Pair<const K, V>; ///< Entry type. The key is immutable.
 				using key_compare = Compare; ///< Key ordering.
-				using size_type = std::size_t; ///< Entry count type.
+				using size_type = Size;	///< Element count. @ref Size, not `std::size_t`.
 				using difference_type = std::ptrdiff_t; ///< Iterator distance type.
 				using reference = value_type&; ///< Mutable entry reference.
 				using const_reference = const value_type&; ///< Read-only entry reference.

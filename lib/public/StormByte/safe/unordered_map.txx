@@ -47,7 +47,7 @@ namespace StormByte::Safe {
 			m_node = m_node->Next;
 			return *this;
 		}
-		const size_type slot = m_node->Code & (m_map->m_bucket_count - 1);
+		const size_type slot = BucketSlot(m_node->Code, m_map->m_bucket_count);
 		m_node = m_map->NextBucket(slot);
 		return *this;
 	}
@@ -128,12 +128,12 @@ namespace StormByte::Safe {
 
 	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
 	UnorderedMap<K, V, Hash, KeyEqual>::iterator UnorderedMap<K, V, Hash, KeyEqual>::begin() noexcept {
-		return iterator(NextBucket(static_cast<size_type>(-1)), this);
+		return iterator(FirstNode(), this);
 	}
 
 	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
 	UnorderedMap<K, V, Hash, KeyEqual>::const_iterator UnorderedMap<K, V, Hash, KeyEqual>::begin() const noexcept {
-		return const_iterator(NextBucket(static_cast<size_type>(-1)), this);
+		return const_iterator(FirstNode(), this);
 	}
 
 	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
@@ -222,7 +222,7 @@ namespace StormByte::Safe {
 	UnorderedMap<K, V, Hash, KeyEqual>::iterator UnorderedMap<K, V, Hash, KeyEqual>::erase(const_iterator position) {
 		Node* node = const_cast<Node*>(position.m_node);
 		Node* next = Unlink(node);
-		const size_type slot = node->Code & (m_bucket_count - 1);
+		const size_type slot = BucketSlot(node->Code, m_bucket_count);
 		node->Entry.~value_type();
 		Heap::Free(node);
 		if (next == nullptr)
@@ -359,7 +359,7 @@ namespace StormByte::Safe {
 	UnorderedMap<K, V, Hash, KeyEqual>::size_type UnorderedMap<K, V, Hash, KeyEqual>::bucket(const K& key) const {
 		if (m_bucket_count == 0)
 			return 0;
-		return m_hash(key) & (m_bucket_count - 1);
+		return BucketSlot(m_hash(key), m_bucket_count);
 	}
 
 	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
@@ -381,7 +381,7 @@ namespace StormByte::Safe {
 			Node* node = previous[index];
 			while (node != nullptr) {
 				Node* next = node->Next;
-				const size_type slot = node->Code & (count - 1);
+				const size_type slot = BucketSlot(node->Code, count);
 				node->Next = m_buckets[slot];
 				m_buckets[slot] = node;
 				node = next;
@@ -416,7 +416,7 @@ namespace StormByte::Safe {
 			return 0;
 		size_type rounded = 8;
 		while (rounded < count)
-			rounded <<= 1;
+			rounded *= 2;
 		return rounded;
 	}
 
@@ -451,9 +451,18 @@ namespace StormByte::Safe {
 	UnorderedMap<K, V, Hash, KeyEqual>::Node* UnorderedMap<K, V, Hash, KeyEqual>::FindNode(const K& key, std::size_t code) const noexcept {
 		if (m_bucket_count == 0)
 			return nullptr;
-		for (Node* node = m_buckets[code & (m_bucket_count - 1)]; node != nullptr; node = node->Next) {
+		for (Node* node = m_buckets[static_cast<std::size_t>(BucketSlot(code, m_bucket_count))]; node != nullptr; node = node->Next) {
 			if (node->Code == code && m_equal(node->Entry.first, key))
 				return node;
+		}
+		return nullptr;
+	}
+
+	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
+	UnorderedMap<K, V, Hash, KeyEqual>::Node* UnorderedMap<K, V, Hash, KeyEqual>::FirstNode() const noexcept {
+		for (size_type index = 0; index < m_bucket_count; ++index) {
+			if (m_buckets[index] != nullptr)
+				return m_buckets[index];
 		}
 		return nullptr;
 	}
@@ -470,7 +479,7 @@ namespace StormByte::Safe {
 	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
 	void UnorderedMap<K, V, Hash, KeyEqual>::Link(Node* node) {
 		Ensure(1);
-		const size_type slot = node->Code & (m_bucket_count - 1);
+		const size_type slot = BucketSlot(node->Code, m_bucket_count);
 		node->Next = m_buckets[slot];
 		m_buckets[slot] = node;
 		++m_size;
@@ -478,7 +487,7 @@ namespace StormByte::Safe {
 
 	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
 	UnorderedMap<K, V, Hash, KeyEqual>::Node* UnorderedMap<K, V, Hash, KeyEqual>::Unlink(Node* node) noexcept {
-		const size_type slot = node->Code & (m_bucket_count - 1);
+		const size_type slot = BucketSlot(node->Code, m_bucket_count);
 		Node** link = &m_buckets[slot];
 		while (*link != node)
 			link = &(*link)->Next;
@@ -494,6 +503,6 @@ namespace StormByte::Safe {
 			return;
 		}
 		if (static_cast<float>(m_size + extra) > m_max_load * static_cast<float>(m_bucket_count))
-			rehash(m_bucket_count << 1);
+			rehash(m_bucket_count * 2);
 	}
 }

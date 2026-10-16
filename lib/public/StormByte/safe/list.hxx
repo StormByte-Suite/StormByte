@@ -79,7 +79,7 @@ namespace StormByte {
 
 			public:
 				using value_type = T; ///< Element type.
-				using size_type = std::size_t; ///< Element count type.
+				using size_type = Size;	///< Element count. @ref Size, not `std::size_t`.
 				using difference_type = std::ptrdiff_t; ///< Iterator distance type.
 				using reference = T&; ///< Mutable element reference.
 				using const_reference = const T&; ///< Read-only element reference.

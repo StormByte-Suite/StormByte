@@ -76,7 +76,7 @@ namespace StormByte {
 		class STORMBYTE_PUBLIC Binary final {
 			public:
 				using value_type = std::byte; ///< Element type.
-				using size_type = std::size_t; ///< STL size typedef. @ref size() returns @ref ByteSize.
+				using size_type = Size;	///< Count typedef. @ref size() returns @ref ByteSize.
 				using difference_type = std::ptrdiff_t; ///< Iterator difference.
 				using reference = std::byte&; ///< Mutable element reference.
 				using const_reference = const std::byte&; ///< Read-only element reference.

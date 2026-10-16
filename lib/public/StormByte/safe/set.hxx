@@ -80,7 +80,7 @@ namespace StormByte {
 				using value_type = K; ///< Stored value.
 				using key_compare = Compare; ///< Ordering.
 				using value_compare = Compare; ///< Ordering of values. Same as the key ordering.
-				using size_type = std::size_t; ///< Value count type.
+				using size_type = Size;	///< Element count. @ref Size, not `std::size_t`.
 				using difference_type = std::ptrdiff_t; ///< Iterator distance type.
 				using reference = const K&; ///< Read-only value reference.
 				using const_reference = const K&; ///< Read-only value reference.

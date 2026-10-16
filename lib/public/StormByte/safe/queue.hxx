@@ -77,7 +77,7 @@ namespace StormByte {
 			public:
 				using value_type = T; ///< Element type.
 				using container_type = Vector<T>; ///< Underlying Base-owned sequence.
-				using size_type = std::size_t; ///< Element count type.
+				using size_type = Size;	///< Element count. @ref Size, not `std::size_t`.
 				using difference_type = std::ptrdiff_t; ///< Iterator distance type.
 				using reference = T&; ///< Mutable element reference.
 				using const_reference = const T&; ///< Read-only element reference.
