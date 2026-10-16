@@ -648,63 +648,6 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Copy with the first literal `{}` replaced by @p token.
-				 * @param token Non-owning replacement. Valid only for this call; it does not allocate.
-				 * @return New Base-owned string. No `{}` yields an unchanged copy.
-				 * @throws AllocationError The result could not be allocated.
-				 */
-				String ReplaceToken(std::string_view token) const;
-
-				/**
-				 * @brief Replace the first literal `{}` with @p token.
-				 * @param token Non-owning replacement. Valid only for this call; it does not allocate.
-				 * @return This string. No `{}` leaves it unchanged.
-				 * @throws AllocationError The result could not be allocated.
-				 */
-				String& ReplaceToken(std::string_view token);
-
-				/**
-				 * @brief Copy with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
-				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
-				 * @return New Base-owned string. No arguments, or no token, yields an unchanged copy.
-				 * @throws AllocationError The result could not be allocated.
-				 */
-				template<class... Args>
-				String ReplaceToken(Args&&... args) const & {
-					if constexpr (sizeof...(Args) == 0)
-						return *this;
-					else
-						return String::ReplaceToken<Args...>(static_cast<std::string_view>(*this), std::forward<Args>(args)...);
-				}
-
-				template<class... Args>
-				String ReplaceToken(Args&&... args) && {
-					return static_cast<const String&>(*this).ReplaceToken(std::forward<Args>(args)...);
-				}
-
-				/**
-				 * @brief Replace each literal `{}`, in order, by one argument.
-				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
-				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
-				 * @return This string. No arguments, or no token, leaves it unchanged.
-				 * @throws AllocationError The result could not be allocated.
-				 */
-				template<class... Args>
-				String& ReplaceToken(Args&&... args) & {
-					if constexpr (sizeof...(Args) == 0)
-						return *this;
-					else {
-						const std::string_view view(*this);
-						if (view.find("{}") == std::string_view::npos)
-							return *this;
-						*this = String::ReplaceToken<Args...>(view, std::forward<Args>(args)...);
-						return *this;
-					}
-				}
-
-
-				/**
 				 * @brief Character at @p index.
 				 * @param index Position in `[0, size()]`. `size()` is the trailing NUL.
 				 * @return Character.

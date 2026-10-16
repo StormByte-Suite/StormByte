@@ -638,62 +638,6 @@ namespace StormByte {
 					(store(std::forward<Args>(args)), ...);
 					return ReplaceTokens(text, std::span<const std::wstring_view>(tokens, sizeof...(Args)));
 				}
-				/**
-				 * @brief Copy with the first literal `{}` replaced by @p token.
-				 * @param token Non-owning replacement. Valid only for this call; it does not allocate.
-				 * @return New Base-owned string. No `{}` yields an unchanged copy.
-				 * @throws AllocationError The result could not be allocated.
-				 */
-				WString ReplaceToken(std::wstring_view token) const;
-
-				/**
-				 * @brief Replace the first literal `{}` with @p token.
-				 * @param token Non-owning replacement. Valid only for this call; it does not allocate.
-				 * @return This string. No `{}` leaves it unchanged.
-				 * @throws AllocationError The result could not be allocated.
-				 */
-				WString& ReplaceToken(std::wstring_view token);
-
-				/**
-				 * @brief Copy with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
-				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
-				 * @return New Base-owned string. No arguments, or no token, yields an unchanged copy.
-				 * @throws AllocationError The result could not be allocated.
-				 */
-				template<class... Args>
-				WString ReplaceToken(Args&&... args) const & {
-					if constexpr (sizeof...(Args) == 0)
-						return *this;
-					else
-						return WString::ReplaceToken<Args...>(static_cast<std::wstring_view>(*this), std::forward<Args>(args)...);
-				}
-
-				template<class... Args>
-				WString ReplaceToken(Args&&... args) && {
-					return static_cast<const WString&>(*this).ReplaceToken(std::forward<Args>(args)...);
-				}
-
-				/**
-				 * @brief Replace each literal `{}`, in order, by one argument.
-				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
-				 * @param args Non-owning replacements. Extra arguments are ignored. Leftover `{}` stay. Inserted text is not scanned again.
-				 * @return This string. No arguments, or no token, leaves it unchanged.
-				 * @throws AllocationError The result could not be allocated.
-				 */
-				template<class... Args>
-				WString& ReplaceToken(Args&&... args) & {
-					if constexpr (sizeof...(Args) == 0)
-						return *this;
-					else {
-						const std::wstring_view view(*this);
-						if (view.find(L"{}") == std::wstring_view::npos)
-							return *this;
-						*this = WString::ReplaceToken<Args...>(view, std::forward<Args>(args)...);
-						return *this;
-					}
-				}
-
 
 				/**
 				 * @brief Code unit at @p index.

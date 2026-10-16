@@ -282,9 +282,7 @@ Construct from a literal, `const char*` / `const wchar_t*` (null stays null), or
 
 `std::format` / `std::format_to` treat these types as text, not character ranges. The formatters are included by each type's header and borrow its implicit view without copying the owned text. Standard string specifications (`:s`, precision, fill and alignment) apply. Use wide format strings with `Safe::WString`. `fmt::format` / `fmt::format_to` are also supported when the optional `{fmt}` headers are available; link `{fmt}` or use its header-only mode as usual.
 
-`ReplaceToken` is a plain substitution of the literal token `{}`. One argument replaces the first token. Further arguments replace the following tokens in order. Extra arguments are ignored and leftover `{}` stay. Inserted text is not scanned again. The `const` overload returns a new string; the other mutates. Arguments are non-owning views (`std::string_view` / `std::wstring_view`, or any type that converts to one: a literal, `std::string` / `std::wstring`, `Safe::String` / `Safe::WString`). A number is converted inside the template (`std::to_string` / `std::to_wstring`). A `char` or `wchar_t` is that one character, not its code. A result that fits SSO is written into the inline array. A longer result is one Base allocation.
-
-`String::ReplaceToken(text, args...)` and `WString::ReplaceToken` are the static form. `text` is a view, so a long pattern is not copied into SDS first. The members forward to it. Only the result is owned, and it uses SDS or `wbuf` only when it does not fit SSO.
+`ReplaceToken` is a static substitution of the literal token `{}`. `String::ReplaceToken(text, args...)` and `WString::ReplaceToken(text, args...)` take the pattern as a view, so a literal converts and a long pattern is not copied into SDS first. One argument replaces the first token. Further arguments replace the following tokens in order. Extra arguments are ignored and leftover `{}` stay. Inserted text is not scanned again. Arguments are non-owning views (`std::string_view` / `std::wstring_view`, or any type that converts to one: a literal, `std::string` / `std::wstring`, `Safe::String` / `Safe::WString`). A number is converted inside the template (`std::to_string` / `std::to_wstring`). A `char` or `wchar_t` is that one character, not its code. The function returns a new string. There is no member overload. A result that fits SSO is written into the inline array. A longer result is one Base allocation. It uses SDS or `wbuf` only when it does not fit SSO.
 
 Use it when `std::format` was only filling `{}`. That skips the format parser, the argument packing and the temporary `std::string`. The saving is large for that case. If the text needs a format specification (`{:.2f}`, width, alignment, indexed or named arguments), keep `std::format`.
 
@@ -311,11 +309,9 @@ int main() {
 	WString wide{std::wstring_view{L"wide"}};
 	std::wcout << wide << std::endl;
 
-	String greeting("Hello {}");
-	std::cout << greeting.ReplaceToken(std::string("Ann")) << std::endl;
+	std::cout << String::ReplaceToken("Hello {}", std::string("Ann")) << std::endl;
 	std::cout << String::ReplaceToken("Hello {}", std::string_view("Ann")) << std::endl;
-	greeting.ReplaceToken(text);
-	std::cout << greeting << std::endl;
+	std::cout << String::ReplaceToken("Hello {}", text) << std::endl;
 }
 ```
 

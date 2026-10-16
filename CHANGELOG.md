@@ -28,12 +28,13 @@ If you landed here from a release link and have not read the tree:
 - **Exception.** Public constructors no longer take `std::format_string`. `Exception`, `Safe::Exception`, `DeserializeError`, `OperationError`, `Base64Error`, `ExpiredWeakPointerError` and `BadVariantAccess` take `std::string_view`. A `Safe::String` converts to that view and is copied; there is no move constructor. A derived class formats through a protected constructor that calls `Safe::String::ReplaceToken`: only literal `{}`, and a view is used as-is and a number is converted internally with `std::to_string`. A throw site that is not a derived constructor builds the body with `ReplaceToken` and copies it in. `std::format` specifications and non-string arguments are not accepted.
 - **`String::Explode` / `WString::Explode` no longer accept `std::queue`.** Copy a caller queue with the explicit `Safe::Queue` constructor. `Explode` only splits text.
 - **Breaking: `Safe::OutOfBoundsError`.** Constructors no longer take a message. `OutOfBoundsError(Size)` writes `index <n> is out of range`. `OutOfBoundsError()` is the same text without a number, for a failure that has no numeric bound (a missing map key, an empty container).
+- **`ReplaceToken` is static only.** `Safe::String` and `Safe::WString` no longer have member `ReplaceToken`. The call is `String::ReplaceToken(text, args...)` / `WString::ReplaceToken`. `text` is a view, so a literal converts. The result is a new string. There is no in-place overload.
 
 ### Added
 
 - `Safe::String::Implode` and `Safe::WString::Implode` join a `Vector` or a `Queue` of text with a `string_view` / `wstring_view` delimiter. The containers are taken by const reference. The result size is counted first and reserved once, so a short join stays in SSO.
 - `std::numeric_limits<Size>` and `std::numeric_limits<ByteSize>` are specialized. `min()` is 0 and `max()` is `2^64 - 1`, the stored `uint64_t` range, not the host `std::size_t` range.
-- `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` replace literal `{}` placeholders. The single-argument form replaces the first token; the variadic form replaces one token per argument, in order. Both have a copying `const` overload, a mutating overload, and a static `ReplaceToken(view, args...)` that reads the pattern without storing a long pattern in SDS. A result that fits SSO is written into the inline array and does not call SDS / `wbuf`. A longer result is one exact Base allocation. Missing tokens leave the text unchanged. A view is used as-is and does not allocate. A number is converted inside the template with `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is that one character.
+- `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` are static. They replace literal `{}` placeholders in a view. One argument replaces the first token; further arguments replace the following tokens in order. A long pattern is not stored in SDS. A result that fits SSO is written into the inline array and does not call SDS / `wbuf`. A longer result is one exact Base allocation. Missing tokens leave the text unchanged. A view is used as-is and does not allocate. A number is converted inside the template with `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is that one character.
 
 ### Changed
 - `PerformanceTests` now trains `Explode`, `Implode`, `Split`, case conversion, in-place edit, in-range `at` and `ByteSize` text.
@@ -43,7 +44,6 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 
-- `String::ReplaceToken` / `WString::ReplaceToken` no longer use an explicit object parameter. GCC treated that overload as the static call and then rejected it for lack of an object. The call syntax is unchanged.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.0.0...HEAD

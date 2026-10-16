@@ -359,64 +359,59 @@ int test_format_as_text() {
 
 int test_replace_token_sso_and_heap() {
 	const Safe::WString original(L"Hello {}");
-	const Safe::WString copy = original.ReplaceToken(L"Ann");
+	const Safe::WString copy = Safe::WString::ReplaceToken(original, L"Ann");
 	ASSERT_EQUAL(L"Hello {}", original);
 	ASSERT_EQUAL(L"Hello Ann", copy);
 	ASSERT_SIZE(copy, Size{9});
 	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, copy.capacity());
 
-	Safe::WString mut(L"id={} n={}");
-	mut.ReplaceToken(L"7", L"Ada");
-	ASSERT_EQUAL(L"id=7 n=Ada", mut);
-	ASSERT_SIZE(mut, Size{10});
-	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, mut.capacity());
+	const Safe::WString many = Safe::WString::ReplaceToken(L"id={} n={}", L"7", L"Ada");
+	ASSERT_EQUAL(L"id=7 n=Ada", many);
+	ASSERT_SIZE(many, Size{10});
+	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, many.capacity());
 
-	Safe::WString extra(L"a {} b {}");
-	extra.ReplaceToken(L"X", L"Y", L"Z");
+	const Safe::WString extra = Safe::WString::ReplaceToken(L"a {} b {}", L"X", L"Y", L"Z");
 	ASSERT_EQUAL(L"a X b Y", extra);
 
-	const Safe::WString once = Safe::WString(L"{} and {}").ReplaceToken(L"only");
+	const Safe::WString once = Safe::WString::ReplaceToken(L"{} and {}", L"only");
 	ASSERT_EQUAL(L"only and {}", once);
 
-	Safe::WString none(L"plain");
-	none.ReplaceToken(L"nope");
+	const Safe::WString none = Safe::WString::ReplaceToken(L"plain", L"nope");
 	ASSERT_EQUAL(L"plain", none);
 
-	Safe::WString empty_tok(L"x{}y");
-	empty_tok.ReplaceToken(L"");
+	const Safe::WString empty_tok = Safe::WString::ReplaceToken(L"x{}y", L"");
 	ASSERT_EQUAL(L"xy", empty_tok);
 	ASSERT_SIZE(empty_tok, Size{2});
 
-	Safe::WString self(L"Hello {}");
-	self.ReplaceToken(std::wstring_view(self).substr(0, 5));
-	ASSERT_EQUAL(L"Hello Hello", self);
+	const Safe::WString self(L"Hello {}");
+	const Safe::WString self_replaced = Safe::WString::ReplaceToken(self, std::wstring_view(self).substr(0, 5));
+	ASSERT_EQUAL(L"Hello {}", self);
+	ASSERT_EQUAL(L"Hello Hello", self_replaced);
 
 	const std::wstring big(40, L'Q');
-	Safe::WString long_text(std::wstring(L"{}-") + big);
-	const Safe::WString grown = long_text.ReplaceToken(L"HEAD");
+	const Safe::WString long_text(std::wstring(L"{}-") + big);
+	const Safe::WString grown = Safe::WString::ReplaceToken(long_text, L"HEAD");
 	ASSERT_EQUAL(Safe::WString(std::wstring(L"HEAD-") + big), grown);
 	ASSERT_SIZE(grown, Size{45});
 	ASSERT_TRUE(grown.capacity() > Size{Safe::WString::SSO_CAPACITY});
 
-	Safe::WString holes(std::wstring(10, L'A') + L"{}");
+	const Safe::WString holes(std::wstring(10, L'A') + L"{}");
 	ASSERT_TRUE(holes.capacity() > Size{Safe::WString::SSO_CAPACITY});
 	ASSERT_SIZE(holes, Size{12});
-	holes.ReplaceToken(L"");
-	ASSERT_EQUAL(Safe::WString(std::wstring(10, L'A')), holes);
-	ASSERT_SIZE(holes, Size{10});
-	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, holes.capacity());
-
+	const Safe::WString shrunk = Safe::WString::ReplaceToken(holes, L"");
+	ASSERT_EQUAL(Safe::WString(std::wstring(10, L'A')), shrunk);
+	ASSERT_SIZE(shrunk, Size{10});
+	ASSERT_EQUAL(Size{Safe::WString::SSO_CAPACITY}, shrunk.capacity());
 
 	const Safe::WString owned(L"Ada");
 	const std::wstring stl(L"Bob");
 	const std::wstring_view view(L"Cyd");
 	const int id = 7;
-	Safe::WString typed(L"{} / {} / {} / {}");
-	typed.ReplaceToken(owned, stl, view, std::to_wstring(id));
+	const Safe::WString typed = Safe::WString::ReplaceToken(L"{} / {} / {} / {}", owned, stl, view, std::to_wstring(id));
 	ASSERT_EQUAL(L"Ada / Bob / Cyd / 7", typed);
 	ASSERT_SIZE(typed, Size{19});
 
-	const Safe::WString mixed = Safe::WString(L"n={} s={}").ReplaceToken(std::to_wstring(3), Safe::WString(L"ok"));
+	const Safe::WString mixed = Safe::WString::ReplaceToken(L"n={} s={}", std::to_wstring(3), Safe::WString(L"ok"));
 	ASSERT_EQUAL(L"n=3 s=ok", mixed);
 	ASSERT_SIZE(mixed, Size{8});
 

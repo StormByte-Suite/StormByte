@@ -579,15 +579,3 @@ String String::ReplaceTokens(std::string_view text, std::span<const std::string_
 	out.m_storage.m_tag = kLongBit;
 	return out;
 }
-
-String String::ReplaceToken(std::string_view token) const {
-	return ReplaceTokens(static_cast<std::string_view>(*this), std::span<const std::string_view>(&token, 1));
-}
-
-String& String::ReplaceToken(std::string_view token) {
-	const std::string_view self(*this);
-	if (self.find("{}") == std::string_view::npos)
-		return *this;
-	*this = ReplaceTokens(self, std::span<const std::string_view>(&token, 1));
-	return *this;
-}

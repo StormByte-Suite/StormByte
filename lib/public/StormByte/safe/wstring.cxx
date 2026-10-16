@@ -563,15 +563,3 @@ WString WString::ReplaceTokens(std::wstring_view text, std::span<const std::wstr
 	out.m_storage.m_tag = kLongBit;
 	return out;
 }
-
-WString WString::ReplaceToken(std::wstring_view token) const {
-	return ReplaceTokens(static_cast<std::wstring_view>(*this), std::span<const std::wstring_view>(&token, 1));
-}
-
-WString& WString::ReplaceToken(std::wstring_view token) {
-	const std::wstring_view self(*this);
-	if (self.find(L"{}") == std::wstring_view::npos)
-		return *this;
-	*this = ReplaceTokens(self, std::span<const std::wstring_view>(&token, 1));
-	return *this;
-}

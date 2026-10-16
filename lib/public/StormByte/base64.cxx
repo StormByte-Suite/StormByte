@@ -119,7 +119,7 @@ Safe::Binary StormByte::Base64Decode(std::string_view input) {
 			break;
 		std::uint8_t value = DecodeTable[static_cast<unsigned char>(c)];
 		if (value == 255)
-			throw Base64Error(Safe::String::ReplaceToken<std::string>("Invalid character '{}' in input", std::string(1, c)));
+			throw Base64Error(Safe::String::ReplaceToken("Invalid character '{}' in input", std::string(1, c)));
 
 		buffer = (buffer << 6) | value;
 		bits_collected += 6;

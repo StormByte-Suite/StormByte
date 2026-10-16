@@ -412,67 +412,61 @@ int test_format_as_text() {
 
 int test_replace_token_sso_and_heap() {
 	const Safe::String original("Hello {}");
-	const Safe::String copy = original.ReplaceToken("Ann");
+	const Safe::String copy = Safe::String::ReplaceToken(original, "Ann");
 	ASSERT_EQUAL("Hello {}", original);
 	ASSERT_EQUAL("Hello Ann", copy);
 	ASSERT_SIZE(copy, Size{9});
 	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, copy.capacity());
 
-	Safe::String mut("id={} n={}");
-	mut.ReplaceToken("7", "Ada");
-	ASSERT_EQUAL("id=7 n=Ada", mut);
-	ASSERT_SIZE(mut, Size{10});
-	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, mut.capacity());
+	const Safe::String many = Safe::String::ReplaceToken("id={} n={}", "7", "Ada");
+	ASSERT_EQUAL("id=7 n=Ada", many);
+	ASSERT_SIZE(many, Size{10});
+	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, many.capacity());
 
-	Safe::String extra("a {} b {}");
-	extra.ReplaceToken("X", "Y", "Z");
+	const Safe::String extra = Safe::String::ReplaceToken("a {} b {}", "X", "Y", "Z");
 	ASSERT_EQUAL("a X b Y", extra);
 
-	Safe::String leftover("{} and {}");
-	const Safe::String once = leftover.ReplaceToken("only");
+	const Safe::String once = Safe::String::ReplaceToken("{} and {}", "only");
 	ASSERT_EQUAL("only and {}", once);
 
-	Safe::String none("plain");
-	none.ReplaceToken("nope");
+	const Safe::String none = Safe::String::ReplaceToken("plain", "nope");
 	ASSERT_EQUAL("plain", none);
-	const Safe::String none_copy = Safe::String("plain").ReplaceToken("a", "b");
+	const Safe::String none_copy = Safe::String::ReplaceToken("plain", "a", "b");
 	ASSERT_EQUAL("plain", none_copy);
 
-	Safe::String empty_tok("x{}y");
-	empty_tok.ReplaceToken("");
+	const Safe::String empty_tok = Safe::String::ReplaceToken("x{}y", "");
 	ASSERT_EQUAL("xy", empty_tok);
 	ASSERT_SIZE(empty_tok, Size{2});
 
-	Safe::String self("Hello {}");
-	self.ReplaceToken(std::string_view(self).substr(0, 5));
-	ASSERT_EQUAL("Hello Hello", self);
+	const Safe::String self("Hello {}");
+	const Safe::String self_replaced = Safe::String::ReplaceToken(self, std::string_view(self).substr(0, 5));
+	ASSERT_EQUAL("Hello {}", self);
+	ASSERT_EQUAL("Hello Hello", self_replaced);
 
 	const std::string big(80, 'Q');
-	Safe::String long_text(std::string("{}-") + big);
-	const Safe::String grown = long_text.ReplaceToken("HEAD");
+	const Safe::String long_text(std::string("{}-") + big);
+	const Safe::String grown = Safe::String::ReplaceToken(long_text, "HEAD");
 	ASSERT_EQUAL(Safe::String(std::string("HEAD-") + big), grown);
 	ASSERT_SIZE(grown, Size{85});
 	ASSERT_TRUE(grown.capacity() > Size{Safe::String::SSO_CAPACITY});
 
-	Safe::String holes(std::string(30, 'A') + "{}" + "BB");
+	const Safe::String holes(std::string(30, 'A') + "{}" + "BB");
 	ASSERT_TRUE(holes.capacity() > Size{Safe::String::SSO_CAPACITY});
 	ASSERT_SIZE(holes, Size{34});
-	holes.ReplaceToken("");
-	ASSERT_EQUAL(Safe::String(std::string(30, 'A') + "BB"), holes);
-	ASSERT_SIZE(holes, Size{32});
-	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, holes.capacity());
-
+	const Safe::String shrunk = Safe::String::ReplaceToken(holes, "");
+	ASSERT_EQUAL(Safe::String(std::string(30, 'A') + "BB"), shrunk);
+	ASSERT_SIZE(shrunk, Size{32});
+	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, shrunk.capacity());
 
 	const Safe::String owned("Ada");
 	const std::string stl("Bob");
 	const std::string_view view("Cyd");
 	const int id = 7;
-	Safe::String typed("{} / {} / {} / {}");
-	typed.ReplaceToken(owned, stl, view, std::to_string(id));
+	const Safe::String typed = Safe::String::ReplaceToken("{} / {} / {} / {}", owned, stl, view, std::to_string(id));
 	ASSERT_EQUAL("Ada / Bob / Cyd / 7", typed);
 	ASSERT_SIZE(typed, Size{19});
 
-	const Safe::String mixed = Safe::String("n={} s={}").ReplaceToken(std::to_string(3), Safe::String("ok"));
+	const Safe::String mixed = Safe::String::ReplaceToken("n={} s={}", std::to_string(3), Safe::String("ok"));
 	ASSERT_EQUAL("n=3 s=ok", mixed);
 	ASSERT_SIZE(mixed, Size{8});
 
