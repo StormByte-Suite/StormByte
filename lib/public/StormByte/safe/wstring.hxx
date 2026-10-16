@@ -609,7 +609,8 @@ namespace StormByte {
 				WString& replace(const_iterator first, const_iterator last, std::wstring_view text);
 				/**
 				 * @brief Copy @p text with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
+				 * @tparam Args Text, a number, or a type that converts to `std::wstring` or `WString`.
+				 * A view is not copied. A number is converted here. Anything else is copied from that conversion, including an explicit one.
 				 * @param text Pattern. A long pattern is not stored; only the result is owned.
 				 * @param args Non-owning replacements. At least one. Extra arguments are ignored. Leftover `{}` stay.
 				 * @return New Base-owned string. No token yields an owned copy of @p text.
@@ -623,16 +624,23 @@ namespace StormByte {
 					std::size_t index = 0;
 					auto store = [&](auto&& value) {
 						using Bare = std::remove_cvref_t<decltype(value)>;
-						if constexpr (requires { std::wstring_view(std::forward<decltype(value)>(value)); })
-							tokens[index] = std::wstring_view(std::forward<decltype(value)>(value));
-						else if constexpr (Type::SameAs<Bare, wchar_t>) {
+						if constexpr (Type::SameAs<Bare, wchar_t>) {
 							scratch[index].assign(1, static_cast<wchar_t>(value));
 							tokens[index] = scratch[index];
-						} else if constexpr (Type::Arithmetic<Bare>) {
+						} else if constexpr (Type::ConvertibleTo<Bare, std::wstring_view>)
+							tokens[index] = std::wstring_view(std::forward<decltype(value)>(value));
+						else if constexpr (Type::Arithmetic<Bare>) {
 							scratch[index] = std::to_wstring(value);
 							tokens[index] = scratch[index];
+						} else if constexpr (Type::ExplicitlyConvertibleTo<Bare, std::wstring>) {
+							scratch[index] = static_cast<std::wstring>(std::forward<decltype(value)>(value));
+							tokens[index] = scratch[index];
+						} else if constexpr (Type::ExplicitlyConvertibleTo<Bare, WString>) {
+							const WString owned(static_cast<WString>(std::forward<decltype(value)>(value)));
+							scratch[index].assign(static_cast<std::wstring_view>(owned));
+							tokens[index] = scratch[index];
 						} else
-							static_assert(Type::Arithmetic<Bare>, "ReplaceToken argument must be text or a number");
+							static_assert(Type::ExplicitlyConvertibleTo<Bare, std::wstring>, "ReplaceToken argument must be text, a number, or convertible to std::wstring");
 						++index;
 					};
 					(store(std::forward<Args>(args)), ...);

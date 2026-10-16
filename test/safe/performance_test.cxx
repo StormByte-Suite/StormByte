@@ -192,7 +192,8 @@ void TouchReplaceToken() {
 	for (int i = 0; i < 256; ++i) {
 		(void)String::ReplaceToken(pattern, "ann", std::to_string(i)).size();
 		(void)String::ReplaceToken("x={} y={}", "p", "q").size();
-		(void)String::ReplaceToken("plain", "z").size();
+		(void)String::ReplaceToken("n={}", Size{static_cast<std::uint64_t>(i)}).size();
+		(void)WString::ReplaceToken(L"n={}", Size{static_cast<std::uint64_t>(i)}).size();
 		(void)String::ReplaceToken(long_pattern, "L", "R").size();
 		(void)WString::ReplaceToken(wide, L"A", L"B").size();
 		(void)WString::ReplaceToken(wide, L"A").size();

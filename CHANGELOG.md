@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Changed
+
+- `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` accept any argument that converts to `std::string` / `std::wstring`, or to `Safe::String` / `Safe::WString`. An explicit conversion is enough. `Size` and `ByteSize` no longer need a cast. A view is still not copied. A number still uses `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is still that one character.
+
 ## [2.1.0] - 2026-10-16
 
 ### Added

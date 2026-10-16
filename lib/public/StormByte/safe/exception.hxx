@@ -106,7 +106,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Replace literal `{}` under the `Safe` path.
-				 * @tparam Args Views, or numbers. A number is converted with `std::to_string`.
+				 * @tparam Args Views, numbers, or types that convert to `std::string`. A number uses `std::to_string`.
 				 * @param pattern Body with literal `{}` tokens.
 				 * @param args Replacements. One per token, in order.
 				 */
@@ -193,7 +193,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Replace literal `{}` in @p pattern.
-				 * @tparam Args Views, or numbers. A number is converted with `std::to_string`.
+				 * @tparam Args Views, numbers, or types that convert to `std::string`. A number uses `std::to_string`.
 				 * @param pattern Body with literal `{}` tokens.
 				 * @param args Replacements. One per token, in order.
 				 */
@@ -355,7 +355,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Replace literal `{}` in @p pattern.
-				 * @tparam Args Views, or numbers. A number is converted with `std::to_string`.
+				 * @tparam Args Views, numbers, or types that convert to `std::string`. A number uses `std::to_string`.
 				 * @param pattern Body with literal `{}` tokens.
 				 * @param args Replacements. One per token, in order.
 				 */

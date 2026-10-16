@@ -617,7 +617,8 @@ namespace StormByte {
 				String& replace(const_iterator first, const_iterator last, std::string_view text);
 				/**
 				 * @brief Copy @p text with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Text or a number. A view is not copied. A number is converted here.
+				 * @tparam Args Text, a number, or a type that converts to `std::string`.
+				 * A view is not copied. A number is converted here. Anything else is copied from that conversion, including an explicit one.
 				 * @param text Pattern. A long pattern is not stored; only the result is owned.
 				 * @param args Non-owning replacements. At least one. Extra arguments are ignored. Leftover `{}` stay.
 				 * @return New Base-owned string. No token yields an owned copy of @p text.
@@ -631,16 +632,23 @@ namespace StormByte {
 					std::size_t index = 0;
 					auto store = [&](auto&& value) {
 						using Bare = std::remove_cvref_t<decltype(value)>;
-						if constexpr (requires { std::string_view(std::forward<decltype(value)>(value)); })
-							tokens[index] = std::string_view(std::forward<decltype(value)>(value));
-						else if constexpr (Type::SameAs<Bare, char>) {
+						if constexpr (Type::SameAs<Bare, char>) {
 							scratch[index].assign(1, static_cast<char>(value));
 							tokens[index] = scratch[index];
-						} else if constexpr (Type::Arithmetic<Bare>) {
+						} else if constexpr (Type::ConvertibleTo<Bare, std::string_view>)
+							tokens[index] = std::string_view(std::forward<decltype(value)>(value));
+						else if constexpr (Type::Arithmetic<Bare>) {
 							scratch[index] = std::to_string(value);
 							tokens[index] = scratch[index];
+						} else if constexpr (Type::ExplicitlyConvertibleTo<Bare, std::string>) {
+							scratch[index] = static_cast<std::string>(std::forward<decltype(value)>(value));
+							tokens[index] = scratch[index];
+						} else if constexpr (Type::ExplicitlyConvertibleTo<Bare, String>) {
+							const String owned(static_cast<String>(std::forward<decltype(value)>(value)));
+							scratch[index].assign(static_cast<std::string_view>(owned));
+							tokens[index] = scratch[index];
 						} else
-							static_assert(Type::Arithmetic<Bare>, "ReplaceToken argument must be text or a number");
+							static_assert(Type::ExplicitlyConvertibleTo<Bare, std::string>, "ReplaceToken argument must be text, a number, or convertible to std::string");
 						++index;
 					};
 					(store(std::forward<Args>(args)), ...);

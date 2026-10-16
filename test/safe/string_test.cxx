@@ -494,6 +494,11 @@ int test_replace_token_sso_and_heap() {
 	ASSERT_EQUAL("plain", Safe::String::ReplaceToken("plain", "z"));
 	ASSERT_EQUAL("n=3", Safe::String::ReplaceToken("n={}", 3));
 	ASSERT_EQUAL("id=A", Safe::String::ReplaceToken("id={}", 'A'));
+	ASSERT_EQUAL("n=12", Safe::String::ReplaceToken("n={}", Size{12}));
+	struct Tickets {
+		explicit operator std::string() const { return "4"; }
+	};
+	ASSERT_EQUAL("n=4", Safe::String::ReplaceToken("n={}", Tickets{}));
 	RETURN_TEST(0);
 }
 
