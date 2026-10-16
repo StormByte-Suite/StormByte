@@ -39,6 +39,7 @@
 
 #pragma once
 
+#include <StormByte/size.hxx>
 #include <StormByte/safe/heap.hxx>
 #include <StormByte/type_traits.hxx>
 #include <StormByte/visibility.h>

@@ -143,7 +143,7 @@ namespace StormByte::Safe {
 		const size_type needed = (m_offset + m_size) / BlockCount + 1;
 		if (m_map != nullptr && needed <= m_capacity)
 			return;
-		const size_type capacity = m_capacity == 0 ? 1 : std::max(needed, m_capacity * 2);
+		const size_type capacity = m_capacity == 0 ? Size{1} : std::max(needed, m_capacity * 2);
 		Block* map = static_cast<Block*>(Heap::Allocate(sizeof(Block) * capacity));
 		for (size_type i = 0; i < m_capacity; ++i)
 			map[i] = m_map[i];

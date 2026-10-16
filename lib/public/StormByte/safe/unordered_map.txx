@@ -371,7 +371,7 @@ namespace StormByte::Safe {
 
 	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
 	void UnorderedMap<K, V, Hash, KeyEqual>::rehash(size_type buckets) {
-		const size_type count = BucketCount(buckets == 0 ? 1 : buckets);
+		const size_type count = BucketCount(buckets == 0 ? Size{1} : buckets);
 		Node** fresh = AllocateBuckets(count);
 		Node** previous = m_buckets;
 		const size_type previous_count = m_bucket_count;

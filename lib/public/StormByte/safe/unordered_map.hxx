@@ -39,6 +39,7 @@
 
 #pragma once
 
+#include <StormByte/size.hxx>
 #include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/hash.hxx>
 #include <StormByte/safe/heap.hxx>

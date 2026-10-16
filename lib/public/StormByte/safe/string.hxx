@@ -41,9 +41,9 @@
 
 #include <StormByte/safe/hash.hxx>
 #include <StormByte/safe/pointers.hxx>
+#include <StormByte/size.hxx>
 #include <StormByte/safe/queue.hxx>
 #include <StormByte/safe/vector.hxx>
-#include <StormByte/size.hxx>
 #include <StormByte/visibility.h>
 
 #if __has_include(<fmt/format.h>)

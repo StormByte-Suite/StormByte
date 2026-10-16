@@ -538,7 +538,7 @@ namespace StormByte {
 
 		template<Type::SafeValue T>
 		void Vector<T>::Grow() {
-			reserve(m_capacity == 0 ? 1 : m_capacity * 2);
+			reserve(m_capacity == 0 ? Size{1} : m_capacity * 2);
 		}
 	}
 }
