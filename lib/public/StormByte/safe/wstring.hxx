@@ -646,7 +646,7 @@ namespace StormByte {
 				 * @throws AllocationError The result could not be allocated.
 				 */
 				template<class Self, class... Args>
-					requires std::is_same_v<std::remove_cvref_t<Self>, WString> && (std::is_const_v<std::remove_reference_t<Self>> || !std::is_lvalue_reference_v<Self>)
+					requires Type::SameAs<Self, WString> && (Type::Const<std::remove_reference_t<Self>> || (!Type::LvalueReference<Self>))
 				WString ReplaceToken(this Self&& self, Args&&... args) {
 					if constexpr (sizeof...(Args) == 0)
 						return self;
@@ -664,7 +664,7 @@ namespace StormByte {
 				 * @throws AllocationError The result could not be allocated.
 				 */
 				template<class Self, class... Args>
-					requires std::is_same_v<std::remove_cvref_t<Self>, WString> && std::is_lvalue_reference_v<Self> && (!std::is_const_v<std::remove_reference_t<Self>>)
+					requires Type::SameAs<Self, WString> && Type::LvalueReference<Self> && (!Type::Const<std::remove_reference_t<Self>>)
 				WString& ReplaceToken(this Self&& self, Args&&... args) {
 					if constexpr (sizeof...(Args) == 0)
 						return self;
