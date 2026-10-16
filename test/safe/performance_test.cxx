@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  *
  * Full PGO training workload. Touches every explicit template
- * instantiation exported by the library (Vector, Deque, List, Set,
- * UnorderedSet, Map, UnorderedMap, Queue, Atomic, plus text, Binary,
- * Optional, Variant and smart pointers) so LTO+PGO can optimize them.
+ * instantiation exported by the library, plus the text hot path
+ * (Explode, Implode, Split, case, edit) and Size / ByteSize, so
+ * LTO+PGO can optimize them.
  */
 
+#include <StormByte/byte_size.hxx>
 #include <StormByte/safe/atomic.hxx>
 #include <StormByte/safe/binary.hxx>
 #include <StormByte/safe/deque.hxx>
@@ -59,6 +60,10 @@ void TouchVector() {
 	v.reserve(Size{kN});
 	for (int i = 0; i < kN; ++i) v.push_back(Make<T>(i));
 	for (const auto& x : v) (void)x;
+	if (v.size() > Size{1}) {
+		(void)v.at(Size{0});
+		(void)v.at(v.size() - Size{1});
+	}
 }
 
 template<class T>
@@ -67,6 +72,10 @@ void TouchDeque() {
 	for (int i = 0; i < kN; ++i) {
 		d.push_back(Make<T>(i));
 		d.push_front(Make<T>(i));
+	}
+	if (d.size() > Size{1}) {
+		(void)d.at(Size{0});
+		(void)d.at(d.size() - Size{1});
 	}
 	while (!d.empty()) d.pop_front();
 }
@@ -199,6 +208,93 @@ void TouchReplaceToken() {
 	}
 }
 
+
+void TouchTextPipeline() {
+	const String csv("a,,b,c,");
+	const String sentence("Hello,  World\r\n");
+	String long_csv;
+	long_csv.reserve(Size{240});
+	for (int i = 0; i < 40; ++i) {
+		if (i != 0)
+			long_csv.append(",");
+		if (i % 5 != 0)
+			long_csv.append("item");
+		long_csv.append(std::to_string(i));
+	}
+
+	const Queue<String> fields = String::Explode(csv, ',');
+	(void)String::Implode(fields, ",").size();
+	const Vector<String> words = String::Split(sentence);
+	(void)String::Implode(words, " ").size();
+	const Queue<String> many = long_csv.Explode(',');
+	(void)String::Implode(many, ",").size();
+	Vector<String> labeled;
+	labeled.push_back(String("id"));
+	labeled.push_back(String("7"));
+	labeled.push_back(String("ok"));
+	(void)String::Implode(labeled, " | ").size();
+
+	(void)String::ToLower(sentence).size();
+	(void)String::ToUpper("AbC").size();
+	(void)String::SanitizeNewlines(sentence).size();
+	(void)String::RemoveWhitespace(sentence).size();
+	(void)String::IsInteger("-42");
+	(void)String::IsInteger("4a");
+	(void)sentence.ToLower().size();
+	(void)long_csv.Split().size();
+
+	String edit("short");
+	edit.reserve(Size{8});
+	edit.append("-x");
+	edit.insert(Size{1}, "Z");
+	edit.replace(Size{0}, Size{1}, "Q");
+	edit.erase(Size{1}, Size{1});
+	(void)edit.at(Size{0});
+	char copied[8];
+	(void)edit.copy(copied, Size{4}, Size{0});
+	edit.shrink_to_fit();
+
+	String heap(std::string(96, 'H'));
+	heap.append("tail");
+	heap.insert(Size{10}, ",");
+	(void)heap.at(Size{10});
+	heap.erase(Size{10}, Size{1});
+	heap.replace(Size{0}, Size{4}, "HEAD");
+	heap.shrink_to_fit();
+
+	const WString wcsv(L"a,,b,c");
+	const Queue<WString> wfields = WString::Explode(wcsv, L',');
+	(void)WString::Implode(wfields, L",").size();
+	const Vector<WString> wwords = WString::Split(L"aa bb cc");
+	(void)WString::Implode(wwords, L" | ").size();
+	WString wlong(std::wstring(24, L'W'));
+	(void)wlong.Explode(L'W').size();
+	(void)WString::ToLower(L"AbC").size();
+	(void)WString::ToUpper(wcsv).size();
+	(void)WString::SanitizeNewlines(L"a\r\nb").size();
+	(void)WString::RemoveWhitespace(L" a b ").size();
+	(void)WString::IsInteger(L"99");
+	(void)WString::IsInteger(L"9x");
+	WString wedit(L"short");
+	wedit.append(L"-z");
+	wedit.insert(Size{0}, L"P");
+	(void)wedit.at(Size{0});
+	wedit.replace(Size{0}, Size{1}, L"Q");
+	wedit.erase(Size{0}, Size{1});
+	wchar_t wcopied[8];
+	(void)wedit.copy(wcopied, Size{4}, Size{0});
+
+	Size count{40};
+	count = count + 5;
+	count = count * 2;
+	count = count - 3;
+	(void)(count == 87);
+	(void)static_cast<String>(ByteSize{512}).size();
+	(void)static_cast<String>(ByteSize::KiB(Size{2})).size();
+	(void)static_cast<WString>(ByteSize::MiB(Size{3})).size();
+	(void)static_cast<String>(ByteSize::GiB(Size{1})).size();
+}
+
 void TouchSerializable() {
 	// Exercise the exported Serializable specializations lightly
 	(void)Serializable<int>::Size(1);
@@ -242,6 +338,7 @@ void AllExported() {
 	TouchMap<String, String>();
 
 	TouchTextAndPointers();
+	TouchTextPipeline();
 	TouchReplaceToken();
 	TouchSerializable();
 }
