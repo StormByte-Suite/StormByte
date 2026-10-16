@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Changed
+
+- `Safe::String` SSO capacity raised to 32 code units (48-byte Storage, 16-byte aligned). `Safe::WString` set to 11 units with 16-byte alignment: 32 units would make the object ~136 bytes on 64-bit and hurt cache density; 11 keeps it compact while covering typical short wide strings.
+
 ### Fixed
 
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.

@@ -88,7 +88,7 @@ namespace StormByte {
 		 * @class String
 		 * @brief Owned UTF-8 text.
 		 *
-		 * Not a `std::string`. Up to 22 bytes live in the object, NUL-terminated, with an explicit size.
+		 * Not a `std::string`. Up to 32 bytes live in the object, NUL-terminated, with an explicit size.
 		 * Longer text is an SDS buffer freed in Base. There is no null state: a moved-from string is empty.
 		 * `data()` and `c_str()` are never null.
 		 *
@@ -120,7 +120,7 @@ namespace StormByte {
 				using reverse_iterator = std::reverse_iterator<iterator>;	///< Mutable reverse observer
 				using const_reverse_iterator = std::reverse_iterator<const_iterator>;	///< Reverse observer
 
-				static constexpr std::size_t SSO_CAPACITY = 22;	///< Short-text capacity, excluding the trailing NUL
+				static constexpr std::size_t SSO_CAPACITY = 32;	///< Short-text capacity, excluding the trailing NUL
 
 				/**
 				 * @name Life
@@ -349,7 +349,7 @@ namespace StormByte {
 
 				/**
 				 * @brief Allocated byte capacity, excluding the trailing NUL.
-				 * @return 22 for a short string; SDS capacity for a long one.
+				 * @return 32 for a short string; SDS capacity for a long one.
 				 */
 				Size capacity() const noexcept;
 
@@ -1220,10 +1220,10 @@ namespace StormByte {
 				/**
 				 * @brief In-object short buffer, or an SDS pointer when bit 7 of @ref m_tag is set.
 				 *
-				 * `data` holds 22 bytes plus a trailing NUL. `m_tag` bits 0–6 are the short size.
+				 * `data` holds 32 bytes plus a trailing NUL. `m_tag` bits 0–6 are the short size.
 				 * `long_` is active only while the long bit is set, and is freed in Base.
 				 */
-				struct alignas(alignof(void*)) Storage {
+				struct alignas(16) Storage {
 					union {
 						char data[SSO_CAPACITY + 1];	///< Short bytes, or overlaid by @ref long_
 						char* long_;	///< SDS pointer. Active only when the long bit is set
@@ -1231,8 +1231,8 @@ namespace StormByte {
 					std::uint8_t m_tag;	///< Bit 7 long; bits 0–6 short size
 				};
 
-				static_assert(sizeof(Storage) == 32);
-				static_assert(alignof(Storage) == alignof(void*));
+				static_assert(sizeof(Storage) == 48);
+				static_assert(alignof(Storage) == 16);
 
 				/**
 				 * @brief Whether the SDS pointer is the active member.

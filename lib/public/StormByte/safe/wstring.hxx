@@ -112,7 +112,7 @@ namespace StormByte {
 				using reverse_iterator = std::reverse_iterator<iterator>;	///< Mutable reverse observer
 				using const_reverse_iterator = std::reverse_iterator<const_iterator>;	///< Reverse observer
 
-				static constexpr std::size_t SSO_CAPACITY = 24 / sizeof(wchar_t) - 1;	///< Short capacity, excluding the trailing NUL
+				static constexpr std::size_t SSO_CAPACITY = 11;	///< Short capacity, excluding the trailing NUL
 
 				/**
 				 * @name Life
@@ -1215,7 +1215,7 @@ namespace StormByte {
 				 * `data` holds @ref SSO_CAPACITY units plus a trailing NUL. `m_tag` bits 0–6 are the short size.
 				 * `long_` is active only while the long bit is set, and is freed in Base.
 				 */
-				struct alignas(alignof(void*)) Storage {
+				struct alignas(16) Storage {
 					union {
 						wchar_t data[SSO_CAPACITY + 1];	///< Short units, or overlaid by @ref long_
 						void* long_;	///< Wide buffer. Active only when the long bit is set
@@ -1223,8 +1223,9 @@ namespace StormByte {
 					std::uint8_t m_tag;	///< Bit 7 long; bits 0–6 short size
 				};
 
-				static_assert(sizeof(Storage) == 32 || sizeof(wchar_t) == 4);
-				static_assert(alignof(Storage) == alignof(void*));
+				static_assert(sizeof(Storage) >= SSO_CAPACITY * sizeof(wchar_t));
+				static_assert(sizeof(Storage) % alignof(void*) == 0);
+				static_assert(alignof(Storage) == 16);
 
 				/**
 				 * @brief Whether the wide buffer pointer is the active member.
