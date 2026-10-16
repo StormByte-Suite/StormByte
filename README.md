@@ -103,6 +103,8 @@ cmake -S . -B build
 cmake --build build
 ```
 
+`-DENABLE_PGO=ON` changes that build. It instruments the library, builds the tests, runs `ctest` in `build/test`, then rebuilds the library without tests using the profile. `cmake --install` installs the second build. The logic is in `cmake/pgo.cmake`; another project can `include()` the same file after `project()`.
+
 Shared vs static follows CMake `BUILD_SHARED_LIBS` (declared in `lib/`, default ON). A plain configure builds the shared library. `-DBUILD_SHARED_LIBS=OFF` builds a static archive; on Windows the headers then do not use `dllimport`.
 
 A shared build keeps this library as its own `.so` / `.dll`. Under the LGPL that is usually the simpler way to ship: the user can replace that file. A static archive is folded into your binary. The LGPL still applies to this code; you must give the recipient a way to relink your product with a different build of this library. If that does not fit how you distribute the final product, a commercial license is available from the copyright holder (see [License](#license)).

@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Added
+
+- `ENABLE_PGO`. The default build instruments the library, builds the tests, runs `ctest` in `<build>/test`, then rebuilds without tests using that profile. `cmake --install` installs the optimized rebuild. The steps are in `cmake/pgo.cmake`.
+
 ## [2.1.0] - 2026-10-16
 
 ### Added
