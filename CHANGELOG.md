@@ -46,6 +46,7 @@ If you landed here from a release link and have not read the tree:
 
 - `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
+- MSVC PGO links with `/LTCG:PGINSTRUMENT` and `/LTCG:PGOPTIMIZE`. `/GENPROFILE` and `/USEPROFILE` alone fail with LNK1220 on the current `link.exe`, because they require an `/LTCG` specification. CMake's own `/LTCG` stays off so it does not replace the profile mode.
 
 [2.1.0]: https://github.com/StormBytePP/StormByte/compare/2.0.0...2.1.0
 
