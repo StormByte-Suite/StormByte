@@ -103,7 +103,7 @@ cmake -S . -B build
 cmake --build build
 ```
 
-`-DENABLE_PGO=ON` changes that build. It instruments the library, builds the tests, runs `ctest` in `build/test`, then rebuilds the library without tests using the profile. `cmake --install` installs the second build. The logic is in `cmake/pgo.cmake`; another project can `include()` the same file after `project()`.
+`-DENABLE_PGO=ON` keeps this build directory as the one that is installed. It first builds an instrumented tree in `build/pgo-instr`, runs `ctest` there, then compiles this directory with that profile and without tests. `cmake --install` is the project's normal install. The logic is in `cmake/pgo.cmake`; another project can `include()` the same file after `project()`.
 
 Shared vs static follows CMake `BUILD_SHARED_LIBS` (declared in `lib/`, default ON). A plain configure builds the shared library. `-DBUILD_SHARED_LIBS=OFF` builds a static archive; on Windows the headers then do not use `dllimport`.
 

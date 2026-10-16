@@ -29,7 +29,7 @@ If you landed here from a release link and have not read the tree:
 - `Safe::String::Implode` and `Safe::WString::Implode` join a `Vector` or a `Queue` of text with a `string_view` / `wstring_view` delimiter. The containers are taken by const reference. The result size is counted first and reserved once, so a short join stays in SSO.
 - `std::numeric_limits<Size>` and `std::numeric_limits<ByteSize>` are specialized. `min()` is 0 and `max()` is `2^64 - 1`, the stored `uint64_t` range, not the host `std::size_t` range.
 - `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` are static. They replace literal `{}` placeholders in a view. One argument replaces the first token; further arguments replace the following tokens in order. A long pattern is not stored in SDS. A result that fits SSO is written into the inline array and does not call SDS / `wbuf`. A longer result is one exact Base allocation. Missing tokens leave the text unchanged. A view is used as-is and does not allocate. A number is converted inside the template with `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is that one character.
-- `ENABLE_PGO`. The default build instruments the library, builds the tests, runs `ctest` in `<build>/test`, then rebuilds without tests using that profile. `cmake --install` installs the optimized rebuild. The steps are in `cmake/pgo.cmake`.
+- `ENABLE_PGO`. The build directory stays a normal build and is the one `cmake --install` ships. Training is a separate tree, `<build>/pgo-instr`: instrumented library, tests and `ctest`. This directory then compiles with that profile and without tests. `install()` rules are unchanged. The steps are in `cmake/pgo.cmake`.
 
 ### Changed
 
@@ -46,7 +46,6 @@ If you landed here from a release link and have not read the tree:
 ### Fixed
 
 - `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
-- `cmake --install` with `ENABLE_PGO` installs the optimized rebuild. Directories configured without install rules no longer abort the script with a missing `cmake_install.cmake`.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD

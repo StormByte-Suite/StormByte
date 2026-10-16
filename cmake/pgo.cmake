@@ -1,21 +1,24 @@
 # Profile-guided optimization, as one include.
 #
 # include() this file once, after project() and before any targets or install().
-# -DENABLE_PGO=ON changes the default build (the all target):
-#   1. Compile with tests, instrumented.
-#   2. Run ctest in <build>/test (override with PGO_TEST_DIR).
-#   3. Recompile without tests, using that profile.
-# cmake --install installs step 3, not the instrumented binaries.
+# -DENABLE_PGO=ON keeps this build directory as a normal build. It is the one
+# cmake --install ships, and the project's install() rules are unchanged:
+#   1. Build an instrumented tree in <build>/pgo-instr, with tests.
+#   2. Run ctest in <build>/pgo-instr/test (override with PGO_TEST_DIR).
+#   3. Compile this directory without tests, using that profile.
+# This directory cannot rebuild itself from inside cmake --build (the generator
+# already holds it). It is configured with the profile from the start, and the
+# library waits until training has finished.
 #
-# The training build forces the cache option named by PGO_TEST_OPTION
-# (default ENABLE_TEST) ON. The optimized rebuild forces it OFF.
+# The instrumented tree forces the cache option named by PGO_TEST_OPTION
+# (default ENABLE_TEST) ON. This directory forces it OFF.
 # Set PGO_FORWARD_CACHE before including this file to a list of extra cache
-# variables the optimized rebuild must receive.
+# variables the instrumented tree must receive.
 #
 # Copy this file into another project and include it the same way.
 # GCC, Clang, clang-cl and MSVC are supported. Release is the useful config.
 
-option(ENABLE_PGO "Instrument, train with ctest, rebuild with the profile, install that build" OFF)
+option(ENABLE_PGO "Train in pgo-instr, then compile this directory with the profile" OFF)
 
 if(NOT ENABLE_PGO)
 	return()
@@ -30,8 +33,8 @@ endif()
 if(NOT PGO_PROFILE_DIR)
 	set(PGO_PROFILE_DIR "${CMAKE_BINARY_DIR}/pgo-data")
 endif()
-if(NOT PGO_TEST_DIR)
-	set(PGO_TEST_DIR "${CMAKE_BINARY_DIR}/test")
+if(NOT PGO_INSTR_DIR)
+	set(PGO_INSTR_DIR "${CMAKE_BINARY_DIR}/pgo-instr")
 endif()
 file(MAKE_DIRECTORY "${PGO_PROFILE_DIR}")
 
@@ -59,103 +62,88 @@ if(_pgo_kind STREQUAL "MSVC")
 	endforeach()
 endif()
 
-if(PGO_STAGE STREQUAL "use")
-	set(${PGO_TEST_OPTION} OFF CACHE BOOL "Disabled in the PGO optimized rebuild" FORCE)
+if(PGO_STAGE STREQUAL "generate")
+	set(${PGO_TEST_OPTION} ON CACHE BOOL "Forced ON by the PGO training build" FORCE)
 	if(_pgo_kind STREQUAL "GNU")
 		add_compile_options(
-			"SHELL:-fprofile-use=${PGO_PROFILE_DIR}"
-			"SHELL:-fprofile-correction"
+			"SHELL:-fprofile-generate=${PGO_PROFILE_DIR}"
+			"SHELL:-fprofile-update=atomic"
 			"SHELL:-fprofile-prefix-map=${CMAKE_BINARY_DIR}=pgo"
-			"SHELL:-Wno-error=missing-profile"
 		)
-		add_link_options("SHELL:-fprofile-use=${PGO_PROFILE_DIR}")
+		add_link_options("SHELL:-fprofile-generate=${PGO_PROFILE_DIR}")
 	elseif(_pgo_kind STREQUAL "CLANG")
-		add_compile_options(
-			"SHELL:-fprofile-use=${PGO_PROFILE_DIR}/default.profdata"
-			"SHELL:-Wno-profile-instr-unprofiled"
-			"SHELL:-Wno-profile-instr-out-of-date"
-		)
-		add_link_options("SHELL:-fprofile-use=${PGO_PROFILE_DIR}/default.profdata")
+		add_compile_options("SHELL:-fprofile-generate=${PGO_PROFILE_DIR}")
+		add_link_options("SHELL:-fprofile-generate=${PGO_PROFILE_DIR}")
 	elseif(_pgo_kind STREQUAL "CLANG_CL")
-		add_compile_options(
-			"SHELL:/clang:-fprofile-use=${PGO_PROFILE_DIR}/default.profdata"
-			"SHELL:/clang:-Wno-profile-instr-unprofiled"
-			"SHELL:/clang:-Wno-profile-instr-out-of-date"
-		)
-		add_link_options("SHELL:/clang:-fprofile-use=${PGO_PROFILE_DIR}/default.profdata")
+		add_compile_options("SHELL:/clang:-fprofile-generate=${PGO_PROFILE_DIR}")
+		add_link_options("SHELL:/clang:-fprofile-generate=${PGO_PROFILE_DIR}")
 	else()
 		add_compile_options(/GL)
-		add_link_options(/USEPROFILE)
+		add_link_options(/GENPROFILE)
 	endif()
-	message(STATUS "ENABLE_PGO: optimized rebuild, profile ${PGO_PROFILE_DIR}")
+	message(STATUS "ENABLE_PGO: instrumented build, profile ${PGO_PROFILE_DIR}")
 	return()
 endif()
 
-set(${PGO_TEST_OPTION} ON CACHE BOOL "Forced ON by the PGO training build" FORCE)
-# install() in this tree would ship the instrumented binaries. Skip those
-# rules and install the optimized rebuild from cmake --install instead.
-# Subdirectories keep this variable ON, so CMake will not write their
-# cmake_install.cmake. The top-level script still includes them.
-set(CMAKE_SKIP_INSTALL_RULES TRUE)
-
+set(${PGO_TEST_OPTION} OFF CACHE BOOL "Disabled in the PGO optimized build" FORCE)
 if(_pgo_kind STREQUAL "GNU")
 	add_compile_options(
-		"SHELL:-fprofile-generate=${PGO_PROFILE_DIR}"
-		"SHELL:-fprofile-update=atomic"
+		"SHELL:-fprofile-use=${PGO_PROFILE_DIR}"
+		"SHELL:-fprofile-correction"
 		"SHELL:-fprofile-prefix-map=${CMAKE_BINARY_DIR}=pgo"
+		"SHELL:-Wno-error=missing-profile"
 	)
-	add_link_options("SHELL:-fprofile-generate=${PGO_PROFILE_DIR}")
+	add_link_options("SHELL:-fprofile-use=${PGO_PROFILE_DIR}")
 elseif(_pgo_kind STREQUAL "CLANG")
-	add_compile_options("SHELL:-fprofile-generate=${PGO_PROFILE_DIR}")
-	add_link_options("SHELL:-fprofile-generate=${PGO_PROFILE_DIR}")
+	add_compile_options(
+		"SHELL:-fprofile-use=${PGO_PROFILE_DIR}/default.profdata"
+		"SHELL:-Wno-profile-instr-unprofiled"
+		"SHELL:-Wno-profile-instr-out-of-date"
+	)
+	add_link_options("SHELL:-fprofile-use=${PGO_PROFILE_DIR}/default.profdata")
 elseif(_pgo_kind STREQUAL "CLANG_CL")
-	add_compile_options("SHELL:/clang:-fprofile-generate=${PGO_PROFILE_DIR}")
-	add_link_options("SHELL:/clang:-fprofile-generate=${PGO_PROFILE_DIR}")
+	add_compile_options(
+		"SHELL:/clang:-fprofile-use=${PGO_PROFILE_DIR}/default.profdata"
+		"SHELL:/clang:-Wno-profile-instr-unprofiled"
+		"SHELL:/clang:-Wno-profile-instr-out-of-date"
+	)
+	add_link_options("SHELL:/clang:-fprofile-use=${PGO_PROFILE_DIR}/default.profdata")
 else()
 	add_compile_options(/GL)
-	add_link_options(/GENPROFILE)
+	add_link_options(/USEPROFILE)
 endif()
+message(STATUS "ENABLE_PGO: this directory uses the profile. Training runs in ${PGO_INSTR_DIR}")
 
-message(STATUS "ENABLE_PGO: instrumented build, ctest in ${PGO_TEST_DIR}, then optimized rebuild")
-
-function(_pgo_collect_targets dir out)
-	set(found)
-	get_property(targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
-	foreach(target IN LISTS targets)
-		get_property(excluded TARGET "${target}" PROPERTY EXCLUDE_FROM_ALL)
-		if(NOT excluded)
-			list(APPEND found "${target}")
-		endif()
-	endforeach()
+# Drop cmake_install.cmake files an earlier ENABLE_PGO wrote into the source tree.
+function(_pgo_remove_stray_install_scripts dir)
 	get_property(subs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
 	foreach(sub IN LISTS subs)
-		_pgo_collect_targets("${sub}" nested)
-		list(APPEND found ${nested})
-	endforeach()
-	set(${out} "${found}" PARENT_SCOPE)
-endfunction()
-
-function(_pgo_stub_install_scripts dir)
-	get_property(subs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
-	foreach(sub IN LISTS subs)
-		# SUBDIRECTORIES lists source directories. The generated install
-		# script includes <binary>/cmake_install.cmake, which CMake does not
-		# write while CMAKE_SKIP_INSTALL_RULES is on in that directory.
-		get_property(bindir DIRECTORY "${sub}" PROPERTY BINARY_DIR)
-		file(WRITE "${bindir}/cmake_install.cmake"
-			"# ENABLE_PGO: instrumented install rules are not shipped.\n")
 		if(EXISTS "${sub}/cmake_install.cmake")
 			file(REMOVE "${sub}/cmake_install.cmake")
 		endif()
-		_pgo_stub_install_scripts("${sub}")
+		_pgo_remove_stray_install_scripts("${sub}")
+	endforeach()
+endfunction()
+
+function(_pgo_depend_on_training dir)
+	get_property(targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+	foreach(target IN LISTS targets)
+		if(target STREQUAL "pgo")
+			continue()
+		endif()
+		get_property(type TARGET "${target}" PROPERTY TYPE)
+		if(type MATCHES "STATIC_LIBRARY|SHARED_LIBRARY|MODULE_LIBRARY|OBJECT_LIBRARY|EXECUTABLE")
+			add_dependencies("${target}" pgo)
+		endif()
+	endforeach()
+	get_property(subs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+	foreach(sub IN LISTS subs)
+		_pgo_depend_on_training("${sub}")
 	endforeach()
 endfunction()
 
 function(pgo_attach_training)
-	set(CMAKE_SKIP_INSTALL_RULES FALSE)
-	set(CMAKE_SKIP_INSTALL_RULES FALSE PARENT_SCOPE)
-	_pgo_stub_install_scripts("${CMAKE_SOURCE_DIR}")
-	_pgo_collect_targets("${CMAKE_SOURCE_DIR}" _pgo_deps)
+	_pgo_remove_stray_install_scripts("${CMAKE_SOURCE_DIR}")
 
 	set(_pgo_profdata "")
 	if(_pgo_kind STREQUAL "CLANG" OR _pgo_kind STREQUAL "CLANG_CL")
@@ -164,11 +152,15 @@ function(pgo_attach_training)
 		set(_pgo_profdata "${PGO_LLVM_PROFDATA}")
 	endif()
 
-	set(USE_DIR "${CMAKE_BINARY_DIR}/pgo-use")
+	set(INSTR_DIR "${PGO_INSTR_DIR}")
 	set(SOURCE_DIR "${CMAKE_SOURCE_DIR}")
 	set(BUILD_DIR "${CMAKE_BINARY_DIR}")
 	set(PROFILE_DIR "${PGO_PROFILE_DIR}")
-	set(TEST_DIR "${PGO_TEST_DIR}")
+	if(PGO_TEST_DIR)
+		set(TEST_DIR "${PGO_TEST_DIR}")
+	else()
+		set(TEST_DIR "${PGO_INSTR_DIR}/test")
+	endif()
 	set(TEST_OPTION "${PGO_TEST_OPTION}")
 	set(KIND "${_pgo_kind}")
 	set(GENERATOR "${CMAKE_GENERATOR}")
@@ -196,6 +188,49 @@ function(pgo_attach_training)
 
 	string(CONFIGURE [=[
 set(KIND "@KIND@")
+set(_cfg "@CMAKE_COMMAND@" -S "@SOURCE_DIR@" -B "@INSTR_DIR@" -G "@GENERATOR@")
+if(NOT "@GEN_PLATFORM@" STREQUAL "")
+	list(APPEND _cfg -A "@GEN_PLATFORM@")
+endif()
+if(NOT "@GEN_TOOLSET@" STREQUAL "")
+	list(APPEND _cfg -T "@GEN_TOOLSET@")
+endif()
+if(NOT "@TOOLCHAIN@" STREQUAL "")
+	list(APPEND _cfg "-DCMAKE_TOOLCHAIN_FILE=@TOOLCHAIN@")
+endif()
+if(NOT @MULTI@)
+	list(APPEND _cfg "-DCMAKE_BUILD_TYPE=@BUILD_TYPE@")
+endif()
+list(APPEND _cfg
+	"-DCMAKE_C_COMPILER=@C_COMPILER@"
+	"-DCMAKE_CXX_COMPILER=@CXX_COMPILER@"
+	"-DENABLE_PGO=ON"
+	"-DPGO_STAGE=generate"
+	"-DPGO_PROFILE_DIR=@PROFILE_DIR@"
+	"-DPGO_TEST_OPTION=@TEST_OPTION@"
+	"-D@TEST_OPTION@=ON"
+)
+if(NOT "@C_LAUNCHER@" STREQUAL "")
+	list(APPEND _cfg "-DCMAKE_C_COMPILER_LAUNCHER=@C_LAUNCHER@")
+endif()
+if(NOT "@CXX_LAUNCHER@" STREQUAL "")
+	list(APPEND _cfg "-DCMAKE_CXX_COMPILER_LAUNCHER=@CXX_LAUNCHER@")
+endif()
+@FORWARD@
+message(STATUS "ENABLE_PGO: configuring instrumented build @INSTR_DIR@")
+execute_process(COMMAND ${_cfg} RESULT_VARIABLE _rc)
+if(NOT _rc EQUAL 0)
+	message(FATAL_ERROR "ENABLE_PGO: instrumented configure failed (${_rc})")
+endif()
+set(_build "@CMAKE_COMMAND@" --build "@INSTR_DIR@")
+if(@MULTI@ AND NOT CONFIG STREQUAL "")
+	list(APPEND _build --config "${CONFIG}")
+endif()
+message(STATUS "ENABLE_PGO: building instrumented tree")
+execute_process(COMMAND ${_build} RESULT_VARIABLE _rc)
+if(NOT _rc EQUAL 0)
+	message(FATAL_ERROR "ENABLE_PGO: instrumented build failed (${_rc})")
+endif()
 if(NOT EXISTS "@TEST_DIR@/CTestTestfile.cmake")
 	message(FATAL_ERROR "ENABLE_PGO: no tests in @TEST_DIR@. Set PGO_TEST_OPTION to the cache option that enables them.")
 endif()
@@ -221,98 +256,32 @@ if(KIND STREQUAL "CLANG" OR KIND STREQUAL "CLANG_CL")
 		message(FATAL_ERROR "ENABLE_PGO: llvm-profdata merge failed (${_rc})")
 	endif()
 endif()
-set(_cfg "@CMAKE_COMMAND@" -S "@SOURCE_DIR@" -B "@USE_DIR@" -G "@GENERATOR@")
-if(NOT "@GEN_PLATFORM@" STREQUAL "")
-	list(APPEND _cfg -A "@GEN_PLATFORM@")
-endif()
-if(NOT "@GEN_TOOLSET@" STREQUAL "")
-	list(APPEND _cfg -T "@GEN_TOOLSET@")
-endif()
-if(NOT "@TOOLCHAIN@" STREQUAL "")
-	list(APPEND _cfg "-DCMAKE_TOOLCHAIN_FILE=@TOOLCHAIN@")
-endif()
-if(NOT @MULTI@)
-	list(APPEND _cfg "-DCMAKE_BUILD_TYPE=@BUILD_TYPE@")
-endif()
-list(APPEND _cfg
-	"-DCMAKE_C_COMPILER=@C_COMPILER@"
-	"-DCMAKE_CXX_COMPILER=@CXX_COMPILER@"
-	"-DENABLE_PGO=ON"
-	"-DPGO_STAGE=use"
-	"-DPGO_PROFILE_DIR=@PROFILE_DIR@"
-	"-DPGO_TEST_OPTION=@TEST_OPTION@"
-	"-D@TEST_OPTION@=OFF"
-)
-if(NOT "@C_LAUNCHER@" STREQUAL "")
-	list(APPEND _cfg "-DCMAKE_C_COMPILER_LAUNCHER=@C_LAUNCHER@")
-endif()
-if(NOT "@CXX_LAUNCHER@" STREQUAL "")
-	list(APPEND _cfg "-DCMAKE_CXX_COMPILER_LAUNCHER=@CXX_LAUNCHER@")
-endif()
-@FORWARD@
-message(STATUS "ENABLE_PGO: configuring optimized rebuild @USE_DIR@")
-execute_process(COMMAND ${_cfg} RESULT_VARIABLE _rc)
-if(NOT _rc EQUAL 0)
-	message(FATAL_ERROR "ENABLE_PGO: optimized configure failed (${_rc})")
-endif()
 if(KIND STREQUAL "MSVC")
-	file(GLOB_RECURSE _profs "@BUILD_DIR@/*.pgd" "@BUILD_DIR@/*.pgc")
+	file(GLOB_RECURSE _profs "@INSTR_DIR@/*.pgd" "@INSTR_DIR@/*.pgc")
 	foreach(_src IN LISTS _profs)
-		if(_src MATCHES "/pgo-use/")
-			continue()
-		endif()
-		file(RELATIVE_PATH _rel "@BUILD_DIR@" "${_src}")
-		get_filename_component(_dst_dir "@USE_DIR@/${_rel}" DIRECTORY)
+		file(RELATIVE_PATH _rel "@INSTR_DIR@" "${_src}")
+		get_filename_component(_dst_dir "@BUILD_DIR@/${_rel}" DIRECTORY)
 		file(MAKE_DIRECTORY "${_dst_dir}")
 		file(COPY "${_src}" DESTINATION "${_dst_dir}")
 	endforeach()
 endif()
-set(_build "@CMAKE_COMMAND@" --build "@USE_DIR@")
-if(@MULTI@ AND NOT CONFIG STREQUAL "")
-	list(APPEND _build --config "${CONFIG}")
-endif()
-message(STATUS "ENABLE_PGO: building optimized rebuild")
-execute_process(COMMAND ${_build} RESULT_VARIABLE _rc)
-if(NOT _rc EQUAL 0)
-	message(FATAL_ERROR "ENABLE_PGO: optimized build failed (${_rc})")
-endif()
 ]=] _pgo_script @ONLY)
 	file(WRITE "${CMAKE_BINARY_DIR}/pgo-run.cmake" "${_pgo_script}")
 
-	string(CONFIGURE [=[
-if(NOT EXISTS "@USE_DIR@/cmake_install.cmake")
-	message(FATAL_ERROR "ENABLE_PGO: optimized build is missing. Build the default target before installing.")
-endif()
-set(_cmd "@CMAKE_COMMAND@" --install "@USE_DIR@" --prefix "${CMAKE_INSTALL_PREFIX}")
-if(CMAKE_INSTALL_CONFIG_NAME)
-	list(APPEND _cmd --config "${CMAKE_INSTALL_CONFIG_NAME}")
-endif()
-if(CMAKE_INSTALL_COMPONENT)
-	list(APPEND _cmd --component "${CMAKE_INSTALL_COMPONENT}")
-endif()
-execute_process(COMMAND ${_cmd} RESULT_VARIABLE _rc)
-if(NOT _rc EQUAL 0)
-	message(FATAL_ERROR "ENABLE_PGO: install of the optimized build failed (${_rc})")
-endif()
-]=] _pgo_install @ONLY)
-	file(WRITE "${CMAKE_BINARY_DIR}/pgo-install.cmake" "${_pgo_install}")
-	install(SCRIPT "${CMAKE_BINARY_DIR}/pgo-install.cmake")
-
 	if(CMAKE_CONFIGURATION_TYPES)
-		add_custom_target(pgo ALL
+		add_custom_target(pgo
 			COMMAND ${CMAKE_COMMAND} -DCONFIG=$<CONFIG> -P "${CMAKE_BINARY_DIR}/pgo-run.cmake"
-			DEPENDS ${_pgo_deps}
-			COMMENT "ENABLE_PGO: ctest, then optimized rebuild"
+			COMMENT "ENABLE_PGO: instrument, ctest, then this directory uses the profile"
 			VERBATIM
 		)
 	else()
-		add_custom_target(pgo ALL
+		add_custom_target(pgo
 			COMMAND ${CMAKE_COMMAND} -DCONFIG=${CMAKE_BUILD_TYPE} -P "${CMAKE_BINARY_DIR}/pgo-run.cmake"
-			DEPENDS ${_pgo_deps}
-			COMMENT "ENABLE_PGO: ctest, then optimized rebuild"
+			COMMENT "ENABLE_PGO: instrument, ctest, then this directory uses the profile"
 			VERBATIM
 		)
 	endif()
+	_pgo_depend_on_training("${CMAKE_SOURCE_DIR}")
 endfunction()
 
 cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL pgo_attach_training)
