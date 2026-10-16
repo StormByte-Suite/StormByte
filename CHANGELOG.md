@@ -22,10 +22,6 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
-### Added
-
-- `ENABLE_PGO`. The default build instruments the library, builds the tests, runs `ctest` in `<build>/test`, then rebuilds without tests using that profile. `cmake --install` installs the optimized rebuild. The steps are in `cmake/pgo.cmake`.
-
 ## [2.1.0] - 2026-10-16
 
 ### Added
@@ -33,6 +29,7 @@ If you landed here from a release link and have not read the tree:
 - `Safe::String::Implode` and `Safe::WString::Implode` join a `Vector` or a `Queue` of text with a `string_view` / `wstring_view` delimiter. The containers are taken by const reference. The result size is counted first and reserved once, so a short join stays in SSO.
 - `std::numeric_limits<Size>` and `std::numeric_limits<ByteSize>` are specialized. `min()` is 0 and `max()` is `2^64 - 1`, the stored `uint64_t` range, not the host `std::size_t` range.
 - `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` are static. They replace literal `{}` placeholders in a view. One argument replaces the first token; further arguments replace the following tokens in order. A long pattern is not stored in SDS. A result that fits SSO is written into the inline array and does not call SDS / `wbuf`. A longer result is one exact Base allocation. Missing tokens leave the text unchanged. A view is used as-is and does not allocate. A number is converted inside the template with `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is that one character.
+- `ENABLE_PGO`. The default build instruments the library, builds the tests, runs `ctest` in `<build>/test`, then rebuilds without tests using that profile. `cmake --install` installs the optimized rebuild. The steps are in `cmake/pgo.cmake`.
 
 ### Changed
 
@@ -48,6 +45,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 
+- `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD

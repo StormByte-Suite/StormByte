@@ -312,10 +312,18 @@ namespace StormByte::Safe {
 	const T& Deque<T>::front() const { return at(0); }
 
 	template<Type::SafeValue T>
-	T& Deque<T>::back() { return at(m_size - 1); }
+	T& Deque<T>::back() {
+		if (m_size == 0)
+			ThrowDequeOutOfBounds();
+		return Slot(m_size - 1);
+	}
 
 	template<Type::SafeValue T>
-	const T& Deque<T>::back() const { return at(m_size - 1); }
+	const T& Deque<T>::back() const {
+		if (m_size == 0)
+			ThrowDequeOutOfBounds();
+		return Slot(m_size - 1);
+	}
 
 	template<Type::SafeValue T>
 	typename Deque<T>::iterator Deque<T>::begin() noexcept { return iterator(this, 0); }
