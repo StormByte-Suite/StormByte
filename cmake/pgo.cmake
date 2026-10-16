@@ -12,8 +12,11 @@
 #
 # The instrumented tree forces the cache option named by PGO_TEST_OPTION
 # (default ENABLE_TEST) ON. This directory forces it OFF.
-# Set PGO_FORWARD_CACHE before including this file to a list of extra cache
-# variables the instrumented tree must receive.
+# Both trees get the same C/C++ and linker flags from this cache. A flag that
+# exists only on one side (for example -stdlib=libc++) makes GCC miss the
+# .gcda file and makes Clang discard the profile (CFG hash mismatch).
+# Set PGO_FORWARD_CACHE before including this file to forward extra cache
+# variables as well.
 #
 # Copy this file into another project and include it the same way.
 # GCC, Clang, clang-cl and MSVC are supported. Release is the useful config.
@@ -145,7 +148,7 @@ if(PGO_STAGE STREQUAL "generate")
 		add_compile_options(
 			"SHELL:-fprofile-generate=${PGO_PROFILE_DIR}"
 			"SHELL:-fprofile-update=atomic"
-			"SHELL:-fprofile-prefix-map=${CMAKE_BINARY_DIR}=pgo"
+			"SHELL:-fprofile-prefix-path=${CMAKE_BINARY_DIR}"
 		)
 		add_link_options("SHELL:-fprofile-generate=${PGO_PROFILE_DIR}")
 	elseif(_pgo_kind STREQUAL "CLANG")
@@ -170,7 +173,7 @@ if(_pgo_kind STREQUAL "GNU")
 	add_compile_options(
 		"SHELL:-fprofile-use=${PGO_PROFILE_DIR}"
 		"SHELL:-fprofile-correction"
-		"SHELL:-fprofile-prefix-map=${CMAKE_BINARY_DIR}=pgo"
+		"SHELL:-fprofile-prefix-path=${CMAKE_BINARY_DIR}"
 		"SHELL:-Wno-error=missing-profile"
 	)
 	add_link_options("SHELL:-fprofile-use=${PGO_PROFILE_DIR}")
@@ -279,10 +282,52 @@ function(pgo_attach_training)
 		set(MULTI 0)
 	endif()
 	set(BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+	# Cache values, not the directory-scope copies. The child runs the same
+	# CMakeLists and must append its own extras on top of the same base.
+	set(_pgo_flag_cache
+		CMAKE_C_FLAGS
+		CMAKE_CXX_FLAGS
+		CMAKE_C_FLAGS_DEBUG
+		CMAKE_C_FLAGS_MINSIZEREL
+		CMAKE_C_FLAGS_RELEASE
+		CMAKE_C_FLAGS_RELWITHDEBINFO
+		CMAKE_CXX_FLAGS_DEBUG
+		CMAKE_CXX_FLAGS_MINSIZEREL
+		CMAKE_CXX_FLAGS_RELEASE
+		CMAKE_CXX_FLAGS_RELWITHDEBINFO
+		CMAKE_EXE_LINKER_FLAGS
+		CMAKE_SHARED_LINKER_FLAGS
+		CMAKE_MODULE_LINKER_FLAGS
+		CMAKE_STATIC_LINKER_FLAGS
+		CMAKE_EXE_LINKER_FLAGS_DEBUG
+		CMAKE_EXE_LINKER_FLAGS_MINSIZEREL
+		CMAKE_EXE_LINKER_FLAGS_RELEASE
+		CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO
+		CMAKE_SHARED_LINKER_FLAGS_DEBUG
+		CMAKE_SHARED_LINKER_FLAGS_MINSIZEREL
+		CMAKE_SHARED_LINKER_FLAGS_RELEASE
+		CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO
+		CMAKE_MODULE_LINKER_FLAGS_DEBUG
+		CMAKE_MODULE_LINKER_FLAGS_MINSIZEREL
+		CMAKE_MODULE_LINKER_FLAGS_RELEASE
+		CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO
+		CMAKE_AR
+		CMAKE_RANLIB
+		CMAKE_NM
+		CMAKE_LINKER
+		CMAKE_MSVC_RUNTIME_LIBRARY
+		CMAKE_C_STANDARD
+		CMAKE_CXX_STANDARD
+		CMAKE_POSITION_INDEPENDENT_CODE
+	)
 	set(FORWARD "")
-	foreach(name IN LISTS PGO_FORWARD_CACHE)
-		if(DEFINED ${name})
-			string(APPEND FORWARD "list(APPEND _cfg \"-D${name}=${${name}}\")\n")
+	foreach(name IN LISTS _pgo_flag_cache PGO_FORWARD_CACHE)
+		get_property(_pgo_cache_type CACHE "${name}" PROPERTY TYPE)
+		if(_pgo_cache_type)
+			get_property(_val CACHE "${name}" PROPERTY VALUE)
+			string(REPLACE "\\" "\\\\" _val "${_val}")
+			string(REPLACE "\"" "\\\"" _val "${_val}")
+			string(APPEND FORWARD "list(APPEND _cfg \"-D${name}=${_val}\")\n")
 		endif()
 	endforeach()
 
@@ -372,12 +417,14 @@ endif()
 		add_custom_target(pgo
 			COMMAND ${CMAKE_COMMAND} -DCONFIG=$<CONFIG> -P "${CMAKE_BINARY_DIR}/pgo-run.cmake"
 			COMMENT "ENABLE_PGO: instrument, ctest, then this directory uses the profile"
+			USES_TERMINAL
 			VERBATIM
 		)
 	else()
 		add_custom_target(pgo
 			COMMAND ${CMAKE_COMMAND} -DCONFIG=${CMAKE_BUILD_TYPE} -P "${CMAKE_BINARY_DIR}/pgo-run.cmake"
 			COMMENT "ENABLE_PGO: instrument, ctest, then this directory uses the profile"
+			USES_TERMINAL
 			VERBATIM
 		)
 	endif()

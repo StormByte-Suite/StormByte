@@ -47,6 +47,7 @@ If you landed here from a release link and have not read the tree:
 
 - `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
 - `ENABLE_PGO` on clang-cl no longer passes `/clang:-fprofile-*` to `lld-link`. That linker treats the flag as a file name. The instrumented link uses `clang_rt.profile` instead. The profile is applied at compile time. The Windows LLVM installer keeps that library under `lib/windows`, not under the per-target directory `-print-runtime-dir` prints.
+- `ENABLE_PGO` gives the instrumented tree the same C, C++ and linker flags as the final build, including `-stdlib=`. GCC names the `.gcda` files with `-fprofile-prefix-path` so `pgo-instr` is not part of the path the final build looks up. The training step uses the console, so its compile log is not hidden behind `Re-checking globbed directories`.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
 
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD
