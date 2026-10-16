@@ -138,10 +138,15 @@ endfunction()
 function(_pgo_stub_install_scripts dir)
 	get_property(subs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
 	foreach(sub IN LISTS subs)
-		# CMake skips this file while CMAKE_SKIP_INSTALL_RULES is ON, but the
-		# parent script includes it unconditionally.
-		file(WRITE "${sub}/cmake_install.cmake"
+		# SUBDIRECTORIES lists source directories. The generated install
+		# script includes <binary>/cmake_install.cmake, which CMake does not
+		# write while CMAKE_SKIP_INSTALL_RULES is on in that directory.
+		get_property(bindir DIRECTORY "${sub}" PROPERTY BINARY_DIR)
+		file(WRITE "${bindir}/cmake_install.cmake"
 			"# ENABLE_PGO: instrumented install rules are not shipped.\n")
+		if(EXISTS "${sub}/cmake_install.cmake")
+			file(REMOVE "${sub}/cmake_install.cmake")
+		endif()
 		_pgo_stub_install_scripts("${sub}")
 	endforeach()
 endfunction()
