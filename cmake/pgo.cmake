@@ -63,23 +63,9 @@ if(_pgo_kind STREQUAL "MSVC")
 endif()
 
 # clang-cl links with lld-link. The profile runtime is not on the default LIB path.
+# -print-runtime-dir is the per-target dir (lib/<triple>). The Windows installer
+# still ships the library under lib/windows.
 function(_pgo_link_clang_profile_runtime)
-	set(_dir "")
-	execute_process(
-		COMMAND "${CMAKE_CXX_COMPILER}" -print-runtime-dir
-		OUTPUT_VARIABLE _dir
-		OUTPUT_STRIP_TRAILING_WHITESPACE
-		ERROR_QUIET
-	)
-	if(NOT EXISTS "${_dir}")
-		execute_process(
-			COMMAND "${CMAKE_CXX_COMPILER}" /clang:-print-runtime-dir
-			OUTPUT_VARIABLE _dir
-			OUTPUT_STRIP_TRAILING_WHITESPACE
-			ERROR_QUIET
-		)
-	endif()
-	string(STRIP "${_dir}" _dir)
 	if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
 		set(_arch aarch64)
 	elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -87,13 +73,70 @@ function(_pgo_link_clang_profile_runtime)
 	else()
 		set(_arch x86_64)
 	endif()
-	set(_lib "${_dir}/clang_rt.profile-${_arch}.lib")
-	if(NOT EXISTS "${_lib}")
-		message(FATAL_ERROR "ENABLE_PGO: clang profile runtime not found (${_lib})")
+	set(_name "clang_rt.profile-${_arch}.lib")
+	set(_lib "")
+
+	foreach(_flag IN ITEMS "-print-file-name=${_name}" "/clang:-print-file-name=${_name}")
+		if(_lib)
+		else()
+			execute_process(
+				COMMAND "${CMAKE_CXX_COMPILER}" "${_flag}"
+				OUTPUT_VARIABLE _printed
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				ERROR_QUIET
+			)
+			string(STRIP "${_printed}" _printed)
+			if(IS_ABSOLUTE "${_printed}" AND EXISTS "${_printed}")
+				set(_lib "${_printed}")
+			endif()
+		endif()
+	endforeach()
+
+	if(NOT _lib)
+		set(_res "")
+		foreach(_flag IN ITEMS "-print-resource-dir" "/clang:-print-resource-dir" "-print-runtime-dir" "/clang:-print-runtime-dir")
+			if(_res)
+			else()
+				execute_process(
+					COMMAND "${CMAKE_CXX_COMPILER}" "${_flag}"
+					OUTPUT_VARIABLE _printed
+					OUTPUT_STRIP_TRAILING_WHITESPACE
+					ERROR_QUIET
+				)
+				string(STRIP "${_printed}" _printed)
+				file(TO_CMAKE_PATH "${_printed}" _printed)
+				if(EXISTS "${_printed}")
+					set(_res "${_printed}")
+				endif()
+			endif()
+		endforeach()
+		if(_res MATCHES "/lib/[^/]+$")
+			get_filename_component(_libroot "${_res}" DIRECTORY)
+			get_filename_component(_resource "${_libroot}" DIRECTORY)
+		else()
+			set(_resource "${_res}")
+			set(_libroot "${_res}/lib")
+		endif()
+		foreach(_candidate IN ITEMS
+			"${_libroot}/windows/${_name}"
+			"${_resource}/lib/windows/${_name}"
+			"${_libroot}/x86_64-pc-windows-msvc/${_name}"
+			"${_resource}/lib/x86_64-pc-windows-msvc/${_name}"
+			"${_res}/${_name}"
+		)
+			if(NOT _lib AND EXISTS "${_candidate}")
+				set(_lib "${_candidate}")
+			endif()
+		endforeach()
 	endif()
+
+	if(NOT EXISTS "${_lib}")
+		message(FATAL_ERROR "ENABLE_PGO: clang profile runtime not found (looked for ${_name})")
+	endif()
+	get_filename_component(_dir "${_lib}" DIRECTORY)
 	file(TO_CMAKE_PATH "${_dir}" _dir)
 	file(TO_CMAKE_PATH "${_lib}" _lib)
-	add_link_options("SHELL:/LIBPATH:${_dir}" "${_lib}")
+	add_link_options("SHELL:/LIBPATH:\"${_dir}\"" "${_lib}")
 endfunction()
 
 if(PGO_STAGE STREQUAL "generate")
