@@ -12,11 +12,13 @@
 #
 # The instrumented tree forces the cache option named by PGO_TEST_OPTION
 # (default ENABLE_TEST) ON. This directory forces it OFF.
-# Both trees get the same C/C++ and linker flags from this cache. A flag that
-# exists only on one side (for example -stdlib=libc++) makes GCC miss the
-# .gcda file and makes Clang discard the profile (CFG hash mismatch).
-# Set PGO_FORWARD_CACHE before including this file to forward extra cache
-# variables as well.
+# Both trees get the same cache. Every project option (WITH_GPL, ENABLE_LTO,
+# BUILD_SHARED_LIBS, ...) is forwarded, and so are the C/C++ and linker flags.
+# A flag that exists only on one side makes GCC miss the .gcda file and makes
+# Clang discard the profile. The instrumented configure prints each forwarded
+# variable. A value that points into this build directory is not forwarded and
+# is printed as skipped: the child must not write into the parent tree.
+# PGO_FORWARD_CACHE is an extra allow-list for a name the filter would drop.
 #
 # Copy this file into another project and include it the same way.
 # GCC, Clang, clang-cl and MSVC are supported. Release is the useful config.
@@ -282,8 +284,9 @@ function(pgo_attach_training)
 		set(MULTI 0)
 	endif()
 	set(BUILD_TYPE "${CMAKE_BUILD_TYPE}")
-	# Cache values, not the directory-scope copies. The child runs the same
-	# CMakeLists and must append its own extras on top of the same base.
+	# Compiler and linker flags are CMAKE_* but they are part of the build the
+	# user asked for, same as a project option. The rest of CMAKE_* is CMake's
+	# own bookkeeping and must be rediscovered in the child.
 	set(_pgo_flag_cache
 		CMAKE_C_FLAGS
 		CMAKE_CXX_FLAGS
@@ -319,17 +322,76 @@ function(pgo_attach_training)
 		CMAKE_C_STANDARD
 		CMAKE_CXX_STANDARD
 		CMAKE_POSITION_INDEPENDENT_CODE
+		CMAKE_INSTALL_PREFIX
+		CMAKE_PREFIX_PATH
+		CMAKE_FIND_ROOT_PATH
+		CMAKE_MODULE_PATH
+		CMAKE_PROGRAM_PATH
+		CMAKE_LIBRARY_PATH
+		CMAKE_INCLUDE_PATH
+		CMAKE_FRAMEWORK_PATH
+		CMAKE_OSX_ARCHITECTURES
+		CMAKE_OSX_DEPLOYMENT_TARGET
+		CMAKE_SYSROOT
+		CMAKE_FIND_PACKAGE_PREFER_CONFIG
 	)
+	set(_pgo_never_forward
+		PGO_STAGE
+		PGO_PROFILE_DIR
+		PGO_INSTR_DIR
+		PGO_TEST_DIR
+		PGO_FORWARD_CACHE
+		CMAKE_HOME_DIRECTORY
+		CMAKE_CACHEFILE_DIR
+		ENABLE_PGO
+		${PGO_TEST_OPTION}
+	)
+	get_cmake_property(_pgo_cache_names CACHE_VARIABLES)
 	set(FORWARD "")
-	foreach(name IN LISTS _pgo_flag_cache PGO_FORWARD_CACHE)
-		get_property(_pgo_cache_type CACHE "${name}" PROPERTY TYPE)
-		if(_pgo_cache_type)
+	set(_pgo_seen "")
+	foreach(name IN LISTS _pgo_cache_names)
+		set(_pgo_skip FALSE)
+		if(name IN_LIST _pgo_never_forward)
+			set(_pgo_skip TRUE)
+		endif()
+		if(NOT _pgo_skip)
+			get_property(_pgo_cache_type CACHE "${name}" PROPERTY TYPE)
+			if(_pgo_cache_type MATCHES "INTERNAL|STATIC")
+				set(_pgo_skip TRUE)
+			endif()
+		endif()
+		if(NOT _pgo_skip)
+			set(_pgo_take FALSE)
+			if(name IN_LIST _pgo_flag_cache OR name IN_LIST PGO_FORWARD_CACHE)
+				set(_pgo_take TRUE)
+			elseif(NOT name MATCHES "^(CMAKE_|_)")
+				set(_pgo_take TRUE)
+			endif()
+			if(NOT _pgo_take)
+				set(_pgo_skip TRUE)
+			endif()
+		endif()
+		if(NOT _pgo_skip)
 			get_property(_val CACHE "${name}" PROPERTY VALUE)
+			string(FIND "${_val}" "${CMAKE_BINARY_DIR}" _pgo_at)
+			if(NOT _pgo_at EQUAL -1 AND NOT name IN_LIST PGO_FORWARD_CACHE)
+				string(APPEND FORWARD "message(STATUS \"ENABLE_PGO: skipped ${name} (points at this build directory)\")\n")
+				set(_pgo_skip TRUE)
+			endif()
+		endif()
+		if(NOT _pgo_skip)
 			string(REPLACE "\\" "\\\\" _val "${_val}")
 			string(REPLACE "\"" "\\\"" _val "${_val}")
+			string(REPLACE "\$" "\\\$" _val "${_val}")
+			string(REPLACE "\n" " " _val "${_val}")
 			string(APPEND FORWARD "list(APPEND _cfg \"-D${name}=${_val}\")\n")
+			string(APPEND FORWARD "message(STATUS \"ENABLE_PGO: forward ${name}=${_val}\")\n")
+			list(APPEND _pgo_seen "${name}")
 		endif()
 	endforeach()
+	if(NOT _pgo_seen)
+		string(APPEND FORWARD "message(STATUS \"ENABLE_PGO: forward (none)\")\n")
+	endif()
 
 	string(CONFIGURE [=[
 set(KIND "@KIND@")
@@ -361,8 +423,8 @@ endif()
 if(NOT "@CXX_LAUNCHER@" STREQUAL "")
 	list(APPEND _cfg "-DCMAKE_CXX_COMPILER_LAUNCHER=@CXX_LAUNCHER@")
 endif()
-@FORWARD@
 message(STATUS "ENABLE_PGO: configuring instrumented build @INSTR_DIR@")
+@FORWARD@
 execute_process(COMMAND ${_cfg} RESULT_VARIABLE _rc)
 if(NOT _rc EQUAL 0)
 	message(FATAL_ERROR "ENABLE_PGO: instrumented configure failed (${_rc})")

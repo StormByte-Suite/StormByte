@@ -103,7 +103,9 @@ cmake -S . -B build
 cmake --build build
 ```
 
-`-DENABLE_PGO=ON` keeps this build directory as the one that is installed. It first builds an instrumented tree in `build/pgo-instr`, runs `ctest` there, then compiles this directory with that profile and without tests. `cmake --install` is the project's normal install. The logic is in `cmake/pgo.cmake`; another project can `include()` the same file after `project()`.
+`-DENABLE_PGO=ON` keeps this build directory as the one that is installed. It first builds an instrumented tree in `build/pgo-instr`, runs `ctest` there, then compiles this directory with that profile and without tests. Every project option from this configure (`WITH_GPL`, `ENABLE_LTO`, …) is forwarded to that tree and printed on the `configuring instrumented build` line. `cmake --install` is the project's normal install. The logic is in `cmake/pgo.cmake`; another project can `include()` the same file after `project()`.
+
+`-DENABLE_LTO=ON` (the default) enables link-time optimization for every build type. It is not tied to `Release`. It combines with `ENABLE_PGO`: both trees see the same value.
 
 Shared vs static follows CMake `BUILD_SHARED_LIBS` (declared in `lib/`, default ON). A plain configure builds the shared library. `-DBUILD_SHARED_LIBS=OFF` builds a static archive; on Windows the headers then do not use `dllimport`.
 
