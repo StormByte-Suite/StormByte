@@ -358,7 +358,7 @@ int test_search_helpers_and_order() {
 	ASSERT_EQUAL(Size{3}, parts.size());
 	std::queue<Safe::String> caller_queue;
 	caller_queue.push(Safe::String("p"));
-	ASSERT_EQUAL(Size{1}, Safe::String::Explode(caller_queue).size());
+	ASSERT_EQUAL(Size{1}, Safe::Queue<Safe::String>(caller_queue).size());
 	ASSERT_EQUAL(Size{2}, Safe::String("a|b").Explode('|').size());
 	ASSERT_TRUE(text == Safe::String("abXab"));
 	ASSERT_TRUE(text != Safe::String("ab"));

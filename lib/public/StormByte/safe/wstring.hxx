@@ -61,7 +61,6 @@
 #include <initializer_list>
 #include <iterator>
 #include <ostream>
-#include <queue>
 #include <ranges>
 #include <span>
 #include <string>
@@ -1154,21 +1153,6 @@ namespace StormByte {
 				 * @return Owned tokens.
 				 */
 				static Queue<WString> Explode(std::wstring_view str, wchar_t delimiter);
-
-				/**
-				 * @brief Copy a caller-owned queue into Base storage.
-				 * @param parts Source. Not modified.
-				 * @return Owned tokens.
-				 */
-				static inline Queue<WString> Explode(const std::queue<WString>& parts) {
-					Queue<WString> result;
-					std::queue<WString> copy = parts;
-					while (!copy.empty()) {
-						result.push(copy.front());
-						copy.pop();
-					}
-					return result;
-				}
 
 				/**
 				 * @brief ASCII-letter lower case of this text.

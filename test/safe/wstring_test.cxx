@@ -308,7 +308,7 @@ int test_search_helpers_and_order() {
 	ASSERT_EQUAL(Size{3}, Safe::WString::Explode(L"a,,b", L',').size());
 	std::queue<Safe::WString> caller_queue;
 	caller_queue.push(Safe::WString(L"p"));
-	ASSERT_EQUAL(Size{1}, Safe::WString::Explode(caller_queue).size());
+	ASSERT_EQUAL(Size{1}, Safe::Queue<Safe::WString>(caller_queue).size());
 	ASSERT_EQUAL(Size{2}, Safe::WString(L"a|b").Explode(L'|').size());
 	ASSERT_TRUE(text == Safe::WString(L"abXab"));
 	ASSERT_TRUE(text != Safe::WString(L"ab"));

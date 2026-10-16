@@ -26,6 +26,7 @@ If you landed here from a release link and have not read the tree:
 
 - **Container `size_type` is `Size`.** `Vector`, `Deque`, `List`, `Queue`, `Map`, `Set`, `UnorderedMap`, `UnorderedSet`, `Iterable` and `Binary` no longer use `std::size_t` as `size_type`. Counts convert implicitly to `std::size_t` when indexing memory. `UnorderedMap` keeps its power-of-two mask on `std::size_t`; `Size` has no bitwise operators.
 - **Exception.** Public constructors no longer take `std::format_string`. `Exception`, `Safe::Exception`, `DeserializeError`, `OperationError`, `Base64Error`, `ExpiredWeakPointerError` and `BadVariantAccess` take `std::string_view`. A `Safe::String` converts to that view and is copied; there is no move constructor. A derived class formats through a protected constructor that calls `Safe::String::ReplaceToken`: only literal `{}`, and a view is used as-is and a number is converted internally with `std::to_string`. A throw site that is not a derived constructor builds the body with `ReplaceToken` and copies it in. `std::format` specifications and non-string arguments are not accepted.
+- **`String::Explode` / `WString::Explode` no longer accept `std::queue`.** Copy a caller queue with the explicit `Safe::Queue` constructor. `Explode` only splits text.
 - **Breaking: `Safe::OutOfBoundsError`.** Constructors no longer take a message. `OutOfBoundsError(Size)` writes `index <n> is out of range`. `OutOfBoundsError()` is the same text without a number, for a failure that has no numeric bound (a missing map key, an empty container).
 
 ### Added
