@@ -23,6 +23,7 @@ If you landed here from a release link and have not read the tree:
 ## [Unreleased]
 
 ### Changed
+- Added full-coverage `PerformanceTests` that exercises every explicit template instantiation exported by the library (`Vector`, `Deque`, `List`, `Set`, `UnorderedSet`, `Map`, `UnorderedMap`, `Queue`, `Atomic` for all scalar types plus `String`, and the four `Map`/`UnorderedMap` key/value combinations), together with `Optional`, `Variant`, smart pointers, `Binary` and both SSO/long text paths.
 
 - `Safe::String` SSO capacity raised to 32 code units (48-byte Storage, 16-byte aligned). `Safe::WString` set to 11 units with 16-byte alignment: 32 units would make the object ~136 bytes on 64-bit and hurt cache density; 11 keeps it compact while covering typical short wide strings.
 
@@ -66,6 +67,7 @@ If you landed here from a release link and have not read the tree:
 - **sds** — vendored under `thirdparty/sds` and compiled into StormByte. The fork supplies `ssize_t` for the Windows CRT. It is not a separate installed library.
 
 ### Changed
+- Added full-coverage `PerformanceTests` that exercises every explicit template instantiation exported by the library (`Vector`, `Deque`, `List`, `Set`, `UnorderedSet`, `Map`, `UnorderedMap`, `Queue`, `Atomic` for all scalar types plus `String`, and the four `Map`/`UnorderedMap` key/value combinations), together with `Optional`, `Variant`, smart pointers, `Binary` and both SSO/long text paths.
 
 - **Breaking: Iterable and Safe collections** — removed reference-exposing `StormByte::Iterable`; all public collection ranges now use opaque creator-module storage and callback-backed iterators/proxies. Mutable sequence proxies support classic `<algorithm>` and `std::ranges` without exposing owner-module references. Rvalue imports move elements and leave their STL source valid and empty without adopting its allocator or allocation.
 - **Breaking: BinaryData** — renamed to `Safe::Binary`. The private `std::vector` backend is gone; bytes live in `Safe::Vector<std::byte>`. `append_vector` is removed. A `using StormByte::Safe::Binary` covers the old name. The public contract is otherwise unchanged.
@@ -116,6 +118,7 @@ literals convert to the views.
 - `Base64Decode(std::string_view)` replaces `Base64Decode(const std::string&)`.
 
 ### Changed
+- Added full-coverage `PerformanceTests` that exercises every explicit template instantiation exported by the library (`Vector`, `Deque`, `List`, `Set`, `UnorderedSet`, `Map`, `UnorderedMap`, `Queue`, `Atomic` for all scalar types plus `String`, and the four `Map`/`UnorderedMap` key/value combinations), together with `Optional`, `Variant`, smart pointers, `Binary` and both SSO/long text paths.
 
 - `SanitizeNewlines` no longer builds a throwaway copy and a `std::regex`;
 it walks the view and maps `\r\n` to `\n`.
@@ -130,6 +133,7 @@ it walks the view and maps `\r\n` to `\n`.
 - **SystemError** — `Exception` specialization for `StormByte::System` helpers.
 
 ### Changed
+- Added full-coverage `PerformanceTests` that exercises every explicit template instantiation exported by the library (`Vector`, `Deque`, `List`, `Set`, `UnorderedSet`, `Map`, `UnorderedMap`, `Queue`, `Atomic` for all scalar types plus `String`, and the four `Map`/`UnorderedMap` key/value combinations), together with `Optional`, `Variant`, smart pointers, `Binary` and both SSO/long text paths.
 
 - **System::ExecutablePath** — throws `SystemError` instead of returning `"NOPATH"`. Paths longer than 256 bytes are resolved.
 
@@ -160,6 +164,7 @@ it walks the view and maps `\r\n` to `\n`.
 - **UTF8Error** — custom exception for invalid UTF-8 and wide-string Unicode input.
 
 ### Changed
+- Added full-coverage `PerformanceTests` that exercises every explicit template instantiation exported by the library (`Vector`, `Deque`, `List`, `Set`, `UnorderedSet`, `Map`, `UnorderedMap`, `Queue`, `Atomic` for all scalar types plus `String`, and the four `Map`/`UnorderedMap` key/value combinations), together with `Optional`, `Variant`, smart pointers, `Binary` and both SSO/long text paths.
 
 - **Exception(component, fmt, args...)** — first argument is `Component`, not `std::string`. Source-breaking for every call that used the old two-string form.
 - **Type** concepts — reorganized `type_traits.hxx` into focused container, wrapper, conversion, category, range, relation, and comparison groups without changing public contracts.
@@ -222,6 +227,7 @@ Initial public release of StormByte Base.
 - Unit tests, including serialization robustness
 
 ### Changed
+- Added full-coverage `PerformanceTests` that exercises every explicit template instantiation exported by the library (`Vector`, `Deque`, `List`, `Set`, `UnorderedSet`, `Map`, `UnorderedMap`, `Queue`, `Atomic` for all scalar types plus `String`, and the four `Map`/`UnorderedMap` key/value combinations), together with `Optional`, `Variant`, smart pointers, `Binary` and both SSO/long text paths.
 
 - Serialization size fields on the wire are `std::uint64_t` (8 bytes). 32-bit and 64-bit hosts interchange.
 - `System::CurrentPath()` is the process cwd. The old meaning is `ExecutablePath()`.
