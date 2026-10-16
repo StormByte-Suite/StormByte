@@ -67,7 +67,8 @@ jobs:
 
   ###########################################################################
   # Linux
-  # clang is libstdc++ (same ABI as gcc). clang-libc++ is the other one.
+  # Name: <component>-<tag>-<os>-<arch>[-libc++].zip
+  # clang is libstdc++ and has no suffix. clang-libc++ adds -libc++.
   ###########################################################################
   build-linux:
     needs: [checkout-bootstrap, apt-bootstrap]
@@ -78,7 +79,7 @@ jobs:
         include:
           - compiler: clang
             stdlib: libstdc++
-            asset: linux-x64-libstdc++
+            asset: linux-x64
           - compiler: clang-libc++
             stdlib: libc++
             asset: linux-x64-libc++
