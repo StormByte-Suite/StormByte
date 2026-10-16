@@ -67,8 +67,8 @@ jobs:
 
   ###########################################################################
   # Linux
-  # Name: <component>-<tag>-<os>-<arch>[-libc++].zip
-  # clang is libstdc++ and has no suffix. clang-libc++ adds -libc++.
+  # Name: <component>-<tag>-<os>-<arch>-<stdlib>.zip
+  # libstdc++ and libc++ are both in the filename. macOS and Windows have one ABI and no suffix.
   ###########################################################################
   build-linux:
     needs: [checkout-bootstrap, apt-bootstrap]
@@ -79,7 +79,7 @@ jobs:
         include:
           - compiler: clang
             stdlib: libstdc++
-            asset: linux-x64
+            asset: linux-x64-libstdc++
           - compiler: clang-libc++
             stdlib: libc++
             asset: linux-x64-libc++
