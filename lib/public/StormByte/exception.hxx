@@ -42,8 +42,6 @@
 #include <StormByte/safe/string.hxx>
 #include <StormByte/visibility.h>
 
-#include <format>
-#include <iterator>
 #include <string_view>
 #include <utility>
 
@@ -58,11 +56,11 @@ namespace StormByte {
 	 *
 	 * `what()` is `StormByte: message`, or `StormByte.path: message` when a parent passes the segments under `StormByte` (`Safe`, `Crypto.Crypter`). Segments are joined with a dot. The body is a @ref StormByte::Safe::String and does not repeat the path.
 	 *
-	 * `std::format_to` runs in the caller's translation unit and appends into the owned string. It does not build a `std::string`. A parent passes @ref Path, a `std::string_view` that lives for the constructor call and is not stored. A bare string is not a path: that would be ambiguous with the format constructor.
+	 * A parent passes @ref Path, a `std::string_view` that lives for the constructor call and is not stored. A bare string is not a path. The token constructor is protected and replaces literal `{}` with @ref Safe::String::ReplaceToken. It does not call `std::format`. A derived class uses it. A throw site that is not a derived constructor builds a @ref Safe::String and moves it in.
 	 *
-	 * A parent prepends its own segment and forwards the format and the arguments. It does not format. A final leaf adds no segment: it inherits the parent constructors. Copy, move and the destructor of each named type are defined in that module's `.cxx`, so the `typeinfo` is unique across a DLL.
+	 * A parent prepends its own segment and forwards the pattern and the arguments. A final leaf adds no segment. Copy, move and the destructor of each named type are defined in that module's `.cxx`, so the `typeinfo` is unique across a DLL.
 	 *
-	 * A leaf that must not allocate uses the empty constructor and overrides @ref what. That leaf does not fill `m_what`. The message constructor takes a view. A @ref Safe::String converts to that view, so a second constructor would be ambiguous with a literal.
+	 * A leaf that must not allocate uses the empty constructor and overrides @ref what. That leaf does not fill `m_what`. The message constructor takes a view. An rvalue @ref Safe::String is taken by move. An lvalue converts to the view and is copied.
 	 */
 	class STORMBYTE_PUBLIC Exception {
 		public:
@@ -73,15 +71,10 @@ namespace StormByte {
 			explicit Exception(std::string_view message);
 
 			/**
-			 * @brief Constructs with `std::format_to`. Text is `StormByte: formatted`.
-			 * @tparam Args Format argument types.
-			 * @param fmt Format string.
-			 * @param args Format arguments.
-			 * @note With zero arguments the format string is the message as-is.
+			 * @brief Takes a body into `StormByte: message`.
+			 * @param message Body. Moved. Not a path.
 			 */
-			template <typename... Args>
-			Exception(std::format_string<Args...> fmt, Args&&... args)
-				: Exception(Path{}, fmt, std::forward<Args>(args)...) {}
+			explicit Exception(Safe::String&& message);
 
 			/**
 			 * @brief Copy constructor. Defined in the Base DLL.
@@ -145,46 +138,29 @@ namespace StormByte {
 
 			/**
 			 * @brief Stores `StormByte.path: message`, or `StormByte: message` when @p path is empty.
-			 * @tparam Args Format argument types.
 			 * @param path Segments under `StormByte`.
-			 * @param fmt Format string. The body only, not the path.
-			 * @param args Format arguments.
-			 * @note With zero arguments the format string is the message as-is. The body is appended to `m_what`. No `std::string` is created.
+			 * @param message Body. Not scanned for tokens.
+			 */
+			Exception(Path path, std::string_view message);
+
+			/**
+			 * @brief Stores `StormByte.path: message`, taking the body.
+			 * @param path Segments under `StormByte`.
+			 * @param message Body. Moved. Not scanned for tokens.
+			 */
+			Exception(Path path, Safe::String&& message);
+
+			/**
+			 * @brief Stores `StormByte.path: message` after replacing literal `{}`.
+			 * @tparam Args Types convertible to `std::string_view`.
+			 * @param path Segments under `StormByte`.
+			 * @param pattern Body with literal `{}` tokens. Not a `std::format` string.
+			 * @param args Replacements. One per token, in order.
 			 */
 			template <typename... Args>
-			Exception(Path path, std::format_string<Args...> fmt, Args&&... args) {
-				if (path.text.empty())
-					m_what.append("StormByte: ");
-				else {
-					m_what.append("StormByte.");
-					m_what.append(path.text);
-					m_what.append(": ");
-				}
-				if constexpr (sizeof...(Args) == 0)
-					m_what.append(fmt.get());
-				else {
-					struct Append {
-						using iterator_concept = std::output_iterator_tag;
-						using iterator_category = std::output_iterator_tag;
-						using difference_type = std::ptrdiff_t;
-						using value_type = void;
-						using pointer = void;
-						using reference = void;
-
-						Safe::String* target;	///< Message receiving each formatted byte.
-
-						Append& operator=(char value) {
-							target->push_back(value);
-							return *this;
-						}
-
-						Append& operator*() { return *this; }
-						Append& operator++() { return *this; }
-						Append operator++(int) { return *this; }
-					};
-					std::format_to(Append{&m_what}, fmt, std::forward<Args>(args)...);
-				}
-			}
+				requires (sizeof...(Args) >= 1)
+			Exception(Path path, std::string_view pattern, Args&&... args)
+				: Exception(path, Safe::String::ReplaceToken(pattern, std::forward<Args>(args)...)) {}
 
 		private:
 			Safe::String m_what;	///< Owned message. Empty when @ref what is overridden.
@@ -205,14 +181,24 @@ namespace StormByte {
 			explicit DeserializeError(std::string_view message);
 
 			/**
-			 * @brief Format a body into `StormByte: formatted`.
-			 * @tparam Args Format argument types.
-			 * @param fmt Format string. Body only.
-			 * @param args Format arguments.
+			 * @brief Takes a body into `StormByte: message`.
+			 * @param message Body. Moved. Not a path.
+			 */
+			explicit DeserializeError(Safe::String&& message);
+
+		protected:
+			/**
+			 * @brief Replace literal `{}` in @p pattern. For a further derived class.
+			 * @tparam Args Types convertible to `std::string_view`.
+			 * @param pattern Body with literal `{}` tokens.
+			 * @param args Replacements. One per token, in order.
 			 */
 			template <typename... Args>
-			DeserializeError(std::format_string<Args...> fmt, Args&&... args)
-				: Exception(fmt, std::forward<Args>(args)...) {}
+				requires (sizeof...(Args) >= 1)
+			DeserializeError(std::string_view pattern, Args&&... args)
+				: Exception(Path{}, pattern, std::forward<Args>(args)...) {}
+
+		public:
 
 			/**
 			 * @brief Copy constructor. Defined in the Base DLL.
@@ -261,14 +247,24 @@ namespace StormByte {
 			explicit OperationError(std::string_view message);
 
 			/**
-			 * @brief Format a body into `StormByte: formatted`.
-			 * @tparam Args Format argument types.
-			 * @param fmt Format string. Body only.
-			 * @param args Format arguments.
+			 * @brief Takes a body into `StormByte: message`.
+			 * @param message Body. Moved. Not a path.
+			 */
+			explicit OperationError(Safe::String&& message);
+
+		protected:
+			/**
+			 * @brief Replace literal `{}` in @p pattern. For a further derived class.
+			 * @tparam Args Types convertible to `std::string_view`.
+			 * @param pattern Body with literal `{}` tokens.
+			 * @param args Replacements. One per token, in order.
 			 */
 			template <typename... Args>
-			OperationError(std::format_string<Args...> fmt, Args&&... args)
-				: Exception(fmt, std::forward<Args>(args)...) {}
+				requires (sizeof...(Args) >= 1)
+			OperationError(std::string_view pattern, Args&&... args)
+				: Exception(Path{}, pattern, std::forward<Args>(args)...) {}
+
+		public:
 
 			/**
 			 * @brief Copy constructor. Defined in the Base DLL.
@@ -317,14 +313,24 @@ namespace StormByte {
 			explicit Base64Error(std::string_view message);
 
 			/**
-			 * @brief Format a body into `StormByte: formatted`.
-			 * @tparam Args Format argument types.
-			 * @param fmt Format string. Body only.
-			 * @param args Format arguments.
+			 * @brief Takes a body into `StormByte: message`.
+			 * @param message Body. Moved. Not a path.
+			 */
+			explicit Base64Error(Safe::String&& message);
+
+		protected:
+			/**
+			 * @brief Replace literal `{}` in @p pattern. For a further derived class.
+			 * @tparam Args Types convertible to `std::string_view`.
+			 * @param pattern Body with literal `{}` tokens.
+			 * @param args Replacements. One per token, in order.
 			 */
 			template <typename... Args>
-			Base64Error(std::format_string<Args...> fmt, Args&&... args)
-				: Exception(fmt, std::forward<Args>(args)...) {}
+				requires (sizeof...(Args) >= 1)
+			Base64Error(std::string_view pattern, Args&&... args)
+				: Exception(Path{}, pattern, std::forward<Args>(args)...) {}
+
+		public:
 
 			/**
 			 * @brief Copy constructor. Defined in the Base DLL.

@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Breaking
+
+- **Exception.** Public constructors no longer take `std::format_string`. `Exception`, `Safe::Exception`, `DeserializeError`, `OperationError`, `Base64Error`, `ExpiredWeakPointerError`, `OutOfBoundsError` and `BadVariantAccess` take `std::string_view` (copied) or `Safe::String&&` (moved). A derived class formats through a protected constructor that calls `Safe::String::ReplaceToken`: only literal `{}`, and every argument must convert to a view. A throw site that is not a derived constructor builds the body with `ReplaceToken` and moves it in. `std::format` specifications and non-string arguments are not accepted.
+
 ### Added
 
 - `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` replace literal `{}` placeholders. The single-argument form replaces the first token; the variadic form replaces one token per argument, in order. Both have a copying `const` overload, a mutating overload, and a static `ReplaceToken(view, args...)` that reads the pattern without storing a long pattern in SDS. A result that fits SSO is written into the inline array and does not call SDS / `wbuf`. A longer result is one exact Base allocation. Missing tokens leave the text unchanged. `string_view` / `wstring_view` arguments do not allocate and do not cross the DLL as owning containers.

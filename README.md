@@ -115,9 +115,9 @@ Headers are `#include <StormByte/….hxx>`. Namespace root is `StormByte`.
 
 ### Exceptions
 
-Base owns the exception system other modules inherit. A throw of `Exception` reads `StormByte: …`. A parent passes `Exception::Path` (a `string_view` of its segments) and forwards the format and the arguments. It does not format. A bare string is not a path: that would be ambiguous with the format constructor. Formatting happens in the caller's translation unit; the result is copied into a `Safe::String`. Plain text constructors accept `std::string_view` or `const Safe::String&`; neither view nor caller storage is retained.
+Base owns the exception system other modules inherit. A throw of `Exception` reads `StormByte: …`. A parent passes `Exception::Path` (a `string_view` of its segments) and forwards a pattern and view arguments. It does not call `std::format`. The protected constructor replaces literal `{}` with `Safe::String::ReplaceToken`. A bare string is not a path. Public constructors take `std::string_view` (copied) or `Safe::String&&` (moved). A throw site that is not a derived constructor builds the body with `ReplaceToken` and moves it in. An lvalue `Safe::String` converts to the view and is copied.
 
-A final leaf inherits the parent constructors and adds no segment, so `EncryptException("bad key {}", id)` reads `StormByte.Crypto.Crypter: bad key …`. `DeserializeError`, `OutOfBoundsError` and `Base64Error` are leaves of the root: `StormByte: …`.
+A final leaf adds no segment. A derived class formats in its constructor, so `EncryptError("bad key {}", id)` reads `StormByte.Crypto.Crypter: bad key …` when `id` is a view. `DeserializeError`, `OperationError` and `Base64Error` are leaves of the root: `StormByte: …`. `OutOfBoundsError` is a Safe leaf: `StormByte.Safe: …`.
 
 `AllocationError` reports allocation failure with a static message and a non-allocating default constructor. `ExpiredWeakPointerError` reports promotion of an empty or expired `Safe::Weak`. `OperationError` wraps other foreign failures. `BadOptionalAccess` and `BadVariantAccess` take their message from the constructor. Each named exception has its destructor defined in Base. `Safe::Heap::Allocate`, Safe pointer factories, text buffer allocation and named clock creation translate the identified standard failures to StormByte exceptions. Factories preserve an existing StormByte exception's dynamic type. Inside an active exception handler, modules can call `Safe::Heap::RethrowException()` to preserve a StormByte exception, translate `std::bad_alloc` to `AllocationError`, or translate another foreign exception to `OperationError`.
 
@@ -127,29 +127,31 @@ Each named type defines its destructor in that module's `.cxx`. That keeps one `
 
 ```cpp
 #include <StormByte/exception.hxx>
+#include <StormByte/safe/string.hxx>
 #include <iostream>
+#include <string>
 
 using namespace StormByte;
 
 class CryptoError: public Exception {
 	public:
 		template <typename... Args>
-		explicit CryptoError(std::format_string<Args...> fmt, Args&&... args)
-			: Exception(Path{"Crypto"}, fmt, std::forward<Args>(args)...) {}
+		explicit CryptoError(std::string_view pattern, Args&&... args)
+			: Exception(Path{"Crypto"}, pattern, std::forward<Args>(args)...) {}
 
 		~CryptoError() override;
 
 	protected:
 		template <typename... Args>
-		explicit CryptoError(Path child, std::format_string<Args...> fmt, Args&&... args)
-			: Exception(Path{std::string("Crypto.") + std::string(child.text)}, fmt, std::forward<Args>(args)...) {}
+		explicit CryptoError(Path child, std::string_view pattern, Args&&... args)
+			: Exception(Path{std::string("Crypto.") + std::string(child.text)}, pattern, std::forward<Args>(args)...) {}
 };
 
 class CrypterError: public CryptoError {
 	public:
 		template <typename... Args>
-		explicit CrypterError(std::format_string<Args...> fmt, Args&&... args)
-			: CryptoError(Path{"Crypter"}, fmt, std::forward<Args>(args)...) {}
+		explicit CrypterError(std::string_view pattern, Args&&... args)
+			: CryptoError(Path{"Crypter"}, pattern, std::forward<Args>(args)...) {}
 
 		~CrypterError() override;
 };
@@ -162,7 +164,7 @@ class EncryptError: public CrypterError {
 
 void process_data(int value) {
 	if (value < 0)
-		throw Exception("Invalid value: {}", value);
+		throw Exception(Safe::String::ReplaceToken("Invalid value: {}", std::to_string(value)));
 }
 
 int main() {
@@ -183,7 +185,9 @@ The error is a `Safe::Shared<E>` on Base's heap. Read it with `result.error()->w
 ```cpp
 #include <StormByte/expected.hxx>
 #include <StormByte/exception.hxx>
+#include <StormByte/safe/string.hxx>
 #include <iostream>
+#include <string>
 
 using namespace StormByte;
 

@@ -43,9 +43,34 @@ using namespace StormByte;
 
 Exception::Exception() noexcept = default;
 
+namespace {
+	void AppendPrefix(Safe::String& text, std::string_view path) {
+		if (path.empty())
+			text.append("StormByte: ");
+		else {
+			text.append("StormByte.");
+			text.append(path);
+			text.append(": ");
+		}
+	}
+}
+
 Exception::Exception(std::string_view message) {
-	m_what.append("StormByte: ");
+	AppendPrefix(m_what, {});
 	m_what.append(message);
+}
+
+Exception::Exception(Safe::String&& message)
+	: Exception(Path{}, std::move(message)) {}
+
+Exception::Exception(Path path, std::string_view message) {
+	AppendPrefix(m_what, path.text);
+	m_what.append(message);
+}
+
+Exception::Exception(Path path, Safe::String&& message) {
+	AppendPrefix(m_what, path.text);
+	m_what.append(static_cast<std::string_view>(message));
 }
 
 Exception::Exception(const Exception& other) = default;
@@ -65,6 +90,9 @@ const char* Exception::what() const noexcept {
 DeserializeError::DeserializeError(std::string_view message)
 	: Exception(message) {}
 
+DeserializeError::DeserializeError(Safe::String&& message)
+	: Exception(std::move(message)) {}
+
 DeserializeError::DeserializeError(const DeserializeError& other) = default;
 
 DeserializeError::DeserializeError(DeserializeError&& other) noexcept = default;
@@ -78,6 +106,9 @@ DeserializeError& DeserializeError::operator=(DeserializeError&& other) noexcept
 OperationError::OperationError(std::string_view message)
 	: Exception(message) {}
 
+OperationError::OperationError(Safe::String&& message)
+	: Exception(std::move(message)) {}
+
 OperationError::OperationError(const OperationError& other) = default;
 
 OperationError::OperationError(OperationError&& other) noexcept = default;
@@ -90,6 +121,9 @@ OperationError& OperationError::operator=(OperationError&& other) noexcept = def
 
 Base64Error::Base64Error(std::string_view message)
 	: Exception(message) {}
+
+Base64Error::Base64Error(Safe::String&& message)
+	: Exception(std::move(message)) {}
 
 Base64Error::Base64Error(const Base64Error& other) = default;
 

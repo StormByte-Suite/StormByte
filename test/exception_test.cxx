@@ -54,22 +54,22 @@ namespace {
 	class CryptoError: public Exception {
 		public:
 			template <typename... Args>
-			explicit CryptoError(std::format_string<Args...> fmt, Args&&... args)
-				: Exception(Path{"Crypto"}, fmt, std::forward<Args>(args)...) {}
+			explicit CryptoError(std::string_view pattern, Args&&... args)
+				: Exception(Path{"Crypto"}, pattern, std::forward<Args>(args)...) {}
 
 			~CryptoError() override = default;
 
 		protected:
 			template <typename... Args>
-			explicit CryptoError(Path child, std::format_string<Args...> fmt, Args&&... args)
-				: Exception(Path{std::string("Crypto.") + std::string(child.text)}, fmt, std::forward<Args>(args)...) {}
+			explicit CryptoError(Path child, std::string_view pattern, Args&&... args)
+				: Exception(Path{std::string("Crypto.") + std::string(child.text)}, pattern, std::forward<Args>(args)...) {}
 	};
 
 	class CrypterError: public CryptoError {
 		public:
 			template <typename... Args>
-			explicit CrypterError(std::format_string<Args...> fmt, Args&&... args)
-				: CryptoError(Path{"Crypter"}, fmt, std::forward<Args>(args)...) {}
+			explicit CrypterError(std::string_view pattern, Args&&... args)
+				: CryptoError(Path{"Crypter"}, pattern, std::forward<Args>(args)...) {}
 
 			~CrypterError() override = default;
 	};
@@ -122,14 +122,14 @@ int test_construct_from_view_and_safe_string() {
 }
 
 int test_formatted_message_with_args() {
-	Exception error("value is {}", 42);
+	Exception error(Safe::String::ReplaceToken("value is {}", "42"));
 	ASSERT_EQUAL(std::string{"StormByte: value is 42"}, std::string{error.what()});
 	RETURN_TEST(0);
 }
 
 int test_parent_prepends_segment() {
-	const CryptoError crypto("failed with code {}", 7);
-	const EncryptError formatted("failed with code {}", 7);
+	const CryptoError crypto("failed with code {}", "7");
+	const EncryptError formatted("failed with code {}", "7");
 	const EncryptError plain("plain text");
 	ASSERT_EQUAL(std::string{"StormByte.Crypto: failed with code 7"}, std::string{crypto.what()});
 	ASSERT_EQUAL(std::string{"StormByte.Crypto.Crypter: failed with code 7"}, std::string{formatted.what()});
@@ -193,7 +193,7 @@ int test_root_leaves_add_no_segment() {
 	ASSERT_EQUAL(std::string{"StormByte: wire"}, std::string{DeserializeError("wire").what()});
 	ASSERT_EQUAL(std::string{"StormByte: alien"}, std::string{OperationError("alien").what()});
 	ASSERT_EQUAL(std::string{"StormByte: bad alphabet"}, std::string{Base64Error("bad alphabet").what()});
-	ASSERT_EQUAL(std::string{"StormByte: slot 3"}, std::string{DeserializeError("slot {}", 3).what()});
+	ASSERT_EQUAL(std::string{"StormByte: slot 3"}, std::string{DeserializeError(Safe::String::ReplaceToken("slot {}", "3")).what()});
 	const Safe::String body("owned leaf");
 	ASSERT_EQUAL(std::string{"StormByte: owned leaf"}, std::string{OperationError(body).what()});
 	RETURN_TEST(0);

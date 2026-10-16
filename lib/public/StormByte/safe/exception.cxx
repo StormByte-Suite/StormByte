@@ -44,7 +44,10 @@ using namespace StormByte::Safe;
 Exception::Exception() noexcept = default;
 
 Exception::Exception(std::string_view message)
-	: StormByte::Exception(StormByte::Exception::Path{"Safe"}, "{}", message) {}
+	: StormByte::Exception(StormByte::Exception::Path{"Safe"}, message) {}
+
+Exception::Exception(String&& message)
+	: StormByte::Exception(StormByte::Exception::Path{"Safe"}, std::move(message)) {}
 
 Exception::Exception(const Exception& other) = default;
 
@@ -75,6 +78,9 @@ const char* AllocationError::what() const noexcept {
 ExpiredWeakPointerError::ExpiredWeakPointerError(std::string_view message)
 	: Exception(message) {}
 
+ExpiredWeakPointerError::ExpiredWeakPointerError(String&& message)
+	: Exception(std::move(message)) {}
+
 ExpiredWeakPointerError::ExpiredWeakPointerError(const ExpiredWeakPointerError& other) = default;
 
 ExpiredWeakPointerError::ExpiredWeakPointerError(ExpiredWeakPointerError&& other) noexcept = default;
@@ -87,6 +93,9 @@ ExpiredWeakPointerError& ExpiredWeakPointerError::operator=(ExpiredWeakPointerEr
 
 OutOfBoundsError::OutOfBoundsError(std::string_view message)
 	: Exception(message) {}
+
+OutOfBoundsError::OutOfBoundsError(String&& message)
+	: Exception(std::move(message)) {}
 
 OutOfBoundsError::OutOfBoundsError(const OutOfBoundsError& other) = default;
 
@@ -116,6 +125,9 @@ const char* BadOptionalAccess::what() const noexcept {
 
 BadVariantAccess::BadVariantAccess(std::string_view message)
 	: Exception(message) {}
+
+BadVariantAccess::BadVariantAccess(String&& message)
+	: Exception(std::move(message)) {}
 
 BadVariantAccess::BadVariantAccess(const BadVariantAccess& other) = default;
 

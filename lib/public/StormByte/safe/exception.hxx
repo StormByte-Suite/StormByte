@@ -43,7 +43,6 @@
 #include <StormByte/safe/string.hxx>
 #include <StormByte/visibility.h>
 
-#include <format>
 #include <string_view>
 #include <utility>
 
@@ -72,14 +71,10 @@ namespace StormByte {
 				explicit Exception(std::string_view message);
 
 				/**
-				 * @brief Format a body into `StormByte.Safe: formatted`.
-				 * @tparam Args Format argument types.
-				 * @param fmt Format string. Body only.
-				 * @param args Format arguments.
+				 * @brief Takes a body into `StormByte.Safe: message`.
+				 * @param message Body. Moved. Not a path.
 				 */
-				template <typename... Args>
-				Exception(std::format_string<Args...> fmt, Args&&... args)
-					: StormByte::Exception(StormByte::Exception::Path{"Safe"}, fmt, std::forward<Args>(args)...) {}
+				explicit Exception(String&& message);
 
 				/**
 				 * @brief Copy constructor. Defined in the Base DLL.
@@ -119,6 +114,17 @@ namespace StormByte {
 				 * Used by a leaf that overrides `what()` with a static string.
 				 */
 				Exception() noexcept;
+
+				/**
+				 * @brief Replace literal `{}` under the `Safe` path. For a further derived class.
+				 * @tparam Args Types convertible to `std::string_view`.
+				 * @param pattern Body with literal `{}` tokens.
+				 * @param args Replacements. One per token, in order.
+				 */
+				template <typename... Args>
+					requires (sizeof...(Args) >= 1)
+				Exception(std::string_view pattern, Args&&... args)
+					: StormByte::Exception(StormByte::Exception::Path{"Safe"}, pattern, std::forward<Args>(args)...) {}
 		};
 
 		/**
@@ -187,14 +193,24 @@ namespace StormByte {
 				explicit ExpiredWeakPointerError(std::string_view message);
 
 				/**
-				 * @brief Format a body into `StormByte.Safe: formatted`.
-				 * @tparam Args Format argument types.
-				 * @param fmt Format string. Body only.
-				 * @param args Format arguments.
+				 * @brief Takes a body into `StormByte.Safe: message`.
+				 * @param message Body. Moved. Not a path.
+				 */
+				explicit ExpiredWeakPointerError(String&& message);
+
+			protected:
+				/**
+				 * @brief Replace literal `{}` in @p pattern. For a further derived class.
+				 * @tparam Args Types convertible to `std::string_view`.
+				 * @param pattern Body with literal `{}` tokens.
+				 * @param args Replacements. One per token, in order.
 				 */
 				template <typename... Args>
-				ExpiredWeakPointerError(std::format_string<Args...> fmt, Args&&... args)
-					: Exception(fmt, std::forward<Args>(args)...) {}
+					requires (sizeof...(Args) >= 1)
+				ExpiredWeakPointerError(std::string_view pattern, Args&&... args)
+					: Exception(pattern, std::forward<Args>(args)...) {}
+
+			public:
 
 				/**
 				 * @brief Copy constructor. Defined in the Base DLL.
@@ -243,14 +259,24 @@ namespace StormByte {
 				explicit OutOfBoundsError(std::string_view message);
 
 				/**
-				 * @brief Format a body into `StormByte.Safe: formatted`.
-				 * @tparam Args Format argument types.
-				 * @param fmt Format string. Body only.
-				 * @param args Format arguments.
+				 * @brief Takes a body into `StormByte.Safe: message`.
+				 * @param message Body. Moved. Not a path.
+				 */
+				explicit OutOfBoundsError(String&& message);
+
+			protected:
+				/**
+				 * @brief Replace literal `{}` in @p pattern. For a further derived class.
+				 * @tparam Args Types convertible to `std::string_view`.
+				 * @param pattern Body with literal `{}` tokens.
+				 * @param args Replacements. One per token, in order.
 				 */
 				template <typename... Args>
-				OutOfBoundsError(std::format_string<Args...> fmt, Args&&... args)
-					: Exception(fmt, std::forward<Args>(args)...) {}
+					requires (sizeof...(Args) >= 1)
+				OutOfBoundsError(std::string_view pattern, Args&&... args)
+					: Exception(pattern, std::forward<Args>(args)...) {}
+
+			public:
 
 				/**
 				 * @brief Copy constructor. Defined in the Base DLL.
@@ -350,14 +376,24 @@ namespace StormByte {
 				explicit BadVariantAccess(std::string_view message);
 
 				/**
-				 * @brief Format a body into `StormByte.Safe: formatted`.
-				 * @tparam Args Format argument types.
-				 * @param fmt Format string. Body only.
-				 * @param args Format arguments.
+				 * @brief Takes a body into `StormByte.Safe: message`.
+				 * @param message Body. Moved. Not a path.
+				 */
+				explicit BadVariantAccess(String&& message);
+
+			protected:
+				/**
+				 * @brief Replace literal `{}` in @p pattern. For a further derived class.
+				 * @tparam Args Types convertible to `std::string_view`.
+				 * @param pattern Body with literal `{}` tokens.
+				 * @param args Replacements. One per token, in order.
 				 */
 				template <typename... Args>
-				BadVariantAccess(std::format_string<Args...> fmt, Args&&... args)
-					: Exception(fmt, std::forward<Args>(args)...) {}
+					requires (sizeof...(Args) >= 1)
+				BadVariantAccess(std::string_view pattern, Args&&... args)
+					: Exception(pattern, std::forward<Args>(args)...) {}
+
+			public:
 
 				/**
 				 * @brief Copy constructor. Defined in the Base DLL.
