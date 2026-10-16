@@ -260,6 +260,7 @@ jobs:
       - name: Attach archives to this tag's release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           tag="${{ github.ref_name }}"
@@ -271,7 +272,7 @@ jobs:
           fi
           printf 'Uploading to %s:\n' "$tag"
           printf '  %s\n' "${files[@]}"
-          gh release upload "$tag" "${files[@]}" --clobber
+          gh release upload "$tag" "${files[@]}" --repo "$GH_REPO" --clobber
 
   ###########################################################################
   # Docs (StormByteDoc) — Linux + same APT lists cache. Independent of the zips.
