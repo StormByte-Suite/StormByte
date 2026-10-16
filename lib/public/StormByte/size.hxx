@@ -1183,6 +1183,58 @@ struct StormByte::Safe::Hash<StormByte::Size> {
 	}
 };
 
+/**
+ * @brief Limits of @ref StormByte::Size.
+ *
+ * The range is the stored `uint64_t`: `0` through `2^64 - 1`. It is not the host `std::size_t` range. A container that addresses memory still has to clamp to what a pointer can index.
+ */
+template<>
+class std::numeric_limits<StormByte::Size> {
+	public:
+		static constexpr bool is_specialized = true;
+		static constexpr bool is_signed = false;
+		static constexpr bool is_integer = true;
+		static constexpr bool is_exact = true;
+		static constexpr bool has_infinity = false;
+		static constexpr bool has_quiet_NaN = false;
+		static constexpr bool has_signaling_NaN = false;
+		static constexpr std::float_denorm_style has_denorm = std::denorm_absent;
+		static constexpr bool has_denorm_loss = false;
+		static constexpr std::float_round_style round_style = std::round_toward_zero;
+		static constexpr bool is_iec559 = false;
+		static constexpr bool is_bounded = true;
+		static constexpr bool is_modulo = false;
+		static constexpr int digits = 64;
+		static constexpr int digits10 = 19;
+		static constexpr int max_digits10 = 0;
+		static constexpr int radix = 2;
+		static constexpr int min_exponent = 0;
+		static constexpr int min_exponent10 = 0;
+		static constexpr int max_exponent = 0;
+		static constexpr int max_exponent10 = 0;
+		static constexpr bool traps = false;
+		static constexpr bool tinyness_before = false;
+
+		/** @brief Zero. */
+		static constexpr StormByte::Size min() noexcept { return StormByte::Size{0}; }
+		/** @brief Zero. */
+		static constexpr StormByte::Size lowest() noexcept { return StormByte::Size{0}; }
+		/** @brief `2^64 - 1`. */
+		static constexpr StormByte::Size max() noexcept { return StormByte::Size{std::numeric_limits<std::uint64_t>::max()}; }
+		/** @brief Not meaningful for an integer. */
+		static constexpr StormByte::Size epsilon() noexcept { return StormByte::Size{0}; }
+		/** @brief Not meaningful for an integer. */
+		static constexpr StormByte::Size round_error() noexcept { return StormByte::Size{0}; }
+		/** @brief Not meaningful. Zero. */
+		static constexpr StormByte::Size infinity() noexcept { return StormByte::Size{0}; }
+		/** @brief Not meaningful. Zero. */
+		static constexpr StormByte::Size quiet_NaN() noexcept { return StormByte::Size{0}; }
+		/** @brief Not meaningful. Zero. */
+		static constexpr StormByte::Size signaling_NaN() noexcept { return StormByte::Size{0}; }
+		/** @brief Not meaningful. Zero. */
+		static constexpr StormByte::Size denorm_min() noexcept { return StormByte::Size{0}; }
+};
+
 template<>
 struct std::hash<StormByte::Size> {
 	/**

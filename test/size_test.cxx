@@ -339,6 +339,18 @@ int test_traits_numeral() {
 	RETURN_TEST(0);
 }
 
+
+int test_traits_numeric_limits() {
+	static_assert(std::numeric_limits<Size>::is_specialized);
+	static_assert(std::numeric_limits<Size>::is_integer);
+	static_assert(!std::numeric_limits<Size>::is_signed);
+	static_assert(std::numeric_limits<Size>::digits == 64);
+	ASSERT_EQUAL(Size{0}, std::numeric_limits<Size>::min());
+	ASSERT_EQUAL(Size{0}, std::numeric_limits<Size>::lowest());
+	ASSERT_EQUAL(Size{std::numeric_limits<std::uint64_t>::max()}, std::numeric_limits<Size>::max());
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -377,6 +389,7 @@ int main() {
 	// Traits
 	// -------------------
 	result += test_traits_numeral();
+	result += test_traits_numeric_limits();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;
