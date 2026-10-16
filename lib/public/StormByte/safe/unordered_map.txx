@@ -395,7 +395,7 @@ namespace StormByte::Safe {
 	void UnorderedMap<K, V, Hash, KeyEqual>::reserve(size_type count) {
 		const float needed = static_cast<float>(count) / m_max_load;
 		if (needed > static_cast<float>(m_bucket_count))
-			rehash(static_cast<size_type>(needed) + 1);
+			rehash(Size{static_cast<std::size_t>(needed)} + 1);
 	}
 
 	template<Type::SafeValue K, Type::SafeValue V, class Hash, class KeyEqual>
