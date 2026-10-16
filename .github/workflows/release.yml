@@ -37,7 +37,7 @@ jobs:
       - name: Warm submodule / checkout cache
         uses: stormbytepp/githubactions/.github/actions/checkout-cached@master
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           submodules: recursive
 
   apt-bootstrap:
