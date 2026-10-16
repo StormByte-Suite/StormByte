@@ -3,8 +3,6 @@ name: CI
 permissions:
   actions: write
   contents: read
-  pages: write
-  id-token: write
 
 on:
   push:
@@ -144,15 +142,3 @@ jobs:
             -DENABLE_LTO=ON
             -DENABLE_PGO=ON
           run-tests: false
-
-  ###########################################################################
-  # Docs (StormByteDoc) — Linux + same APT lists cache
-  ###########################################################################
-  docs:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: [checkout-bootstrap, apt-bootstrap]
-    uses: stormbytepp/githubactions/.github/workflows/generate-and-deploy-docs.yml@master
-    with:
-      doc_target: StormByteDoc
-      extra-cmake-options: -DENABLE_DOC=ON
-      docs_output_dir: ./_site

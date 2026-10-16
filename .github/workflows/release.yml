@@ -4,8 +4,8 @@ name: Release
 # fails before the build. The zips replace the assets of that tag's release,
 # which does not have to be the latest. A retag of the same name is replaced.
 #
-# Same jobs as ci.yml, without the doc deploy. Each build also installs and
-# zips the prefix. One job then attaches those zips.
+# Same jobs as ci.yml. Each build also installs and zips the prefix.
+# One job attaches those zips. Docs are deployed on their own, only for this tag.
 
 on:
   workflow_dispatch:
@@ -13,6 +13,8 @@ on:
 permissions:
   actions: write
   contents: read
+  pages: write
+  id-token: write
 
 env:
   BUILD_TYPE: Release
@@ -241,7 +243,7 @@ jobs:
           if-no-files-found: error
 
   ###########################################################################
-  # Attach the archives to the latest published release
+  # Attach the archives to this tag's release
   ###########################################################################
   publish:
     needs: [build-linux, build-macos, build-windows]
@@ -270,3 +272,15 @@ jobs:
           printf 'Uploading to %s:\n' "$tag"
           printf '  %s\n' "${files[@]}"
           gh release upload "$tag" "${files[@]}" --clobber
+
+  ###########################################################################
+  # Docs (StormByteDoc) — Linux + same APT lists cache. Independent of the zips.
+  ###########################################################################
+  docs:
+    needs: [guard, checkout-bootstrap, apt-bootstrap]
+    uses: stormbytepp/githubactions/.github/workflows/generate-and-deploy-docs.yml@master
+    with:
+      doc_target: StormByteDoc
+      extra-cmake-options: -DENABLE_DOC=ON
+      docs_output_dir: ./_site
+
