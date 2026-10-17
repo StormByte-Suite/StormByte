@@ -76,7 +76,7 @@ jobs:
           configure-options: >-
             -DENABLE_LTO=ON
             -DENABLE_PGO=ON
-            ${{ matrix.compiler == 'clang-libc++' && '-DCMAKE_CXX_FLAGS=-stdlib=libc++' || '' }}
+            ${{ matrix.compiler == 'clang-libc++' && '-DCMAKE_CXX_FLAGS=-stdlib=libc++ -DCMAKE_CXX_STANDARD_LIBRARIES=-stdlib=libc++' || '' }}
           run-tests: false
 
   ###########################################################################
