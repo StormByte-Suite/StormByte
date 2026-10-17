@@ -349,7 +349,7 @@ namespace StormByte {
 				 * @param other Queue to compare.
 				 * @return Ordering.
 				 */
-				std::strong_ordering operator<=>(const Queue& other) const requires std::three_way_comparable<T>;
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Queue& other) const requires std::three_way_comparable<T>;
 
 				/**
 				 * @brief Order queues lexicographically.

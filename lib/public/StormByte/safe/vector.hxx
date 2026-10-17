@@ -619,7 +619,7 @@ namespace StormByte {
 				 * @param other Sequence to compare.
 				 * @return Ordering of the two sequences.
 				 */
-				std::strong_ordering operator<=>(const Vector& other) const requires requires(const T& left, const T& right) { left < right; };
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Vector& other) const requires requires(const T& left, const T& right) { left < right; };
 
 				/**
 				 * @brief Order sequences lexicographically.

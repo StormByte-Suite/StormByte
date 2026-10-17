@@ -278,7 +278,7 @@ namespace StormByte {
 				 * @param other Pair to compare.
 				 * @return Lexicographical order.
 				 */
-				auto operator<=>(const Pair& other) const requires Type::ThreeWayComparable<First> && Type::ThreeWayComparable<Second>;
+				STORMBYTE_FORCE_INLINE auto operator<=>(const Pair& other) const requires Type::ThreeWayComparable<First> && Type::ThreeWayComparable<Second>;
 
 				/**
 				 * @brief Copy the members into caller-owned STL storage.

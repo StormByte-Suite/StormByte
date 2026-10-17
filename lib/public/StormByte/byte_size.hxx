@@ -289,23 +289,27 @@ namespace StormByte {
 			 * @param rhs Right length.
 			 * @return Ordering.
 			 */
-			friend constexpr std::strong_ordering operator<=>(ByteSize lhs, ByteSize rhs) noexcept {
+			friend STORMBYTE_FORCE_INLINE constexpr std::strong_ordering operator<=>(ByteSize lhs, ByteSize rhs) noexcept {
 				return lhs.m_value <=> rhs.m_value;
 			}
 
 			/**
-			 * @brief Mixed order with an integer.
+			 * @brief Mixed order with an integer. Header-only: `std::strong_ordering` is not a DLL ABI.
 			 * @tparam T Integral type.
 			 */
 			template<Type::Integral T>
-			friend constexpr std::strong_ordering operator<=>(ByteSize lhs, T rhs) noexcept;
+			friend STORMBYTE_FORCE_INLINE constexpr std::strong_ordering operator<=>(ByteSize lhs, T rhs) noexcept {
+				return lhs <=> ByteSize(rhs);
+			}
 
 			/**
-			 * @brief Mixed order with an integer.
+			 * @brief Mixed order with an integer. Header-only: `std::strong_ordering` is not a DLL ABI.
 			 * @tparam T Integral type.
 			 */
 			template<Type::Integral T>
-			friend constexpr std::strong_ordering operator<=>(T lhs, ByteSize rhs) noexcept;
+			friend STORMBYTE_FORCE_INLINE constexpr std::strong_ordering operator<=>(T lhs, ByteSize rhs) noexcept {
+				return ByteSize(lhs) <=> rhs;
+			}
 
 			/**
 			 * @brief Mixed order with @ref Size.
@@ -313,7 +317,7 @@ namespace StormByte {
 			 * @param rhs Right unit count.
 			 * @return Ordering.
 			 */
-			friend constexpr std::strong_ordering operator<=>(ByteSize lhs, Size rhs) noexcept {
+			friend STORMBYTE_FORCE_INLINE constexpr std::strong_ordering operator<=>(ByteSize lhs, Size rhs) noexcept {
 				return lhs.m_value <=> static_cast<std::uint64_t>(static_cast<std::size_t>(rhs));
 			}
 
@@ -323,7 +327,7 @@ namespace StormByte {
 			 * @param rhs Right length.
 			 * @return Ordering.
 			 */
-			friend constexpr std::strong_ordering operator<=>(Size lhs, ByteSize rhs) noexcept {
+			friend STORMBYTE_FORCE_INLINE constexpr std::strong_ordering operator<=>(Size lhs, ByteSize rhs) noexcept {
 				return 0 <=> (rhs <=> lhs);
 			}
 
@@ -758,30 +762,6 @@ namespace StormByte {
 	}
 
 	/**
-	 * @brief Mixed order.
-	 * @tparam T Integral type.
-	 * @param lhs Left length.
-	 * @param rhs Right integer.
-	 * @return Ordering.
-	 */
-	template<Type::Integral T>
-	constexpr std::strong_ordering operator<=>(ByteSize lhs, T rhs) noexcept {
-		return lhs <=> ByteSize(rhs);
-	}
-
-	/**
-	 * @brief Mixed order.
-	 * @tparam T Integral type.
-	 * @param lhs Left integer.
-	 * @param rhs Right length.
-	 * @return Ordering.
-	 */
-	template<Type::Integral T>
-	constexpr std::strong_ordering operator<=>(T lhs, ByteSize rhs) noexcept {
-		return ByteSize(lhs) <=> rhs;
-	}
-
-	/**
 	 * @brief Mixed sum.
 	 * @tparam T Integral type.
 	 * @param lhs Left addend.
@@ -1030,38 +1010,6 @@ namespace StormByte {
 	extern template STORMBYTE_PUBLIC bool operator==(char8_t, ByteSize) noexcept;
 	extern template STORMBYTE_PUBLIC bool operator==(char16_t, ByteSize) noexcept;
 	extern template STORMBYTE_PUBLIC bool operator==(char32_t, ByteSize) noexcept;
-
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, char) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, signed char) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, unsigned char) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, short) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, unsigned short) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, int) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, unsigned int) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, long) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, unsigned long) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, long long) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, unsigned long long) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, wchar_t) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, char8_t) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, char16_t) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(ByteSize, char32_t) noexcept;
-
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(char, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(signed char, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(unsigned char, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(short, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(unsigned short, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(int, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(unsigned int, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(long, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(unsigned long, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(long long, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(unsigned long long, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(wchar_t, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(char8_t, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(char16_t, ByteSize) noexcept;
-	extern template STORMBYTE_PUBLIC std::strong_ordering operator<=>(char32_t, ByteSize) noexcept;
 
 	extern template STORMBYTE_PUBLIC ByteSize operator+(ByteSize, char) noexcept;
 	extern template STORMBYTE_PUBLIC ByteSize operator+(ByteSize, signed char) noexcept;

@@ -389,7 +389,7 @@ namespace StormByte::Safe {
 	}
 
 	template<Type::SafeValue T>
-	std::strong_ordering List<T>::operator<=>(const List& other) const {
+	STORMBYTE_FORCE_INLINE std::strong_ordering List<T>::operator<=>(const List& other) const {
 		const_iterator left = begin();
 		const_iterator right = other.begin();
 		while (left != end() && right != other.end()) {

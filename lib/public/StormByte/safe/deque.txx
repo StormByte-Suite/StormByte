@@ -83,7 +83,7 @@ namespace StormByte::Safe {
 			difference_type operator-(const iterator& other) const noexcept { return m_index - other.m_index; }
 			reference operator[](difference_type delta) const { return *(*this + delta); }
 			bool operator==(const iterator& other) const noexcept { return m_index == other.m_index; }
-			std::strong_ordering operator<=>(const iterator& other) const noexcept { return m_index <=> other.m_index; }
+			STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const iterator& other) const noexcept { return m_index <=> other.m_index; }
 
 		private:
 			friend class Deque;
@@ -118,7 +118,7 @@ namespace StormByte::Safe {
 			difference_type operator-(const const_iterator& other) const noexcept { return m_index - other.m_index; }
 			reference operator[](difference_type delta) const { return *(*this + delta); }
 			bool operator==(const const_iterator& other) const noexcept { return m_index == other.m_index; }
-			std::strong_ordering operator<=>(const const_iterator& other) const noexcept { return m_index <=> other.m_index; }
+			STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const const_iterator& other) const noexcept { return m_index <=> other.m_index; }
 
 		private:
 			friend class Deque;
@@ -533,7 +533,7 @@ namespace StormByte::Safe {
 	}
 
 	template<Type::SafeValue T>
-	std::strong_ordering operator<=>(const Deque<T>& left, const Deque<T>& right) {
+	STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Deque<T>& left, const Deque<T>& right) {
 		return std::lexicographical_compare_three_way(left.begin(), left.end(), right.begin(), right.end());
 	}
 

@@ -810,7 +810,7 @@ namespace StormByte {
 				 * @param other List to compare.
 				 * @return Three-way comparison of the elements.
 				 */
-				std::strong_ordering operator<=>(const List& other) const;
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const List& other) const;
 
 				/**
 				 * @brief Copy the elements into caller-owned STL storage.

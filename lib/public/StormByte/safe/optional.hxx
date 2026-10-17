@@ -483,7 +483,7 @@ namespace StormByte {
 				 * @brief Order empty before engaged.
 				 * @return Equivalent when empty, greater when engaged.
 				 */
-				std::strong_ordering operator<=>(std::nullopt_t) const noexcept {
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(std::nullopt_t) const noexcept {
 					return has_value() ? std::strong_ordering::greater : std::strong_ordering::equivalent;
 				}
 
@@ -526,7 +526,7 @@ namespace StormByte {
 				requires Type::SafeComponent<std::remove_cvref_t<U>> &&
 					(!Type::SameAs<std::remove_cvref_t<U>, Optional>) &&
 					requires(const T& left, const U& right) { left <=> right; }
-				auto operator<=>(const U& value) const {
+				STORMBYTE_FORCE_INLINE auto operator<=>(const U& value) const {
 					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const U&>())>;
 					if (!has_value())
 						return Result::less;
@@ -538,7 +538,7 @@ namespace StormByte {
 				 * @param other Optional to compare.
 				 * @return Three-way comparison result.
 				 */
-				auto operator<=>(const Optional& other) const requires Type::ThreeWayComparable<T> {
+				STORMBYTE_FORCE_INLINE auto operator<=>(const Optional& other) const requires Type::ThreeWayComparable<T> {
 					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const T&>())>;
 					if (has_value() && other.has_value())
 						return static_cast<Result>(*m_value <=> *other.m_value);
@@ -582,7 +582,7 @@ namespace StormByte {
 				 */
 				template<class U>
 				requires requires(const T& left, const U& right) { left <=> right; }
-				auto operator<=>(const std::optional<U>& other) const {
+				STORMBYTE_FORCE_INLINE auto operator<=>(const std::optional<U>& other) const {
 					using Result = std::common_comparison_category_t<decltype(std::declval<const T&>() <=> std::declval<const U&>())>;
 					if (has_value() && other.has_value())
 						return static_cast<Result>(*m_value <=> *other);

@@ -46,6 +46,7 @@
 #include <StormByte/size.hxx>
 #include <StormByte/type_traits.hxx>
 
+#include <algorithm>
 #include <compare>
 #include <cstddef>
 #include <initializer_list>
@@ -221,11 +222,13 @@ namespace StormByte {
 				bool operator!=(const Binary& other) const noexcept;
 
 				/**
-				 * @brief Three-way lexicographical comparison.
+				 * @brief Three-way lexicographical comparison. Header-only: `std::strong_ordering` is not a DLL ABI.
 				 * @param other Other sequence.
 				 * @return Ordering.
 				 */
-				std::strong_ordering operator<=>(const Binary& other) const noexcept;
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Binary& other) const noexcept {
+					return m_bytes <=> other.m_bytes;
+				}
 
 				/**
 				 * @brief Equality with a byte span.
@@ -242,11 +245,13 @@ namespace StormByte {
 				bool operator!=(std::span<const std::byte> bytes) const noexcept;
 
 				/**
-				 * @brief Three-way comparison with a byte span.
+				 * @brief Three-way comparison with a byte span. Header-only: `std::strong_ordering` is not a DLL ABI.
 				 * @param bytes View to compare.
 				 * @return Ordering.
 				 */
-				std::strong_ordering operator<=>(std::span<const std::byte> bytes) const noexcept;
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(std::span<const std::byte> bytes) const noexcept {
+					return std::lexicographical_compare_three_way(span().begin(), span().end(), bytes.begin(), bytes.end());
+				}
 
 				/**
 				 * @brief Mutable iterator to the first byte.
@@ -696,7 +701,7 @@ namespace StormByte {
 		 * @param data Right sequence.
 		 * @return Reverse of @c data <=> bytes.
 		 */
-		inline std::strong_ordering operator<=>(std::span<const std::byte> bytes, const Binary& data) noexcept {
+		STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(std::span<const std::byte> bytes, const Binary& data) noexcept {
 			return 0 <=> (data <=> bytes);
 		}
 

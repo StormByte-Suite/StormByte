@@ -1227,7 +1227,7 @@ namespace StormByte {
 				 * @param other Other text.
 				 * @return Ordering.
 				 */
-				inline std::strong_ordering operator<=>(const WString& other) const noexcept {
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const WString& other) const noexcept {
 					return static_cast<std::wstring_view>(*this) <=> static_cast<std::wstring_view>(other);
 				}
 
@@ -1236,7 +1236,7 @@ namespace StormByte {
 				 * @param str May be null.
 				 * @return Ordering.
 				 */
-				inline std::strong_ordering operator<=>(const wchar_t* str) const noexcept {
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const wchar_t* str) const noexcept {
 					return str ? static_cast<std::wstring_view>(*this) <=> std::wstring_view(str)
 						: static_cast<std::wstring_view>(*this) <=> std::wstring_view{};
 				}

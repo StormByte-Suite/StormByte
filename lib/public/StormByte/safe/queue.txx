@@ -206,7 +206,7 @@ namespace StormByte {
 		}
 
 		template<Type::SafeValue T>
-		std::strong_ordering Queue<T>::operator<=>(const Queue& other) const requires std::three_way_comparable<T> {
+		STORMBYTE_FORCE_INLINE std::strong_ordering Queue<T>::operator<=>(const Queue& other) const requires std::three_way_comparable<T> {
 			return std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end());
 		}
 

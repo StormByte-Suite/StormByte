@@ -487,7 +487,7 @@ namespace StormByte {
 		}
 
 		template<Type::SafeValue T>
-		std::strong_ordering Vector<T>::operator<=>(const Vector& other) const requires requires(const T& left, const T& right) { left < right; } {
+		STORMBYTE_FORCE_INLINE std::strong_ordering Vector<T>::operator<=>(const Vector& other) const requires requires(const T& left, const T& right) { left < right; } {
 			if (*this < other)
 				return std::strong_ordering::less;
 			if (other < *this)

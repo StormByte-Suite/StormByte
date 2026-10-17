@@ -203,38 +203,6 @@ namespace StormByte {
 	template STORMBYTE_INSTANTIATE bool operator==(char16_t, Size) noexcept;
 	template STORMBYTE_INSTANTIATE bool operator==(char32_t, Size) noexcept;
 
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, char) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, signed char) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, unsigned char) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, short) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, unsigned short) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, int) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, unsigned int) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, long) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, unsigned long) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, long long) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, unsigned long long) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, wchar_t) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, char8_t) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, char16_t) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(Size, char32_t) noexcept;
-
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(char, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(signed char, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(unsigned char, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(short, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(unsigned short, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(int, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(unsigned int, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(long, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(unsigned long, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(long long, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(unsigned long long, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(wchar_t, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(char8_t, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(char16_t, Size) noexcept;
-	template STORMBYTE_INSTANTIATE std::strong_ordering operator<=>(char32_t, Size) noexcept;
-
 	template STORMBYTE_INSTANTIATE Size operator+(Size, char) noexcept;
 	template STORMBYTE_INSTANTIATE Size operator+(Size, signed char) noexcept;
 	template STORMBYTE_INSTANTIATE Size operator+(Size, unsigned char) noexcept;

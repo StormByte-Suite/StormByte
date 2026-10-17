@@ -262,7 +262,7 @@ namespace StormByte::Safe {
 
 	template<Type::SafeValue... Ts>
 	requires (sizeof...(Ts) > 0)
-	std::strong_ordering Variant<Ts...>::operator<=>(const Variant& other) const {
+	STORMBYTE_FORCE_INLINE std::strong_ordering Variant<Ts...>::operator<=>(const Variant& other) const {
 		if (m_index != other.m_index)
 			return m_index <=> other.m_index;
 		if (valueless_by_exception())

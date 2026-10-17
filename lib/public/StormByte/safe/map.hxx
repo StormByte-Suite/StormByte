@@ -962,7 +962,7 @@ namespace StormByte {
 				 * @param other Map to compare.
 				 * @return Ordering.
 				 */
-				std::strong_ordering operator<=>(const Map& other) const requires std::three_way_comparable<K> && std::three_way_comparable<V>;
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Map& other) const requires std::three_way_comparable<K> && std::three_way_comparable<V>;
 
 				/**
 				 * @brief Order maps lexicographically.

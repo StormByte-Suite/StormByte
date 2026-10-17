@@ -81,7 +81,7 @@ namespace StormByte {
 			 * @brief Two empty alternatives compare equal.
 			 * @return Equal ordering.
 			 */
-			friend constexpr std::strong_ordering operator<=>(Monostate, Monostate) noexcept {
+			friend STORMBYTE_FORCE_INLINE constexpr std::strong_ordering operator<=>(Monostate, Monostate) noexcept {
 				return std::strong_ordering::equal;
 			}
 		};
@@ -272,7 +272,7 @@ namespace StormByte::Safe {
 				 * @param other Other variant.
 				 * @return Ordering.
 				 */
-				std::strong_ordering operator<=>(const Variant& other) const;
+				STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Variant& other) const;
 
 				/**
 				 * @brief Copy the active alternative into caller-owned STL storage.

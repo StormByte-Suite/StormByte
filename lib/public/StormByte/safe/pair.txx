@@ -145,7 +145,7 @@ namespace StormByte {
 		}
 
 		template<Type::SafeValue First, Type::SafeValue Second>
-		auto Pair<First, Second>::operator<=>(const Pair& other) const requires Type::ThreeWayComparable<First> && Type::ThreeWayComparable<Second> {
+		STORMBYTE_FORCE_INLINE auto Pair<First, Second>::operator<=>(const Pair& other) const requires Type::ThreeWayComparable<First> && Type::ThreeWayComparable<Second> {
 			if (auto order = first <=> other.first; order != 0)
 				return order;
 			return second <=> other.second;

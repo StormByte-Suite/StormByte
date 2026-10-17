@@ -660,7 +660,7 @@ namespace StormByte {
 		 * @return Ordering of the elements.
 		 */
 		template<Type::SafeValue T>
-		std::strong_ordering operator<=>(const Deque<T>& left, const Deque<T>& right);
+		STORMBYTE_FORCE_INLINE std::strong_ordering operator<=>(const Deque<T>& left, const Deque<T>& right);
 
 		/**
 		 * @brief Exchange two deques.

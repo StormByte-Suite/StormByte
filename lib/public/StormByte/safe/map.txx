@@ -768,7 +768,7 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		std::strong_ordering Map<K, V, Compare>::operator<=>(const Map& other) const requires std::three_way_comparable<K> && std::three_way_comparable<V> {
+		STORMBYTE_FORCE_INLINE std::strong_ordering Map<K, V, Compare>::operator<=>(const Map& other) const requires std::three_way_comparable<K> && std::three_way_comparable<V> {
 			return std::lexicographical_compare_three_way(begin(), end(), other.begin(), other.end(), [](const value_type& left, const value_type& right) {
 				if (auto key = left.first <=> right.first; key != 0)
 					return key;

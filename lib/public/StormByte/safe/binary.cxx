@@ -119,10 +119,6 @@ bool Binary::operator!=(const Binary& other) const noexcept {
 	return !(*this == other);
 }
 
-std::strong_ordering Binary::operator<=>(const Binary& other) const noexcept {
-	return m_bytes <=> other.m_bytes;
-}
-
 bool Binary::operator==(std::span<const std::byte> bytes) const noexcept {
 	return span().size() == bytes.size()
 		&& std::equal(span().begin(), span().end(), bytes.begin());
@@ -130,11 +126,6 @@ bool Binary::operator==(std::span<const std::byte> bytes) const noexcept {
 
 bool Binary::operator!=(std::span<const std::byte> bytes) const noexcept {
 	return !(*this == bytes);
-}
-
-std::strong_ordering Binary::operator<=>(std::span<const std::byte> bytes) const noexcept {
-	return std::lexicographical_compare_three_way(
-		span().begin(), span().end(), bytes.begin(), bytes.end());
 }
 
 Binary::iterator Binary::begin() noexcept {
