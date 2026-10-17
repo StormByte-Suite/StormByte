@@ -22,21 +22,9 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
-### Added
-
-- Release archives include `THIRD-PARTY` (not `THIRDPARTY`: on Windows and macOS that name is the same path as the `thirdparty/` directory, so the file never landed in those zips) and `COPYING.SDS`. SDS commit `cc59ce0b12e91521476ad54a1e069fb6fd933bbc` is compiled into the shared library. `COPYING.SDS` reproduces the notice in those sources and the shorter `LICENSE` from the same commit. `LICENSE` in this repository still covers only original StormByte source.
-
-### Fixed
-
-- MSVC PGO links with `/LTCG:PGINSTRUMENT` and `/LTCG:PGOPTIMIZE`. `/GENPROFILE` and `/USEPROFILE` alone fail with LNK1220 on the current `link.exe`, because they require an `/LTCG` specification. CMake's own `/LTCG` stays off so it does not replace the profile mode.
-
-### Changed
-
-- A public function that has to return a `std::` object is `STORMBYTE_FORCE_INLINE` in the header. The caller builds it; the DLL does not. That is the same rule as `operator std::string`. It now also covers `Safe::Binary::span` and its `std::span` conversion, `Error::make_error_code`, `Clock::Stop`, `Clock::Time`, `Clock::MeanDuration` and `Clock::GetValues` (the DLL returns a plain microsecond count), and the `Codec` reads of `std::string`, `std::wstring`, `std::u16string` and `std::u32string`. Those four are no longer explicit instantiations of `Serializable`. The DLL side of a string read returns `Safe::String` or `Safe::WString`. `std::error_category::message` stays on the category singleton: the standard virtual is bound to that object and cannot move into the caller.
-
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD
 
-## [2.1.0] - 2026-10-16
+## [2.1.0] - 2026-10-17
 
 ### Added
 
@@ -45,6 +33,7 @@ If you landed here from a release link and have not read the tree:
 - `Safe::String::ReplaceToken` and `Safe::WString::ReplaceToken` are static. There is no member and no in-place overload. The call is `String::ReplaceToken(text, args...)` / `WString::ReplaceToken`. `text` is a view, so a literal converts. One argument replaces the first literal `{}`; further arguments replace the following tokens in order. A missing token leaves the text unchanged. A view is used as-is and does not allocate. A number uses `std::to_string` / `std::to_wstring`. A `char` or `wchar_t` is that one character. Anything else is accepted when it converts to `std::string` / `std::wstring` or to `Safe::String` / `Safe::WString`; an explicit conversion is enough, so `Size` and `ByteSize` need no cast. A result that fits SSO is written into the inline array and does not call SDS / `wbuf`. A longer result is one exact Base allocation.
 - `ENABLE_LTO`, default ON. Link-time optimization follows this option for every build type, not `Release`. It combines with `ENABLE_PGO`.
 - `ENABLE_PGO`. The build directory stays a normal build and is the one `cmake --install` ships. Training is a separate tree, `<build>/pgo-instr`: instrumented library, tests and `ctest`. This directory then compiles with that profile and without tests. `install()` rules are unchanged. The steps are in `cmake/pgo.cmake`. The instrumented configure receives every project cache option (`WITH_GPL`, `ENABLE_LTO`, …) and prints each one. It uses the same C, C++ and linker flags as the final build, including `-stdlib=` and, on MSVC or clang-cl, `/arch:AVX2` and `/DNDEBUG`. On clang-cl the profile is applied at compile time. The instrumented link uses `clang_rt.profile` (under `lib/windows` in the Windows LLVM layout) instead of a flag passed to `lld-link`. GCC names the `.gcda` files with `-fprofile-prefix-path` so `pgo-instr` is not part of the path the final build looks up. On Windows, `ctest` prepends `<build>/pgo-instr/lib` to `PATH`.
+- Release archives include `THIRD-PARTY` (not `THIRDPARTY`: on Windows and macOS that name is the same path as the `thirdparty/` directory, so the file never landed in those zips) and `COPYING.SDS`. SDS commit `cc59ce0b12e91521476ad54a1e069fb6fd933bbc` is compiled into the shared library. `COPYING.SDS` reproduces the notice in those sources and the shorter `LICENSE` from the same commit. `LICENSE` in this repository still covers only original StormByte source.
 
 ### Changed
 
@@ -54,12 +43,14 @@ If you landed here from a release link and have not read the tree:
   - **`Safe::OutOfBoundsError`.** Constructors no longer take a message. `OutOfBoundsError(Size)` writes `index <n> is out of range`. `OutOfBoundsError()` is the same text without a number, for a failure that has no numeric bound (a missing map key, an empty container).
 - `PerformanceTests` also trains `Explode`, `Implode`, `ReplaceToken`, `Split`, case conversion, in-place edit, in-range `at` and `ByteSize` text.
 - `Safe::String` SSO capacity is 32 code units (48-byte Storage, 16-byte aligned). `Safe::WString` is 11 units with 16-byte alignment: 32 units would make the object ~136 bytes on 64-bit and hurt cache density; 11 keeps it compact while covering typical short wide strings.
+- A public function that has to return a `std::` object is `STORMBYTE_FORCE_INLINE` in the header. The caller builds it; the DLL does not. That is the same rule as `operator std::string`. It now also covers `Safe::Binary::span` and its `std::span` conversion, `Error::make_error_code`, `Clock::Stop`, `Clock::Time`, `Clock::MeanDuration` and `Clock::GetValues` (the DLL returns a plain microsecond count), and the `Codec` reads of `std::string`, `std::wstring`, `std::u16string` and `std::u32string`. Those four are no longer explicit instantiations of `Serializable`. The DLL side of a string read returns `Safe::String` or `Safe::WString`. `std::error_category::message` stays on the category singleton: the standard virtual is bound to that object and cannot move into the caller.
 
 ### Fixed
 
 - `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
 - `operator<=>` no longer crosses the DLL. `std::strong_ordering` is not the same ABI in clang-cl and MSVC: the clang build writes the result through a hidden pointer and MSVC does not pass one, so `i < size` wrote to address 0. Mixed `Size` / `ByteSize` comparisons are no longer `extern template` exports. `Safe::Binary` and every other three-way comparison are `STORMBYTE_FORCE_INLINE` in the header, so the caller compiles them.
+- MSVC PGO links with `/LTCG:PGINSTRUMENT` and `/LTCG:PGOPTIMIZE`. `/GENPROFILE` and `/USEPROFILE` alone fail with LNK1220 on the current `link.exe`, because they require an `/LTCG` specification. CMake's own `/LTCG` stays off so it does not replace the profile mode.
 
 [2.1.0]: https://github.com/StormBytePP/StormByte/compare/2.0.0...2.1.0
 
