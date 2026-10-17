@@ -48,10 +48,6 @@ const Error::Category<Error::Code>& Error::category() noexcept {
 	return instance;
 }
 
-std::error_code Error::make_error_code(Error::Code e) noexcept {
-	return std::error_code(static_cast<int>(e), Error::category());
-}
-
 Error::Fault::Fault() noexcept
 : Fault(make_error_code(Error::Code::Success)) {}
 

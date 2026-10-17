@@ -61,10 +61,6 @@ namespace StormByte {
 	template class STORMBYTE_INSTANTIATE Serializable<float>;
 	template class STORMBYTE_INSTANTIATE Serializable<double>;
 	template class STORMBYTE_INSTANTIATE Serializable<long double>;
-	template class STORMBYTE_INSTANTIATE Serializable<std::string>;
-	template class STORMBYTE_INSTANTIATE Serializable<std::wstring>;
-	template class STORMBYTE_INSTANTIATE Serializable<std::u16string>;
-	template class STORMBYTE_INSTANTIATE Serializable<std::u32string>;
 	template class STORMBYTE_INSTANTIATE Serializable<Safe::String>;
 	template class STORMBYTE_INSTANTIATE Serializable<Safe::WString>;
 	template class STORMBYTE_INSTANTIATE Serializable<Safe::Binary>;
@@ -205,32 +201,6 @@ namespace StormByte {
 			return out;
 		}
 
-		std::u16string utf8_to_u16(const std::string& utf8) {
-			std::u16string out;
-			std::size_t i = 0;
-			char32_t cp = 0;
-			while (next_utf8(utf8, i, cp)) {
-				if (cp <= 0xFFFFu) {
-					out.push_back(static_cast<char16_t>(cp));
-				} else {
-					cp -= 0x10000u;
-					out.push_back(static_cast<char16_t>(0xD800u + (cp >> 10)));
-					out.push_back(static_cast<char16_t>(0xDC00u + (cp & 0x3FFu)));
-				}
-			}
-
-			return out;
-		}
-
-		std::u32string utf8_to_u32(const std::string& utf8) {
-			std::u32string out;
-			std::size_t i = 0;
-			char32_t cp = 0;
-			while (next_utf8(utf8, i, cp))
-				out.push_back(cp);
-			return out;
-		}
-
 		Safe::Binary write_byte_string(const std::string& payload) {
 			const std::uint64_t size = static_cast<std::uint64_t>(payload.size());
 			Safe::Binary buffer = Serializable<std::uint64_t>(size).Serialize();
@@ -239,7 +209,7 @@ namespace StormByte {
 			return buffer;
 		}
 
-		Expected<std::string, DeserializeError> read_byte_string(std::span<const std::byte> data) {
+		Expected<Safe::String, DeserializeError> read_byte_string(std::span<const std::byte> data) {
 			if (data.size() < sizeof(std::uint64_t))
 				return Unexpected<DeserializeError>("Insufficient data for string size");
 
@@ -253,8 +223,9 @@ namespace StormByte {
 			if (size > static_cast<std::uint64_t>(data.size() - offset))
 				return Unexpected<DeserializeError>("Insufficient data for string content");
 
-			return std::string(reinterpret_cast<const char*>(data.data() + offset),
-				static_cast<std::size_t>(size));
+			return Safe::String(std::string_view(
+				reinterpret_cast<const char*>(data.data() + offset),
+				static_cast<std::size_t>(size)));
 		}
 	}
 
@@ -266,23 +237,12 @@ namespace StormByte {
 		return write_byte_string(data);
 	}
 
-	Expected<std::string, DeserializeError> Detail::Codec<std::string>::Read(std::span<const std::byte> data) noexcept {
-		return read_byte_string(data);
-	}
-
 	ByteSize Detail::Codec<std::wstring>::Size(const std::wstring& data) noexcept {
 		return ByteSize{sizeof(std::uint64_t)} + ByteSize{wstring_to_utf8(data).size()};
 	}
 
 	Safe::Binary Detail::Codec<std::wstring>::Write(const std::wstring& data) noexcept {
 		return write_byte_string(wstring_to_utf8(data));
-	}
-
-	Expected<std::wstring, DeserializeError> Detail::Codec<std::wstring>::Read(std::span<const std::byte> data) noexcept {
-		auto payload = read_byte_string(data);
-		if (!payload)
-			return Unexpected(payload.error());
-		return utf8_to_wstring(payload.value());
 	}
 
 	ByteSize Detail::Codec<std::u16string>::Size(const std::u16string& data) noexcept {
@@ -293,26 +253,12 @@ namespace StormByte {
 		return write_byte_string(u16_to_utf8(data));
 	}
 
-	Expected<std::u16string, DeserializeError> Detail::Codec<std::u16string>::Read(std::span<const std::byte> data) noexcept {
-		auto payload = read_byte_string(data);
-		if (!payload)
-			return Unexpected(payload.error());
-		return utf8_to_u16(payload.value());
-	}
-
 	ByteSize Detail::Codec<std::u32string>::Size(const std::u32string& data) noexcept {
 		return ByteSize{sizeof(std::uint64_t)} + ByteSize{u32_to_utf8(data).size()};
 	}
 
 	Safe::Binary Detail::Codec<std::u32string>::Write(const std::u32string& data) noexcept {
 		return write_byte_string(u32_to_utf8(data));
-	}
-
-	Expected<std::u32string, DeserializeError> Detail::Codec<std::u32string>::Read(std::span<const std::byte> data) noexcept {
-		auto payload = read_byte_string(data);
-		if (!payload)
-			return Unexpected(payload.error());
-		return utf8_to_u32(payload.value());
 	}
 
 	ByteSize Detail::Codec<Safe::String>::Size(const Safe::String& data) noexcept {
@@ -324,10 +270,7 @@ namespace StormByte {
 	}
 
 	Expected<Safe::String, DeserializeError> Detail::Codec<Safe::String>::Read(std::span<const std::byte> data) noexcept {
-		auto payload = Detail::Codec<std::string>::Read(data);
-		if (!payload)
-			return Unexpected(payload.error());
-		return Safe::String(std::string_view(payload.value()));
+		return read_byte_string(data);
 	}
 
 	ByteSize Detail::Codec<Safe::WString>::Size(const Safe::WString& data) noexcept {
@@ -339,9 +282,10 @@ namespace StormByte {
 	}
 
 	Expected<Safe::WString, DeserializeError> Detail::Codec<Safe::WString>::Read(std::span<const std::byte> data) noexcept {
-		auto payload = Detail::Codec<std::wstring>::Read(data);
+		auto payload = read_byte_string(data);
 		if (!payload)
 			return Unexpected(payload.error());
-		return Safe::WString(std::wstring_view(payload.value()));
+		const std::wstring wide = utf8_to_wstring(std::string(static_cast<std::string_view>(payload.value())));
+		return Safe::WString(std::wstring_view(wide));
 	}
 }

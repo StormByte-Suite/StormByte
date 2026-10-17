@@ -128,7 +128,7 @@ namespace StormByte {
 			 * @param e Enumerator.
 			 * @return Human-readable message.
 			 */
-			static std::string Message(Code e) {
+			static STORMBYTE_FORCE_INLINE std::string Message(Code e) {
 				switch (e) {
 					case Code::Success:
 						return "Success";
@@ -147,12 +147,15 @@ namespace StormByte {
 
 		/**
 		 * @brief Builds an `std::error_code` from @ref StormByte::Error::Code.
+		 * Header-only: a `std::` object is not a DLL return.
 		 * @param e Suite enumerator.
 		 * @return Code in the suite category.
 		 *
 		 * Lives in this namespace so ADL finds it for `std::error_code{Code}`.
 		 */
-		STORMBYTE_PUBLIC std::error_code make_error_code(Code e) noexcept;
+		STORMBYTE_FORCE_INLINE std::error_code make_error_code(Code e) noexcept {
+			return std::error_code(static_cast<int>(e), category());
+		}
 
 		/**
 		 * @class Fault

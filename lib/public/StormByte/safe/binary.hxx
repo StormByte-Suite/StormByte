@@ -446,27 +446,35 @@ namespace StormByte {
 
 				/**
 				 * @brief Mutable view of the occupied bytes.
-				 * @return Span over the occupied bytes.
+				 * @return Span over the occupied bytes. Built in the caller.
 				 */
-				std::span<std::byte> span() noexcept;
+				STORMBYTE_FORCE_INLINE std::span<std::byte> span() noexcept {
+					return std::span<std::byte>(data(), static_cast<std::size_t>(size()));
+				}
 
 				/**
 				 * @brief Read-only view of the occupied bytes.
-				 * @return Span over the occupied bytes.
+				 * @return Span over the occupied bytes. Built in the caller.
 				 */
-				std::span<const std::byte> span() const noexcept;
+				STORMBYTE_FORCE_INLINE std::span<const std::byte> span() const noexcept {
+					return std::span<const std::byte>(data(), static_cast<std::size_t>(size()));
+				}
 
 				/**
 				 * @brief Implicit mutable span conversion.
 				 * @return Same as @ref span().
 				 */
-				operator std::span<std::byte>() noexcept;
+				STORMBYTE_FORCE_INLINE operator std::span<std::byte>() noexcept {
+					return span();
+				}
 
 				/**
 				 * @brief Implicit read-only span conversion.
 				 * @return Same as const @ref span().
 				 */
-				operator std::span<const std::byte>() const noexcept;
+				STORMBYTE_FORCE_INLINE operator std::span<const std::byte>() const noexcept {
+					return span();
+				}
 
 				/**
 				 * @brief Copy bytes onto the caller CRT as a vector. This object is unchanged.

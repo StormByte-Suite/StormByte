@@ -26,6 +26,10 @@ If you landed here from a release link and have not read the tree:
 
 - MSVC PGO links with `/LTCG:PGINSTRUMENT` and `/LTCG:PGOPTIMIZE`. `/GENPROFILE` and `/USEPROFILE` alone fail with LNK1220 on the current `link.exe`, because they require an `/LTCG` specification. CMake's own `/LTCG` stays off so it does not replace the profile mode.
 
+### Changed
+
+- A public function that has to return a `std::` object is `STORMBYTE_FORCE_INLINE` in the header. The caller builds it; the DLL does not. That is the same rule as `operator std::string`. It now also covers `Safe::Binary::span` and its `std::span` conversion, `Error::make_error_code`, `Clock::Stop`, `Clock::Time`, `Clock::MeanDuration` and `Clock::GetValues` (the DLL returns a plain microsecond count), and the `Codec` reads of `std::string`, `std::wstring`, `std::u16string` and `std::u32string`. Those four are no longer explicit instantiations of `Serializable`. The DLL side of a string read returns `Safe::String` or `Safe::WString`. `std::error_category::message` stays on the category singleton: the standard virtual is bound to that object and cannot move into the caller.
+
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD
 
 ## [2.1.0] - 2026-10-16

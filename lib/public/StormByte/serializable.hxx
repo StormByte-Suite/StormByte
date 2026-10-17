@@ -168,8 +168,9 @@ namespace StormByte {
 			 * @brief Decodes a string from the start of @p data.
 			 * @param data Input span.
 			 * @return Value, or @ref StormByte::DeserializeError.
+			 * The string is built in the caller. The DLL returns @ref StormByte::Safe::String.
 			 */
-			static STORMBYTE_PUBLIC Expected<std::string, DeserializeError> Read(std::span<const std::byte> data) noexcept;
+			static Expected<std::string, DeserializeError> Read(std::span<const std::byte> data) noexcept;
 		};
 
 		/**
@@ -198,8 +199,9 @@ namespace StormByte {
 			 * @brief Decodes a wide string from the start of @p data.
 			 * @param data Input span.
 			 * @return Value, or @ref StormByte::DeserializeError.
+			 * The string is built in the caller. The DLL returns @ref StormByte::Safe::WString.
 			 */
-			static STORMBYTE_PUBLIC Expected<std::wstring, DeserializeError> Read(std::span<const std::byte> data) noexcept;
+			static Expected<std::wstring, DeserializeError> Read(std::span<const std::byte> data) noexcept;
 		};
 
 		/**
@@ -227,8 +229,9 @@ namespace StormByte {
 			 * @brief Decodes a UTF-16 string from the start of @p data.
 			 * @param data Input span.
 			 * @return Value, or @ref StormByte::DeserializeError.
+			 * The string is built in the caller from the UTF-8 payload.
 			 */
-			static STORMBYTE_PUBLIC Expected<std::u16string, DeserializeError> Read(std::span<const std::byte> data) noexcept;
+			static Expected<std::u16string, DeserializeError> Read(std::span<const std::byte> data) noexcept;
 		};
 
 		/**
@@ -256,8 +259,9 @@ namespace StormByte {
 			 * @brief Decodes a UTF-32 string from the start of @p data.
 			 * @param data Input span.
 			 * @return Value, or @ref StormByte::DeserializeError.
+			 * The string is built in the caller from the UTF-8 payload.
 			 */
-			static STORMBYTE_PUBLIC Expected<std::u32string, DeserializeError> Read(std::span<const std::byte> data) noexcept;
+			static Expected<std::u32string, DeserializeError> Read(std::span<const std::byte> data) noexcept;
 		};
 
 		/**
@@ -323,6 +327,102 @@ namespace StormByte {
 			 */
 			static STORMBYTE_PUBLIC Expected<Safe::WString, DeserializeError> Read(std::span<const std::byte> data) noexcept;
 		};
+
+		/**
+		 * @brief One UTF-8 sequence. Invalid bytes become U+FFFD.
+		 * @param utf8 Source.
+		 * @param index Advanced past the sequence.
+		 * @param cp Decoded code point.
+		 * @return False at the end of @p utf8.
+		 */
+		STORMBYTE_FORCE_INLINE bool NextUtf8(std::string_view utf8, std::size_t& index, char32_t& cp) noexcept {
+			if (index >= utf8.size())
+				return false;
+
+			const auto lead = static_cast<unsigned char>(utf8[index++]);
+			int extra = 0;
+			if (lead < 0x80u) {
+				cp = lead;
+				return true;
+			} else if ((lead & 0xE0u) == 0xC0u) {
+				cp = lead & 0x1Fu;
+				extra = 1;
+			} else if ((lead & 0xF0u) == 0xE0u) {
+				cp = lead & 0x0Fu;
+				extra = 2;
+			} else if ((lead & 0xF8u) == 0xF0u) {
+				cp = lead & 0x07u;
+				extra = 3;
+			} else {
+				cp = 0xFFFDu;
+				return true;
+			}
+
+			for (int n = 0; n < extra; ++n) {
+				if (index >= utf8.size()) {
+					cp = 0xFFFDu;
+					return true;
+				}
+				const auto cont = static_cast<unsigned char>(utf8[index]);
+				if ((cont & 0xC0u) != 0x80u) {
+					cp = 0xFFFDu;
+					return true;
+				}
+				++index;
+				cp = (cp << 6) | (cont & 0x3Fu);
+			}
+
+			if (cp > 0x10FFFFu || (cp >= 0xD800u && cp <= 0xDFFFu))
+				cp = 0xFFFDu;
+			return true;
+		}
+
+		STORMBYTE_FORCE_INLINE Expected<std::string, DeserializeError> Codec<std::string>::Read(std::span<const std::byte> data) noexcept {
+			auto payload = Codec<Safe::String>::Read(data);
+			if (!payload)
+				return Unexpected(payload.error());
+			return std::string(static_cast<std::string_view>(payload.value()));
+		}
+
+		STORMBYTE_FORCE_INLINE Expected<std::wstring, DeserializeError> Codec<std::wstring>::Read(std::span<const std::byte> data) noexcept {
+			auto payload = Codec<Safe::WString>::Read(data);
+			if (!payload)
+				return Unexpected(payload.error());
+			return std::wstring(static_cast<std::wstring_view>(payload.value()));
+		}
+
+		STORMBYTE_FORCE_INLINE Expected<std::u16string, DeserializeError> Codec<std::u16string>::Read(std::span<const std::byte> data) noexcept {
+			auto payload = Codec<Safe::String>::Read(data);
+			if (!payload)
+				return Unexpected(payload.error());
+			const std::string_view utf8 = payload.value();
+			std::u16string out;
+			std::size_t index = 0;
+			char32_t cp = 0;
+			while (NextUtf8(utf8, index, cp)) {
+				if (cp <= 0xFFFFu) {
+					out.push_back(static_cast<char16_t>(cp));
+				} else {
+					cp -= 0x10000u;
+					out.push_back(static_cast<char16_t>(0xD800u + (cp >> 10)));
+					out.push_back(static_cast<char16_t>(0xDC00u + (cp & 0x3FFu)));
+				}
+			}
+			return out;
+		}
+
+		STORMBYTE_FORCE_INLINE Expected<std::u32string, DeserializeError> Codec<std::u32string>::Read(std::span<const std::byte> data) noexcept {
+			auto payload = Codec<Safe::String>::Read(data);
+			if (!payload)
+				return Unexpected(payload.error());
+			const std::string_view utf8 = payload.value();
+			std::u32string out;
+			std::size_t index = 0;
+			char32_t cp = 0;
+			while (NextUtf8(utf8, index, cp))
+				out.push_back(cp);
+			return out;
+		}
 	}
 
 	/**
@@ -593,10 +693,6 @@ namespace StormByte {
 	extern template class STORMBYTE_PUBLIC Serializable<float>;
 	extern template class STORMBYTE_PUBLIC Serializable<double>;
 	extern template class STORMBYTE_PUBLIC Serializable<long double>;
-	extern template class STORMBYTE_PUBLIC Serializable<std::string>;
-	extern template class STORMBYTE_PUBLIC Serializable<std::wstring>;
-	extern template class STORMBYTE_PUBLIC Serializable<std::u16string>;
-	extern template class STORMBYTE_PUBLIC Serializable<std::u32string>;
 	extern template class STORMBYTE_PUBLIC Serializable<Safe::String>;
 	extern template class STORMBYTE_PUBLIC Serializable<Safe::WString>;
 	extern template class STORMBYTE_PUBLIC Serializable<Safe::Binary>;

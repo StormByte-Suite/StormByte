@@ -256,22 +256,6 @@ const std::byte* Binary::data() const noexcept {
 	return m_bytes.empty() ? nullptr : m_bytes.data();
 }
 
-std::span<std::byte> Binary::span() noexcept {
-	return std::span<std::byte>(data(), AsIndex(size()));
-}
-
-std::span<const std::byte> Binary::span() const noexcept {
-	return std::span<const std::byte>(data(), AsIndex(size()));
-}
-
-Binary::operator std::span<std::byte>() noexcept {
-	return span();
-}
-
-Binary::operator std::span<const std::byte>() const noexcept {
-	return span();
-}
-
 void Binary::assign(const ByteSize& count, std::byte value) {
 	m_bytes.assign(AsIndex(count), value);
 }

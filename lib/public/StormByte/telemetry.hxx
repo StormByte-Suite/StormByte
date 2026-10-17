@@ -141,8 +141,11 @@ namespace StormByte {
 					/**
 					 * @brief Complete and record this sample once.
 					 * @return This sample's elapsed microseconds; repeated calls return the same value.
+					 * Built in the caller. The DLL returns the tick count.
 					 */
-					std::chrono::microseconds Stop() noexcept;
+					STORMBYTE_FORCE_INLINE std::chrono::microseconds Stop() noexcept {
+						return std::chrono::microseconds{StopCount()};
+					}
 
 				private:
 					friend class Clock;
@@ -152,6 +155,12 @@ namespace StormByte {
 					 * @param state Shared state updated when the sample completes.
 					 */
 					explicit Sample(Safe::Shared<State> state) noexcept;
+
+					/**
+					 * @brief Complete and record this sample once.
+					 * @return Elapsed microseconds as a plain count.
+					 */
+					std::int64_t StopCount() noexcept;
 
 					Safe::Shared<State> m_state; ///< Keeps the aggregate state alive until this sample ends.
 					std::chrono::steady_clock::time_point m_start{}; ///< This sample's independent start.
@@ -199,9 +208,16 @@ namespace StormByte {
 
 			/**
 			 * @brief Read Count, Time and MeanDuration under one lock.
-			 * @return Coherent completed-sample snapshot.
+			 * @return Coherent completed-sample snapshot. The durations are built in the caller.
 			 */
-			Values GetValues() const noexcept;
+			STORMBYTE_FORCE_INLINE Values GetValues() const noexcept {
+				const Counts raw = ReadCounts();
+				return Values{
+					raw.count,
+					std::chrono::microseconds{raw.time},
+					std::chrono::microseconds{raw.mean}
+				};
+			}
 
 			/**
 			 * @brief Number of completed samples.
@@ -211,17 +227,36 @@ namespace StormByte {
 
 			/**
 			 * @brief Cumulative duration of completed samples.
-			 * @return Elapsed microseconds.
+			 * @return Elapsed microseconds. Built in the caller.
 			 */
-			std::chrono::microseconds Time() const noexcept;
+			STORMBYTE_FORCE_INLINE std::chrono::microseconds Time() const noexcept {
+				return GetValues().Time;
+			}
 
 			/**
 			 * @brief Mean duration across completed samples.
-			 * @return Average microseconds per operation, or 0 when Count() == 0.
+			 * @return Average microseconds per operation, or 0 when Count() == 0. Built in the caller.
 			 */
-			std::chrono::microseconds MeanDuration() const noexcept;
+			STORMBYTE_FORCE_INLINE std::chrono::microseconds MeanDuration() const noexcept {
+				return GetValues().MeanDuration;
+			}
 
 		private:
+			/**
+			 * @brief Plain counters. No `std::chrono` crosses the DLL.
+			 */
+			struct Counts {
+				std::uint64_t count{}; ///< Completed samples.
+				std::int64_t time{}; ///< Sum of durations, in microseconds.
+				std::int64_t mean{}; ///< Mean duration, in microseconds.
+			};
+
+			/**
+			 * @brief Read the counters under one lock.
+			 * @return Plain counts.
+			 */
+			Counts ReadCounts() const noexcept;
+
 			mutable std::mutex m_state_lock; ///< Protects lazy state creation and clock moves.
 			Safe::Shared<State> m_state; ///< Shared aggregate state retained by active samples.
 	};
