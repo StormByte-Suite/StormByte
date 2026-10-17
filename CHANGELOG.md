@@ -48,6 +48,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 
+- `-stdlib=libc++` and `-stdlib=libstdc++` do not count as custom C++ flags. If either is the only extra flag, Release still gets `-O2` and the CPU baseline.
 - `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
 - `operator<=>` no longer crosses the DLL. `std::strong_ordering` is not the same ABI in clang-cl and MSVC: the clang build writes the result through a hidden pointer and MSVC does not pass one, so `i < size` wrote to address 0. Mixed `Size` / `ByteSize` comparisons are no longer `extern template` exports. `Safe::Binary` and every other three-way comparison are `STORMBYTE_FORCE_INLINE` in the header, so the caller compiles them.
