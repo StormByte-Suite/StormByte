@@ -24,7 +24,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Added
 
-- Release archives include `THIRDPARTY` and `COPYING.SDS`. SDS commit `cc59ce0b12e91521476ad54a1e069fb6fd933bbc` is compiled into the shared library. `COPYING.SDS` reproduces the notice in those sources and the shorter `LICENSE` from the same commit. `LICENSE` in this repository still covers only original StormByte source.
+- Release archives include `THIRD-PARTY` (not `THIRDPARTY`: on Windows and macOS that name is the same path as the `thirdparty/` directory, so the file never landed in those zips) and `COPYING.SDS`. SDS commit `cc59ce0b12e91521476ad54a1e069fb6fd933bbc` is compiled into the shared library. `COPYING.SDS` reproduces the notice in those sources and the shorter `LICENSE` from the same commit. `LICENSE` in this repository still covers only original StormByte source.
 
 ### Fixed
 
