@@ -114,7 +114,11 @@ jobs:
         run: |
           set -euo pipefail
           name="${{ github.event.repository.name }}-${{ github.ref_name }}-${{ matrix.asset }}.zip"
-          cp LICENSE COPYING.LGPLv3 package/
+          for notice in LICENSE COPYING.* THIRDPARTY; do
+            if [[ -f "${notice}" ]]; then
+              cp "${notice}" package/
+            fi
+          done
           (
             cd package
             cmake -E tar cf "../${name}" --format=zip -- .
@@ -177,7 +181,11 @@ jobs:
         run: |
           set -euo pipefail
           name="${{ github.event.repository.name }}-${{ github.ref_name }}-${{ matrix.asset }}.zip"
-          cp LICENSE COPYING.LGPLv3 package/
+          for notice in LICENSE COPYING.* THIRDPARTY; do
+            if [[ -f "${notice}" ]]; then
+              cp "${notice}" package/
+            fi
+          done
           (
             cd package
             cmake -E tar cf "../${name}" --format=zip -- .
@@ -233,7 +241,11 @@ jobs:
         run: |
           set -euo pipefail
           name="${{ github.event.repository.name }}-${{ github.ref_name }}-windows-x64.zip"
-          cp LICENSE COPYING.LGPLv3 package/
+          for notice in LICENSE COPYING.* THIRDPARTY; do
+            if [[ -f "${notice}" ]]; then
+              cp "${notice}" package/
+            fi
+          done
           (
             cd package
             cmake -E tar cf "../${name}" --format=zip -- .
