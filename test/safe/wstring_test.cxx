@@ -444,6 +444,32 @@ int test_replace_token_sso_and_heap() {
 }
 
 
+int test_replace_token_specs() {
+	const double pi = 3.141592653589793;
+	const Safe::String narrow_pi = Safe::String::ReplaceToken("{:.3f}", pi);
+	const Safe::String narrow_g = Safe::String::ReplaceToken("{:.17g}", pi);
+	const Safe::String narrow_pad = Safe::String::ReplaceToken("{:6.2f}", 3.14159);
+	auto widen = [](const Safe::String& text) {
+		return Safe::WString(std::wstring(std::string(text).begin(), std::string(text).end()));
+	};
+	ASSERT_EQUAL(widen(narrow_pi), Safe::WString::ReplaceToken(L"{:.3f}", pi));
+	ASSERT_EQUAL(widen(narrow_g), Safe::WString::ReplaceToken(L"{:.17g}", pi));
+	ASSERT_EQUAL(widen(narrow_pad), Safe::WString::ReplaceToken(L"{:6.2f}", 3.14159));
+	ASSERT_EQUAL(L"true false", Safe::WString::ReplaceToken(L"{} {}", true, false));
+	ASSERT_EQUAL(L"01:02.003", Safe::WString::ReplaceToken(L"{:02}:{:02}.{:03}", 1, 2, 3));
+	ASSERT_EQUAL(L"000000000000002a", Safe::WString::ReplaceToken(L"{:016x}", 0x2au));
+	ASSERT_EQUAL(L"keep {:.2s}", Safe::WString::ReplaceToken(L"keep {:.2s}", 1));
+
+	int object = 0;
+	ASSERT_EQUAL(widen(Safe::String::ReplaceToken("{}", &object)), Safe::WString::ReplaceToken(L"{}", &object));
+	const Safe::Unique<int> empty;
+	ASSERT_EQUAL(L"0x0", Safe::WString::ReplaceToken(L"{}", empty));
+	const Safe::Unique<int> owned = Safe::Unique<int>::MakePointer(7);
+	ASSERT_EQUAL(widen(Safe::String::ReplaceToken("{}", owned)), Safe::WString::ReplaceToken(L"{}", owned));
+	RETURN_TEST(0);
+}
+
+
 int test_implode_vector_and_queue() {
 	const Safe::Vector<Safe::WString> none;
 	const Safe::Queue<Safe::WString> none_q;
@@ -507,6 +533,7 @@ int main() {
 	result += test_format_as_text();
 
 	result += test_replace_token_sso_and_heap();
+	result += test_replace_token_specs();
 	result += test_implode_vector_and_queue();
 
 	if (result == 0)

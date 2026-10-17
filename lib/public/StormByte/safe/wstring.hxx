@@ -608,43 +608,45 @@ namespace StormByte {
 				 */
 				WString& replace(const_iterator first, const_iterator last, std::wstring_view text);
 				/**
-				 * @brief Copy @p text with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Text, a number, or a type that converts to `std::wstring` or `WString`.
-				 * A view is not copied. A number is converted here. Anything else is copied from that conversion, including an explicit one.
+				 * @brief Copy @p text with each field replaced, in order, by one argument.
+				 * @tparam Args Text, a bool, a number, a pointer, or a type that converts to `std::wstring` or `WString`.
+				 * A view is not copied. A bool is `true` or `false`. A `wchar_t*` is text. Any other raw pointer is its address (`0x` and hex). `Safe::Unique` and `Safe::Shared` print the address of the object they hold, or `0x0` when empty. A number with a bare `{}` uses `std::to_wstring`. A field may be `{:[0][width][.precision][type]}` with type `d`, `f`, `g`, `G`, `x` or `X`.
 				 * @param text Pattern. A long pattern is not stored; only the result is owned.
-				 * @param args Non-owning replacements. At least one. Extra arguments are ignored. Leftover `{}` stay.
-				 * @return New Base-owned string. No token yields an owned copy of @p text.
+				 * @param args Replacements. At least one. Extra arguments are ignored. A leftover field stays. A brace run that is not a supported field stays literal and does not consume an argument.
+				 * @return New Base-owned string. No field yields an owned copy of @p text.
 				 * @throws AllocationError The result could not be allocated.
 				 */
 				template<class... Args>
 					requires (sizeof...(Args) >= 1)
 				static WString ReplaceToken(std::wstring_view text, Args&&... args) {
-					std::wstring scratch[sizeof...(Args)];
-					std::wstring_view tokens[sizeof...(Args)];
+					constexpr std::size_t count = sizeof...(Args);
+					ReplaceTokenPlace<wchar_t> places[count];
+					const std::size_t found = FindReplaceTokens(text, places, count);
+					std::wstring scratch[count];
+					std::wstring_view tokens[count];
+					std::size_t offsets[count];
+					std::size_t lengths[count];
 					std::size_t index = 0;
 					auto store = [&](auto&& value) {
+						if (index >= found)
+							return;
 						using Bare = std::remove_cvref_t<decltype(value)>;
-						if constexpr (Type::SameAs<Bare, wchar_t>) {
-							scratch[index].assign(1, static_cast<wchar_t>(value));
-							tokens[index] = scratch[index];
-						} else if constexpr (Type::ConvertibleTo<Bare, std::wstring_view>)
-							tokens[index] = std::wstring_view(std::forward<decltype(value)>(value));
-						else if constexpr (Type::Arithmetic<Bare>) {
-							scratch[index] = std::to_wstring(value);
-							tokens[index] = scratch[index];
-						} else if constexpr (Type::ExplicitlyConvertibleTo<Bare, std::wstring>) {
-							scratch[index] = static_cast<std::wstring>(std::forward<decltype(value)>(value));
-							tokens[index] = scratch[index];
-						} else if constexpr (Type::ExplicitlyConvertibleTo<Bare, WString>) {
-							const WString owned(static_cast<WString>(std::forward<decltype(value)>(value)));
-							scratch[index].assign(static_cast<std::wstring_view>(owned));
-							tokens[index] = scratch[index];
-						} else
-							static_assert(Type::ExplicitlyConvertibleTo<Bare, std::wstring>, "ReplaceToken argument must be text, a number, or convertible to std::wstring");
+						if (!FormatReplaceToken<wchar_t>(scratch[index], std::forward<decltype(value)>(value), places[index].spec)) {
+							if constexpr (Type::ExplicitlyConvertibleTo<Bare, std::wstring>)
+								scratch[index] = static_cast<std::wstring>(std::forward<decltype(value)>(value));
+							else if constexpr (Type::ExplicitlyConvertibleTo<Bare, WString>) {
+								const WString owned(static_cast<WString>(std::forward<decltype(value)>(value)));
+								scratch[index].assign(static_cast<std::wstring_view>(owned));
+							} else
+								static_assert(Type::ExplicitlyConvertibleTo<Bare, std::wstring>, "ReplaceToken argument must be text, a number, a pointer, or convertible to std::wstring");
+						}
+						tokens[index] = scratch[index];
+						offsets[index] = places[index].offset;
+						lengths[index] = places[index].length;
 						++index;
 					};
 					(store(std::forward<Args>(args)), ...);
-					return ReplaceTokens(text, std::span<const std::wstring_view>(tokens, sizeof...(Args)));
+					return ReplaceTokens(text, std::span<const std::wstring_view>(tokens, found), std::span<const std::size_t>(offsets, found), std::span<const std::size_t>(lengths, found));
 				}
 
 				/**
@@ -1331,12 +1333,15 @@ namespace StormByte {
 
 
 				/**
-				 * @brief Build a copy replacing up to one literal `{}` per view, in order.
-				 * @param tokens Non-owning replacements. Read only during this call.
+				 * @brief Build a copy replacing the given fields with @p tokens.
+				 * @param text Pattern.
+				 * @param tokens Non-owning replacements. Read only during this call. Same count as @p offsets.
+				 * @param offsets Start of each field in @p text.
+				 * @param lengths Length of each field, including the braces.
 				 * @return New Base-owned string.
 				 * @throws AllocationError The result could not be allocated.
 				 */
-				static WString ReplaceTokens(std::wstring_view text, std::span<const std::wstring_view> tokens);
+				static WString ReplaceTokens(std::wstring_view text, std::span<const std::wstring_view> tokens, std::span<const std::size_t> offsets, std::span<const std::size_t> lengths);
 				Storage m_storage{};	///< Short buffer or wide buffer
 		};
 

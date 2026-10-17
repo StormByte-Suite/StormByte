@@ -494,11 +494,68 @@ int test_replace_token_sso_and_heap() {
 	ASSERT_EQUAL("plain", Safe::String::ReplaceToken("plain", "z"));
 	ASSERT_EQUAL("n=3", Safe::String::ReplaceToken("n={}", 3));
 	ASSERT_EQUAL("id=A", Safe::String::ReplaceToken("id={}", 'A'));
+	const char* word = "Ann";
+	ASSERT_EQUAL("Hello Ann", Safe::String::ReplaceToken("Hello {}", word));
+	const char* missing = nullptr;
+	ASSERT_EQUAL("Hello ", Safe::String::ReplaceToken("Hello {}", missing));
 	ASSERT_EQUAL("n=12", Safe::String::ReplaceToken("n={}", Size{12}));
 	struct Tickets {
 		explicit operator std::string() const { return "4"; }
 	};
 	ASSERT_EQUAL("n=4", Safe::String::ReplaceToken("n={}", Tickets{}));
+	RETURN_TEST(0);
+}
+
+
+int test_replace_token_specs() {
+	const double pi = 3.141592653589793;
+	ASSERT_EQUAL(std::format("{}", true), std::string(Safe::String::ReplaceToken("{}", true)));
+	ASSERT_EQUAL(std::format("{}", false), std::string(Safe::String::ReplaceToken("{}", false)));
+	ASSERT_EQUAL("true", Safe::String::ReplaceToken("{:02}", true));
+	ASSERT_EQUAL(std::format("{:.3f}", pi), std::string(Safe::String::ReplaceToken("{:.3f}", pi)));
+	ASSERT_EQUAL(std::format("{:.6f}", 1.23), std::string(Safe::String::ReplaceToken("{:.6f}", 1.23)));
+	ASSERT_EQUAL(std::format("{:.17g}", pi), std::string(Safe::String::ReplaceToken("{:.17g}", pi)));
+	ASSERT_EQUAL(std::format("{:6.2f}", 3.14159), std::string(Safe::String::ReplaceToken("{:6.2f}", 3.14159)));
+	ASSERT_EQUAL(std::format("{:6.2f}", 100.0), std::string(Safe::String::ReplaceToken("{:6.2f}", 100.0)));
+	ASSERT_EQUAL(std::format("{:02}", 3), std::string(Safe::String::ReplaceToken("{:02}", 3)));
+	ASSERT_EQUAL(std::format("{:02}", 12), std::string(Safe::String::ReplaceToken("{:02}", 12)));
+	ASSERT_EQUAL(std::format("{:02}", -3), std::string(Safe::String::ReplaceToken("{:02}", -3)));
+	ASSERT_EQUAL(std::format("{:03}", 7), std::string(Safe::String::ReplaceToken("{:03}", 7)));
+	ASSERT_EQUAL(std::format("{:03}", -3), std::string(Safe::String::ReplaceToken("{:03}", -3)));
+	ASSERT_EQUAL(std::format("{:016x}", 0x2au), std::string(Safe::String::ReplaceToken("{:016x}", 0x2au)));
+	ASSERT_EQUAL(std::format("{}:{:02}:{:02}.{:03}", 1, 2, 3, 4), std::string(Safe::String::ReplaceToken("{}:{:02}:{:02}.{:03}", 1, 2, 3, 4)));
+	ASSERT_EQUAL("keep {:.2s}", Safe::String::ReplaceToken("keep {:.2s}", 1));
+	ASSERT_EQUAL("n=12", Safe::String::ReplaceToken("n={}", Size{12}));
+	ASSERT_EQUAL(std::format("{:016x}", std::uint64_t{0x2a}), std::string(Safe::String::ReplaceToken("{:016x}", Size{0x2a})));
+
+	int object = 0;
+	int* raw = &object;
+	auto address = [](const void* pointer) {
+		auto value = reinterpret_cast<std::uintptr_t>(pointer);
+		std::string text = "0x";
+		if (value == 0)
+			return std::string("0x0");
+		char digits[2 * sizeof(value)];
+		int count = 0;
+		while (value != 0) {
+			digits[count++] = "0123456789abcdef"[value & 0xF];
+			value >>= 4;
+		}
+		while (count != 0)
+			text.push_back(digits[--count]);
+		return text;
+	};
+	ASSERT_EQUAL(std::string("p=") + address(raw), std::string(Safe::String::ReplaceToken("p={}", raw)));
+	ASSERT_EQUAL("0x0", Safe::String::ReplaceToken("{}", static_cast<int*>(nullptr)));
+
+	const Safe::Unique<int> empty;
+	ASSERT_EQUAL("0x0", Safe::String::ReplaceToken("{}", empty));
+	const Safe::Unique<int> owned = Safe::Unique<int>::MakePointer(7);
+	ASSERT_EQUAL(address(owned.get()), std::string(Safe::String::ReplaceToken("{}", owned)));
+	const Safe::Shared<int> shared = Safe::Shared<int>::MakePointer(8);
+	ASSERT_EQUAL(address(shared.get()), std::string(Safe::String::ReplaceToken("{}", shared)));
+	const Safe::Shared<int> shared_empty;
+	ASSERT_EQUAL("0x0", Safe::String::ReplaceToken("{}", shared_empty));
 	RETURN_TEST(0);
 }
 
@@ -567,6 +624,7 @@ int main() {
 	result += test_format_as_text();
 
 	result += test_replace_token_sso_and_heap();
+	result += test_replace_token_specs();
 	result += test_implode_vector_and_queue();
 
 	if (result == 0)

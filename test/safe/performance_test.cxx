@@ -198,6 +198,10 @@ void TouchReplaceToken() {
 		(void)WString::ReplaceToken(wide, L"A", L"B").size();
 		(void)WString::ReplaceToken(wide, L"A").size();
 		(void)WString::ReplaceToken(L"id={}", L'A').size();
+		(void)String::ReplaceToken("{:.3f} {:6.2f} {:016x} {}", 1.25, 3.5, 0x2au, i == 0).size();
+		(void)WString::ReplaceToken(L"{:02}:{:03}", i % 60, i).size();
+		int local = i;
+		(void)String::ReplaceToken("{}", &local).size();
 	}
 }
 

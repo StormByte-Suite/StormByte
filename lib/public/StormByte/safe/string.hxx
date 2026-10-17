@@ -41,6 +41,7 @@
 
 #include <StormByte/safe/hash.hxx>
 #include <StormByte/safe/pointers.hxx>
+#include <StormByte/safe/replace_token.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/safe/queue.hxx>
 #include <StormByte/safe/vector.hxx>
@@ -616,43 +617,45 @@ namespace StormByte {
 				 */
 				String& replace(const_iterator first, const_iterator last, std::string_view text);
 				/**
-				 * @brief Copy @p text with each literal `{}` replaced, in order, by one argument.
-				 * @tparam Args Text, a number, or a type that converts to `std::string`.
-				 * A view is not copied. A number is converted here. Anything else is copied from that conversion, including an explicit one.
+				 * @brief Copy @p text with each field replaced, in order, by one argument.
+				 * @tparam Args Text, a bool, a number, a pointer, or a type that converts to `std::string`.
+				 * A view is not copied. A bool is `true` or `false`. A `char*` is text. Any other raw pointer is its address (`0x` and hex). `Safe::Unique` and `Safe::Shared` print the address of the object they hold, or `0x0` when empty. A number with a bare `{}` uses `std::to_string`. A field may be `{:[0][width][.precision][type]}` with type `d`, `f`, `g`, `G`, `x` or `X`.
 				 * @param text Pattern. A long pattern is not stored; only the result is owned.
-				 * @param args Non-owning replacements. At least one. Extra arguments are ignored. Leftover `{}` stay.
-				 * @return New Base-owned string. No token yields an owned copy of @p text.
+				 * @param args Replacements. At least one. Extra arguments are ignored. A leftover field stays. A brace run that is not a supported field stays literal and does not consume an argument.
+				 * @return New Base-owned string. No field yields an owned copy of @p text.
 				 * @throws AllocationError The result could not be allocated.
 				 */
 				template<class... Args>
 					requires (sizeof...(Args) >= 1)
 				static String ReplaceToken(std::string_view text, Args&&... args) {
-					std::string scratch[sizeof...(Args)];
-					std::string_view tokens[sizeof...(Args)];
+					constexpr std::size_t count = sizeof...(Args);
+					ReplaceTokenPlace<char> places[count];
+					const std::size_t found = FindReplaceTokens(text, places, count);
+					std::string scratch[count];
+					std::string_view tokens[count];
+					std::size_t offsets[count];
+					std::size_t lengths[count];
 					std::size_t index = 0;
 					auto store = [&](auto&& value) {
+						if (index >= found)
+							return;
 						using Bare = std::remove_cvref_t<decltype(value)>;
-						if constexpr (Type::SameAs<Bare, char>) {
-							scratch[index].assign(1, static_cast<char>(value));
-							tokens[index] = scratch[index];
-						} else if constexpr (Type::ConvertibleTo<Bare, std::string_view>)
-							tokens[index] = std::string_view(std::forward<decltype(value)>(value));
-						else if constexpr (Type::Arithmetic<Bare>) {
-							scratch[index] = std::to_string(value);
-							tokens[index] = scratch[index];
-						} else if constexpr (Type::ExplicitlyConvertibleTo<Bare, std::string>) {
-							scratch[index] = static_cast<std::string>(std::forward<decltype(value)>(value));
-							tokens[index] = scratch[index];
-						} else if constexpr (Type::ExplicitlyConvertibleTo<Bare, String>) {
-							const String owned(static_cast<String>(std::forward<decltype(value)>(value)));
-							scratch[index].assign(static_cast<std::string_view>(owned));
-							tokens[index] = scratch[index];
-						} else
-							static_assert(Type::ExplicitlyConvertibleTo<Bare, std::string>, "ReplaceToken argument must be text, a number, or convertible to std::string");
+						if (!FormatReplaceToken<char>(scratch[index], std::forward<decltype(value)>(value), places[index].spec)) {
+							if constexpr (Type::ExplicitlyConvertibleTo<Bare, std::string>)
+								scratch[index] = static_cast<std::string>(std::forward<decltype(value)>(value));
+							else if constexpr (Type::ExplicitlyConvertibleTo<Bare, String>) {
+								const String owned(static_cast<String>(std::forward<decltype(value)>(value)));
+								scratch[index].assign(static_cast<std::string_view>(owned));
+							} else
+								static_assert(Type::ExplicitlyConvertibleTo<Bare, std::string>, "ReplaceToken argument must be text, a number, a pointer, or convertible to std::string");
+						}
+						tokens[index] = scratch[index];
+						offsets[index] = places[index].offset;
+						lengths[index] = places[index].length;
 						++index;
 					};
 					(store(std::forward<Args>(args)), ...);
-					return ReplaceTokens(text, std::span<const std::string_view>(tokens, sizeof...(Args)));
+					return ReplaceTokens(text, std::span<const std::string_view>(tokens, found), std::span<const std::size_t>(offsets, found), std::span<const std::size_t>(lengths, found));
 				}
 
 				/**
@@ -1338,12 +1341,15 @@ namespace StormByte {
 
 
 				/**
-				 * @brief Build a copy replacing up to one literal `{}` per view, in order.
-				 * @param tokens Non-owning replacements. Read only during this call.
+				 * @brief Build a copy replacing the given fields with @p tokens.
+				 * @param text Pattern.
+				 * @param tokens Non-owning replacements. Read only during this call. Same count as @p offsets.
+				 * @param offsets Start of each field in @p text.
+				 * @param lengths Length of each field, including the braces.
 				 * @return New Base-owned string.
 				 * @throws AllocationError The result could not be allocated.
 				 */
-				static String ReplaceTokens(std::string_view text, std::span<const std::string_view> tokens);
+				static String ReplaceTokens(std::string_view text, std::span<const std::string_view> tokens, std::span<const std::size_t> offsets, std::span<const std::size_t> lengths);
 				Storage m_storage{};	///< Short buffer or SDS pointer
 		};
 

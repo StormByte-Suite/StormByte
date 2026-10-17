@@ -497,42 +497,22 @@ WString WString::Implode(const Queue<WString>& parts, std::wstring_view delimite
 }
 
 
-WString WString::ReplaceTokens(std::wstring_view text, std::span<const std::wstring_view> tokens) {
+WString WString::ReplaceTokens(std::wstring_view text, std::span<const std::wstring_view> tokens, std::span<const std::size_t> offsets, std::span<const std::size_t> lengths) {
 	const std::wstring_view self = text;
-	if (tokens.empty() || self.size() < 2)
+	if (tokens.empty())
 		return WString(text);
 
-	constexpr std::size_t kStack = 32;
-	std::size_t stack_offsets[kStack];
-	std::vector<std::size_t> heap_offsets;
-	const bool many = tokens.size() > kStack;
-	if (many)
-		heap_offsets.reserve(tokens.size());
-	std::size_t found = 0;
-	std::size_t from = 0;
-	while (found < tokens.size()) {
-		const std::size_t at = self.find(L"{}", from);
-		if (at == std::wstring_view::npos)
-			break;
-		if (many)
-			heap_offsets.push_back(at);
-		else
-			stack_offsets[found] = at;
-		++found;
-		from = at + 2;
-	}
-	if (found == 0)
-		return WString(text);
-	const std::size_t* offsets = many ? heap_offsets.data() : stack_offsets;
-
-	std::size_t units = self.size() - 2 * found;
-	for (std::size_t i = 0; i < found; ++i)
-		units += tokens[i].size();
+	std::size_t removed = 0;
+	for (const std::size_t length : lengths)
+		removed += length;
+	std::size_t units = self.size() - removed;
+	for (const std::wstring_view token : tokens)
+		units += token.size();
 
 	auto write = [&](wchar_t* dest) {
 		std::size_t cursor = 0;
 		std::size_t out = 0;
-		for (std::size_t i = 0; i < found; ++i) {
+		for (std::size_t i = 0; i < tokens.size(); ++i) {
 			const std::size_t gap = offsets[i] - cursor;
 			if (gap != 0) {
 				std::memcpy(dest + out, self.data() + cursor, gap * sizeof(wchar_t));
@@ -542,7 +522,7 @@ WString WString::ReplaceTokens(std::wstring_view text, std::span<const std::wstr
 				std::memcpy(dest + out, tokens[i].data(), tokens[i].size() * sizeof(wchar_t));
 				out += tokens[i].size();
 			}
-			cursor = offsets[i] + 2;
+			cursor = offsets[i] + lengths[i];
 		}
 		if (cursor < self.size())
 			std::memcpy(dest + out, self.data() + cursor, (self.size() - cursor) * sizeof(wchar_t));

@@ -507,42 +507,22 @@ String String::Implode(const Queue<String>& parts, std::string_view delimiter) {
 }
 
 
-String String::ReplaceTokens(std::string_view text, std::span<const std::string_view> tokens) {
+String String::ReplaceTokens(std::string_view text, std::span<const std::string_view> tokens, std::span<const std::size_t> offsets, std::span<const std::size_t> lengths) {
 	const std::string_view self = text;
-	if (tokens.empty() || self.size() < 2)
+	if (tokens.empty())
 		return String(text);
 
-	constexpr std::size_t kStack = 32;
-	std::size_t stack_offsets[kStack];
-	std::vector<std::size_t> heap_offsets;
-	const bool many = tokens.size() > kStack;
-	if (many)
-		heap_offsets.reserve(tokens.size());
-	std::size_t found = 0;
-	std::size_t from = 0;
-	while (found < tokens.size()) {
-		const std::size_t at = self.find("{}", from);
-		if (at == std::string_view::npos)
-			break;
-		if (many)
-			heap_offsets.push_back(at);
-		else
-			stack_offsets[found] = at;
-		++found;
-		from = at + 2;
-	}
-	if (found == 0)
-		return String(text);
-	const std::size_t* offsets = many ? heap_offsets.data() : stack_offsets;
-
-	std::size_t bytes = self.size() - 2 * found;
-	for (std::size_t i = 0; i < found; ++i)
-		bytes += tokens[i].size();
+	std::size_t removed = 0;
+	for (const std::size_t length : lengths)
+		removed += length;
+	std::size_t bytes = self.size() - removed;
+	for (const std::string_view token : tokens)
+		bytes += token.size();
 
 	auto write = [&](char* dest) {
 		std::size_t cursor = 0;
 		std::size_t out = 0;
-		for (std::size_t i = 0; i < found; ++i) {
+		for (std::size_t i = 0; i < tokens.size(); ++i) {
 			const std::size_t gap = offsets[i] - cursor;
 			if (gap != 0) {
 				std::memcpy(dest + out, self.data() + cursor, gap);
@@ -552,7 +532,7 @@ String String::ReplaceTokens(std::string_view text, std::span<const std::string_
 				std::memcpy(dest + out, tokens[i].data(), tokens[i].size());
 				out += tokens[i].size();
 			}
-			cursor = offsets[i] + 2;
+			cursor = offsets[i] + lengths[i];
 		}
 		if (cursor < self.size())
 			std::memcpy(dest + out, self.data() + cursor, self.size() - cursor);
