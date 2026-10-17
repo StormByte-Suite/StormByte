@@ -555,9 +555,9 @@ int test_replace_token_specs() {
 
 	const Safe::Unique<int> empty;
 	ASSERT_EQUAL("0x0", Safe::String::ReplaceToken("{}", empty));
-	const Safe::Unique<int> owned = Safe::Unique<int>::MakePointer(7);
+	const Safe::Unique<int> owned = Safe::Unique<int>::MakePointer<int>(7);
 	ASSERT_EQUAL(address(owned.get()), std::string(Safe::String::ReplaceToken("{}", owned)));
-	const Safe::Shared<int> shared = Safe::Shared<int>::MakePointer(8);
+	const Safe::Shared<int> shared = Safe::Shared<int>::MakePointer<int>(8);
 	ASSERT_EQUAL(address(shared.get()), std::string(Safe::String::ReplaceToken("{}", shared)));
 	const Safe::Shared<int> shared_empty;
 	ASSERT_EQUAL("0x0", Safe::String::ReplaceToken("{}", shared_empty));

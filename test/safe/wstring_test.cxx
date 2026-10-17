@@ -470,7 +470,7 @@ int test_replace_token_specs() {
 	ASSERT_EQUAL(widen(Safe::String::ReplaceToken("{}", &object)), Safe::WString::ReplaceToken(L"{}", &object));
 	const Safe::Unique<int> empty;
 	ASSERT_EQUAL(L"0x0", Safe::WString::ReplaceToken(L"{}", empty));
-	const Safe::Unique<int> owned = Safe::Unique<int>::MakePointer(7);
+	const Safe::Unique<int> owned = Safe::Unique<int>::MakePointer<int>(7);
 	ASSERT_EQUAL(widen(Safe::String::ReplaceToken("{}", owned)), Safe::WString::ReplaceToken(L"{}", owned));
 	RETURN_TEST(0);
 }
