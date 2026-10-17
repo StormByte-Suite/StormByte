@@ -1,0 +1,49 @@
+This file is a notice for the binary archive of StormByte. It is not a
+license and it does not change LICENSE.
+
+Original source of StormByte is dual-licensed. LICENSE is that grant:
+GNU Lesser General Public License v3.0 or later, or a commercial license
+from the copyright holder. COPYING.LGPLv3 is the LGPL text. The commercial
+license does not replace the license of any third-party code compiled into
+the binary. Neither grant adds a patent license.
+
+This archive does not include a kit of relocatable object files. The way
+provided to rebuild or replace this library is to compile its corresponding
+source. That source is the Git tag of the release that contains this
+archive. The release page that hosts the zip also hosts the source archives
+GitHub generates for that tag:
+
+  https://github.com/StormByte-Suite/StormByte/releases/tag/2.1.0
+
+Rebuilding that tag produces a replacement shared library (libStormByte).
+Substituting that shared library is the relink method provided with this
+binary. The C++ runtime is not in this archive. The dynamic loader still
+has to provide libc++, libstdc++ or the MSVC CRT, whichever this build was
+linked against.
+
+Compiled into this shared library
+---------------------------------
+
+SDS (Simple Dynamic Strings), a private copy, not a library that is
+installed beside StormByte.
+
+  What it is     the long-string buffer used by Safe::String
+  How it is used compiled into libStormByte. It is not a separate .so or .dll
+  Source         https://github.com/StormBytePP/sds
+                 commit cc59ce0b12e91521476ad54a1e069fb6fd933bbc
+                 (branch full_windows_support, "Add MSVC support")
+  Upstream work  Salvatore Sanfilippo, with later notices in the sources for
+                 Oran Agra and Redis Labs, Inc.
+  License        the notice in the compiled sources, reproduced in COPYING.SDS
+                 The same file also includes the shorter LICENSE from that
+                 commit. Read COPYING.SDS. Do not treat this paragraph as the
+                 license.
+
+The MSVC change in that commit is a ssize_t typedef. It does not replace
+the copyright notice in sds.c.
+
+wbuf, the wide buffer next to SDS, is original StormByte source. It is
+covered by LICENSE, not by COPYING.SDS.
+
+Nothing else is compiled into this library from outside this repository.
+Bcrypt on Windows is an import of the system library, not code shipped here.

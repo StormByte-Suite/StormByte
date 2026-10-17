@@ -781,6 +781,8 @@ Original source in this repository is dual-licensed:
 
 The grant covers original StormByte source in this repository. It does not cover other StormByte modules or third-party material, including `thirdparty/`. Neither license grants patent rights.
 
+Binary releases add THIRDPARTY beside LICENSE. That file is a notice for what was compiled into the shared library, not another grant. The texts it names are the COPYING.* files in the same archive.
+
 ## Support
 
 - [GitHub Sponsors](https://github.com/sponsors/StormBytePP)

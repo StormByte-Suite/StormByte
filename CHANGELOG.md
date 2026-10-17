@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Added
+
+- Release archives include `THIRDPARTY` and `COPYING.SDS`. SDS commit `cc59ce0b12e91521476ad54a1e069fb6fd933bbc` is compiled into the shared library. `COPYING.SDS` reproduces the notice in those sources and the shorter `LICENSE` from the same commit. `LICENSE` in this repository still covers only original StormByte source.
+
 ### Fixed
 
 - MSVC PGO links with `/LTCG:PGINSTRUMENT` and `/LTCG:PGOPTIMIZE`. `/GENPROFILE` and `/USEPROFILE` alone fail with LNK1220 on the current `link.exe`, because they require an `/LTCG` specification. CMake's own `/LTCG` stays off so it does not replace the profile mode.
