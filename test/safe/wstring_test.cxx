@@ -451,7 +451,8 @@ int test_replace_token_specs() {
 	const Safe::String narrow_g = Safe::String::ReplaceToken("{:.17g}", pi);
 	const Safe::String narrow_pad = Safe::String::ReplaceToken("{:6.2f}", 3.14159);
 	auto widen = [](const Safe::String& text) {
-		return Safe::WString(std::wstring(std::string(text).begin(), std::string(text).end()));
+		const std::string narrow(text);
+		return Safe::WString(std::wstring(narrow.begin(), narrow.end()));
 	};
 	ASSERT_EQUAL(widen(narrow_pi), Safe::WString::ReplaceToken(L"{:.3f}", pi));
 	ASSERT_EQUAL(widen(narrow_g), Safe::WString::ReplaceToken(L"{:.17g}", pi));
