@@ -646,8 +646,8 @@ namespace StormByte {
 							else if constexpr (Type::ExplicitlyConvertibleTo<Bare, String>) {
 								const String owned(static_cast<String>(std::forward<decltype(value)>(value)));
 								scratch[index].assign(static_cast<std::string_view>(owned));
-							} else
-								static_assert(Type::ExplicitlyConvertibleTo<Bare, std::string>, "ReplaceToken argument must be text, a number, a pointer, or convertible to std::string");
+							} else if constexpr (!ReplaceTokenBuiltin<char, Bare>)
+								static_assert(sizeof(Bare) == 0, "ReplaceToken argument must be text, a number, a pointer, or convertible to std::string");
 						}
 						tokens[index] = scratch[index];
 						offsets[index] = places[index].offset;

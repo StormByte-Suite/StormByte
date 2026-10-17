@@ -248,6 +248,25 @@ namespace StormByte::Safe {
 	}
 
 	/**
+	 * @brief True when @ref FormatReplaceToken always writes @p T and never asks for a string conversion.
+	 * @tparam Char `char` or `wchar_t`.
+	 * @tparam T Argument type, references included.
+	 *
+	 * A number, a bool, a pointer and a view are in this set. `Size` is not: a bare `{}` still uses its string conversion.
+	 */
+	template<class Char, class T>
+	concept ReplaceTokenBuiltin =
+		Type::SameAs<std::remove_cvref_t<T>, bool> ||
+		Type::SameAs<std::remove_cvref_t<T>, std::nullptr_t> ||
+		Type::Pointer<std::remove_cvref_t<T>> ||
+		Type::SmartPointer<std::remove_cvref_t<T>> ||
+		(Type::SameAs<std::remove_cvref_t<T>, char> && Type::SameAs<Char, char>) ||
+		(Type::SameAs<std::remove_cvref_t<T>, wchar_t> && Type::SameAs<Char, wchar_t>) ||
+		Type::ConvertibleTo<std::remove_cvref_t<T>, std::basic_string_view<Char>> ||
+		Type::FloatingPoint<std::remove_cvref_t<T>> ||
+		Type::Integral<std::remove_cvref_t<T>>;
+
+	/**
 	 * @brief Render one argument when it does not need an owned-string conversion.
 	 * @tparam Char `char` or `wchar_t`.
 	 * @tparam T Argument type, including references.
