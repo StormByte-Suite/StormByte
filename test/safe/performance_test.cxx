@@ -287,6 +287,8 @@ void TouchTextPipeline() {
 	count = count - 3;
 	(void)(count == 87);
 	(void)static_cast<String>(ByteSize{512}).size();
+	(void)String::ReplaceToken("n={} {:016x}", Size{40}, ByteSize{512}).size();
+	(void)WString::ReplaceToken(L"n={}", ByteSize{512}).size();
 	(void)static_cast<String>(ByteSize::KiB(Size{2})).size();
 	(void)static_cast<WString>(ByteSize::MiB(Size{3})).size();
 	(void)static_cast<String>(ByteSize::GiB(Size{1})).size();

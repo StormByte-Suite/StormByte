@@ -610,7 +610,7 @@ namespace StormByte {
 				/**
 				 * @brief Copy @p text with each field replaced, in order, by one argument.
 				 * @tparam Args Text, a bool, a number, a pointer, or a type that converts to `std::wstring` or `WString`.
-				 * A view is not copied. A bool is `true` or `false`. A `wchar_t*` is text. Any other raw pointer is its address (`0x` and hex). `Safe::Unique` and `Safe::Shared` print the address of the object they hold, or `0x0` when empty. A number with a bare `{}` uses `std::to_wstring`. A field may be `{:[0][width][.precision][type]}` with type `d`, `f`, `g`, `G`, `x` or `X`.
+				 * A view is not copied. A bool is `true` or `false`. A `wchar_t*` is text. Any other raw pointer is its address (`0x` and hex). `Safe::Unique` and `Safe::Shared` print the address of the object they hold, or `0x0` when empty. `Size` and `ByteSize` use their wide text conversion for `{}` and their integer count for a numeric field. A number with a bare `{}` uses `std::to_wstring`. A field may be `{:[0][width][.precision][type]}` with type `d`, `f`, `g`, `G`, `x` or `X`.
 				 * @param text Pattern. A long pattern is not stored; only the result is owned.
 				 * @param args Replacements. At least one. Extra arguments are ignored. A leftover field stays. A brace run that is not a supported field stays literal and does not consume an argument.
 				 * @return New Base-owned string. No field yields an owned copy of @p text.

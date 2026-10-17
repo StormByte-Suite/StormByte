@@ -37,6 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/byte_size.hxx>
 #include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/safe/wstring.hxx>
@@ -459,6 +460,11 @@ int test_replace_token_specs() {
 	ASSERT_EQUAL(L"01:02.003", Safe::WString::ReplaceToken(L"{:02}:{:02}.{:03}", 1, 2, 3));
 	ASSERT_EQUAL(L"000000000000002a", Safe::WString::ReplaceToken(L"{:016x}", 0x2au));
 	ASSERT_EQUAL(L"keep {:.2s}", Safe::WString::ReplaceToken(L"keep {:.2s}", 1));
+	ASSERT_EQUAL(L"n=12", Safe::WString::ReplaceToken(L"n={}", Size{12}));
+	ASSERT_EQUAL(L"n=12 B", Safe::WString::ReplaceToken(L"n={}", ByteSize{12}));
+	ASSERT_EQUAL(L"n=1.50 KiB", Safe::WString::ReplaceToken(L"n={}", ByteSize{1536}));
+	ASSERT_EQUAL(L"000000000000002a", Safe::WString::ReplaceToken(L"{:016x}", ByteSize{0x2a}));
+	ASSERT_EQUAL(L"03", Safe::WString::ReplaceToken(L"{:02}", Size{3}));
 
 	int object = 0;
 	ASSERT_EQUAL(widen(Safe::String::ReplaceToken("{}", &object)), Safe::WString::ReplaceToken(L"{}", &object));

@@ -37,6 +37,7 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR LicenseRef-StormByte-Commercial
  */
 
+#include <StormByte/byte_size.hxx>
 #include <StormByte/safe/exception.hxx>
 #include <StormByte/safe/string.hxx>
 #include <StormByte/safe/wstring.hxx>
@@ -526,7 +527,11 @@ int test_replace_token_specs() {
 	ASSERT_EQUAL(std::format("{}:{:02}:{:02}.{:03}", 1, 2, 3, 4), std::string(Safe::String::ReplaceToken("{}:{:02}:{:02}.{:03}", 1, 2, 3, 4)));
 	ASSERT_EQUAL("keep {:.2s}", Safe::String::ReplaceToken("keep {:.2s}", 1));
 	ASSERT_EQUAL("n=12", Safe::String::ReplaceToken("n={}", Size{12}));
+	ASSERT_EQUAL("n=12 B", Safe::String::ReplaceToken("n={}", ByteSize{12}));
+	ASSERT_EQUAL("n=1.50 KiB", Safe::String::ReplaceToken("n={}", ByteSize{1536}));
 	ASSERT_EQUAL(std::format("{:016x}", std::uint64_t{0x2a}), std::string(Safe::String::ReplaceToken("{:016x}", Size{0x2a})));
+	ASSERT_EQUAL(std::format("{:02}", 3), std::string(Safe::String::ReplaceToken("{:02}", ByteSize{3})));
+	ASSERT_EQUAL(std::format("{:.0f}", 12.0), std::string(Safe::String::ReplaceToken("{:.0f}", Size{12})));
 
 	int object = 0;
 	int* raw = &object;

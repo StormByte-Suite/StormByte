@@ -252,7 +252,7 @@ namespace StormByte::Safe {
 	 * @tparam Char `char` or `wchar_t`.
 	 * @tparam T Argument type, references included.
 	 *
-	 * A number, a bool, a pointer and a view are in this set. `Size` is not: a bare `{}` still uses its string conversion.
+	 * A number, a bool, a pointer, a view, `Size` and `ByteSize` are in this set.
 	 */
 	template<class Char, class T>
 	concept ReplaceTokenBuiltin =
@@ -264,7 +264,7 @@ namespace StormByte::Safe {
 		(Type::SameAs<std::remove_cvref_t<T>, wchar_t> && Type::SameAs<Char, wchar_t>) ||
 		Type::ConvertibleTo<std::remove_cvref_t<T>, std::basic_string_view<Char>> ||
 		Type::FloatingPoint<std::remove_cvref_t<T>> ||
-		Type::Integral<std::remove_cvref_t<T>>;
+		Type::Numeral<std::remove_cvref_t<T>>;
 
 	/**
 	 * @brief Render one argument when it does not need an owned-string conversion.
@@ -336,6 +336,15 @@ namespace StormByte::Safe {
 				AssignAscii(out, FormatFloatAscii(static_cast<double>(value), spec));
 			else
 				AssignAscii(out, FormatIntegerAscii(value, spec));
+			return true;
+		} else if constexpr (Type::Numeral<Bare>) {
+			const auto bits = static_cast<std::uint64_t>(std::forward<T>(value));
+			if (spec.IsDefault())
+				return false;
+			if (spec.type == 'f' || spec.type == 'g' || spec.type == 'G')
+				AssignAscii(out, FormatFloatAscii(static_cast<double>(bits), spec));
+			else
+				AssignAscii(out, FormatIntegerAscii(bits, spec));
 			return true;
 		} else if constexpr (Type::ExplicitlyConvertibleTo<Bare, std::uint64_t>) {
 			if (spec.IsDefault())
