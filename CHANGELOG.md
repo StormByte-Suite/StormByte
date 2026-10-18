@@ -22,13 +22,9 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
-### Changed
-
-- CI builds with `ENABLE_LTO=ON`, `ENABLE_PGO=OFF` and `ENABLE_TEST=ON`, then runs ctest. Profile-guided optimization stays on the release workflow.
-
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD
 
-## [2.1.0] - 2026-10-17
+## [2.1.0] - 2026-10-18
 
 ### Added
 
@@ -41,6 +37,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Changed
 
+- CI builds with `ENABLE_LTO=ON`, `ENABLE_PGO=OFF` and `ENABLE_TEST=ON`, then runs ctest. Profile-guided optimization stays on the release workflow.
 - **Breaking**:
   - **Container `size_type` is `Size`.** `Vector`, `Deque`, `List`, `Queue`, `Map`, `Set`, `UnorderedMap`, `UnorderedSet`, `Iterable` and `Binary` no longer use `std::size_t` as `size_type`. Counts convert implicitly to `std::size_t` when indexing memory. `UnorderedMap` keeps its power-of-two mask on `std::size_t`; `Size` has no bitwise operators.
   - **Exception.** Public constructors no longer take `std::format_string`. `Exception`, `Safe::Exception`, `DeserializeError`, `OperationError`, `Base64Error`, `ExpiredWeakPointerError` and `BadVariantAccess` take `std::string_view`. A `Safe::String` converts to that view and is copied; there is no move constructor. A derived class formats through a protected constructor that calls `Safe::String::ReplaceToken`, so it accepts the same fields as that function. A view is used as-is. A number, or anything that converts to a string, is converted inside the template. A throw site that is not a derived constructor builds the body with `ReplaceToken` and copies it in. Indexed arguments, fill characters and presentation types outside `d`, `f`, `g`, `G`, `x` and `X` are not fields.
