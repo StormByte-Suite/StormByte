@@ -44,9 +44,16 @@
 
 using namespace StormByte::Safe;
 
+namespace {
+	constexpr std::align_val_t HeapAlignment{16};
+}
+
 void* Heap::Allocate(std::size_t bytes) {
 	try {
-		return ::operator new(bytes);
+		// Always 16-byte aligned so it matches Safe::String Storage (alignas(16))
+		// after the SSO capacity increase. Plain operator new is not reliable
+		// for alignof(max_align_t) on every musl / libstdc++ combination.
+		return ::operator new(bytes == 0 ? 1 : bytes, HeapAlignment);
 	} catch (const std::bad_alloc&) {
 		throw StormByte::Safe::AllocationError();
 	} catch (...) {
@@ -81,5 +88,6 @@ void Heap::RethrowException() {
 }
 
 void Heap::Free(void* pointer) noexcept {
-	::operator delete(pointer);
+	if (pointer)
+		::operator delete(pointer, HeapAlignment);
 }
