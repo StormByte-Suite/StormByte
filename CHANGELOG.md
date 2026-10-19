@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Fixed
+
+- `FindStormByte` accepts the `Base` component. That name is the installed core library, not `libStormByte-Base`. `find_package(StormByte REQUIRED Base Logger System)` no longer fails with `missing: Base` when StormByte is already installed. The imported targets are `StormByte-Base` and `StormByte::Base`.
+
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD
 
 ## [2.1.0] - 2026-10-19
