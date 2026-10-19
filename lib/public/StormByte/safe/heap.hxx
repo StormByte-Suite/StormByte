@@ -39,6 +39,7 @@
 
 #pragma once
 
+#include <StormByte/size.hxx>
 #include <StormByte/visibility.h>
 
 #include <cstddef>
@@ -68,9 +69,17 @@ namespace StormByte {
 		 */
 		namespace Heap {
 			/**
+			 * @brief Alignment guaranteed by @ref Allocate, in bytes.
+			 *
+			 * Matches @ref String Storage (`alignas(16)`) after the SSO capacity increase.
+			 * Plain `operator new` is not reliable for `alignof(std::max_align_t)` on every musl / libstdc++ combination.
+			 */
+			inline constexpr Size Alignment{16};
+
+			/**
 			 * @brief Allocate @p bytes on Base's heap.
 			 * @param bytes Block size in octets. Zero is forwarded to `operator new`.
-			 * @return Address of the block. Never null.
+			 * @return Address of the block. Never null. Aligned to @ref Alignment.
 			 * @throws AllocationError The allocator cannot satisfy the request. `std::bad_alloc` is not propagated.
 			 * @throws Exception A StormByte exception already in flight is rethrown unchanged.
 			 * @throws OperationError A foreign exception is translated. If that translation cannot allocate, @ref AllocationError is thrown instead.
