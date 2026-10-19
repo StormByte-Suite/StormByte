@@ -67,13 +67,13 @@ int test_allocate_and_free() {
 }
 
 int test_allocate_fundamental_alignment() {
-	// 16 matches Safe::String Storage (alignas(16)) after the SSO capacity increase.
-	constexpr std::size_t kAlignment = 16;
-	for (std::size_t size: {std::size_t{1}, std::size_t{16}, std::size_t{257}}) {
+	// Matches Safe::String Storage (alignas(16)) after the SSO capacity increase.
+	const std::size_t alignment = static_cast<std::size_t>(Safe::Heap::Alignment);
+	for (std::size_t size: {std::size_t{1}, alignment, std::size_t{257}}) {
 		std::unique_ptr<void, decltype(&Safe::Heap::Free)> owned(Safe::Heap::Allocate(size), Safe::Heap::Free);
 		void* block = owned.get();
 		ASSERT_NOT_NULL(block);
-		ASSERT_EQUAL(std::uintptr_t{0}, reinterpret_cast<std::uintptr_t>(block) % kAlignment);
+		ASSERT_EQUAL(std::uintptr_t{0}, reinterpret_cast<std::uintptr_t>(block) % alignment);
 		auto* bytes = static_cast<std::uint8_t*>(block);
 		for (std::size_t index = 0; index < size; ++index)
 			bytes[index] = static_cast<std::uint8_t>(index % 251);
