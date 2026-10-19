@@ -21,11 +21,6 @@ If you landed here from a release link and have not read the tree:
 - Since 2.0.0 license changed: original source in this repository is dual-licensed, LGPL v3 or later **or** a commercial license from the copyright holder. The grant does not cover other StormByte modules or `thirdparty/`. [LICENSE](https://github.com/StormBytePP/StormByte/blob/master/LICENSE)
 
 ## [Unreleased]
-
-### Fixed
-
-- `FindStormByte` accepts the `Base` component. That name is the installed core library, not `libStormByte-Base`. `find_package(StormByte REQUIRED Base Logger System)` no longer fails with `missing: Base` when StormByte is already installed. The imported targets are `StormByte-Base` and `StormByte::Base`.
-
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD
 
 ## [2.1.0] - 2026-10-19
@@ -53,6 +48,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 
+- `FindStormByte` accepts the `Base` component. That name is the installed core library, not `libStormByte-Base`. `find_package(StormByte REQUIRED Base Logger System)` no longer fails with `missing: Base` when StormByte is already installed. The imported targets are `StormByte-Base` and `StormByte::Base`.
 - `-stdlib=libc++` and `-stdlib=libstdc++` do not count as custom C++ flags. If either is the only extra flag, Release still gets `-O2` and the CPU baseline.
 - `Safe::Deque::back` on an empty deque throws `OutOfBoundsError`. It used to evaluate `size - 1` first, and `Size` asserts instead of wrapping when the count would go negative.
 - `Safe::Thread` starts a UNIX execution with an 8 MiB stack. `std::thread` left the size to the libc, and musl's 128 KiB default overflowed when libaom ran its first encoder worker on that execution. Windows is unchanged. `ThreadTests` walks a megabyte of stack on UNIX; a 128 KiB stack dies there.
