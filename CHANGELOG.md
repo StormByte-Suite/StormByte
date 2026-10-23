@@ -27,6 +27,10 @@ If you landed here from a release link and have not read the tree:
 
 The API is source compatible, but the `Safe::Binary` layout changed (it now has a vtable): modules built against 2.1.0 must be rebuilt.
 
+### Fixed
+
+- `StringTests` and `WStringTests` use runtime format validation for dynamic width and precision with Clang and libstdc++ 15 in C++26 mode (GCC PR127220). Other toolchains retain compile-time validation; the formatters and their runtime behavior are unchanged.
+
 ### Added
 
 - `Safe::SecureBinary` (`StormByte/safe/secure_binary.hxx`) derives from `Safe::Binary` and has the same API. Every byte it drops is zeroed before it goes: erased, popped and truncated bytes, the previous contents on `assign` and on copy or move assignment, the old block when the storage grows, shrinks or is reserved, and the whole block in the destructor. The zeroing uses a primitive the optimizer may not drop: `SecureZeroMemory` on Windows, `explicit_bzero` (glibc 2.25+, musl, FreeBSD, OpenBSD), `explicit_memset` (NetBSD) or `memset_s` (macOS). CMake detects which one exists when configuring. If none does, a volatile loop with a compiler barrier is used. Equality runs in constant time whenever one side is a `SecureBinary`, including `Binary == SecureBinary` and calls through a `const Binary&`. Sizes are compared first and are not treated as secret. `operator<=>` is not constant time. An rvalue `std::vector<std::byte>` is zeroed before it is cleared.

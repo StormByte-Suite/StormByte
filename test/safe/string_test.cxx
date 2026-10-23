@@ -390,7 +390,14 @@ int test_format_as_text() {
 	ASSERT_EQUAL(std::string("hola mundo__"), std::format("{:_<12}", text));
 	ASSERT_EQUAL(std::string("__hola mundo"), std::format("{:_>12}", text));
 	ASSERT_EQUAL(std::string("_hola mundo_"), std::format("{:_^12s}", text));
+#if defined(CLANG) && defined(LIBSTDCXX) && _GLIBCXX_RELEASE == 15 && __cplusplus > 202302L
+	// GCC PR127220: Clang cannot constant-evaluate libstdc++ 15's dynamic spec checks.
+	int width = 6;
+	int precision = 4;
+	ASSERT_EQUAL(std::string("__hola"), std::vformat("{:_>{}.{}s}", std::make_format_args(text, width, precision)));
+#else
 	ASSERT_EQUAL(std::string("__hola"), std::format("{:_>{}.{}s}", text, 6, 4));
+#endif
 	ASSERT_EQUAL(std::string(), std::format("{}", Safe::String{}));
 	const Safe::String long_text("This text is longer than the short string buffer.");
 	ASSERT_EQUAL(std::string(std::string_view(long_text)), std::format("{}", long_text));

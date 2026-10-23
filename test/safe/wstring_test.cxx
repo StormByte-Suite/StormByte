@@ -337,7 +337,14 @@ int test_format_as_text() {
 	ASSERT_TRUE(std::format(L"{:_<12}", text) == L"hola mundo__");
 	ASSERT_TRUE(std::format(L"{:_>12}", text) == L"__hola mundo");
 	ASSERT_TRUE(std::format(L"{:_^12s}", text) == L"_hola mundo_");
+#if defined(CLANG) && defined(LIBSTDCXX) && _GLIBCXX_RELEASE == 15 && __cplusplus > 202302L
+	// GCC PR127220: Clang cannot constant-evaluate libstdc++ 15's dynamic spec checks.
+	int width = 6;
+	int precision = 4;
+	ASSERT_TRUE(std::vformat(L"{:_>{}.{}s}", std::make_wformat_args(text, width, precision)) == L"__hola");
+#else
 	ASSERT_TRUE(std::format(L"{:_>{}.{}s}", text, 6, 4) == L"__hola");
+#endif
 	ASSERT_TRUE(std::format(L"{}", Safe::WString{}).empty());
 	const Safe::WString long_text(L"This text is longer than the short wide string buffer.");
 	ASSERT_TRUE(std::format(L"{}", long_text) == std::wstring_view(long_text));
