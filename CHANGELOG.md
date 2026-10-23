@@ -21,6 +21,24 @@ If you landed here from a release link and have not read the tree:
 - Since 2.0.0 license changed: original source in this repository is dual-licensed, LGPL v3 or later **or** a commercial license from the copyright holder. The grant does not cover other StormByte modules or `thirdparty/`. [LICENSE](https://github.com/StormBytePP/StormByte/blob/master/LICENSE)
 
 ## [Unreleased]
+
+Targets 2.2.0. The API is source compatible, but the `Safe::Binary` layout changed (it now has a vtable): modules built against 2.1.0 must be rebuilt.
+
+### Added
+
+- `Safe::SecureBinary` (`StormByte/safe/secure_binary.hxx`) derives from `Safe::Binary` and has the same API. Every byte it drops is zeroed before it goes: erased, popped and truncated bytes, the previous contents on `assign` and on copy or move assignment, the old block when the storage grows, shrinks or is reserved, and the whole block in the destructor. The zeroing uses a primitive the optimizer may not drop: `SecureZeroMemory` on Windows, `explicit_bzero` (glibc 2.25+, musl, FreeBSD, OpenBSD), `explicit_memset` (NetBSD) or `memset_s` (macOS). CMake detects which one exists when configuring. If none does, a volatile loop with a compiler barrier is used. Equality runs in constant time whenever one side is a `SecureBinary`, including `Binary == SecureBinary` and calls through a `const Binary&`. Sizes are compared first and are not treated as secret. `operator<=>` is not constant time. An rvalue `std::vector<std::byte>` is zeroed before it is cleared.
+  - Each block is locked in memory (`mlock`, or `VirtualLock` on Windows) so it is not written to swap. This is best effort: past `RLIMIT_MEMLOCK` or the Windows minimum working set the block stays unlocked and nothing fails. Locks are counted per page, so blocks that share a page do not unlock each other.
+  - Not provided: `explicit operator std::vector<std::byte>`, `HexDump()` and `HexDump(Size)` are deleted, and `Serializable<Safe::SecureBinary>` fails a `static_assert`. Each would copy the secret into memory that is never wiped. `span()` and the implicit `std::span` conversion remain.
+  - Not covered: a move, `swap` or `append(&&)` between a `SecureBinary` and a plain `Binary` hands the block over as is, so a secret moved into a `Binary` is no longer wiped or locked. A `HexDump` through a `const Binary&` still works.
+  - `Type::IsSafe` and `Type::IsSafeValue` recognize `Safe::SecureBinary`.
+- `platform.h` identifies the C library (`GLIBC`, `MUSL`, `UCLIBC`, `BIONIC`, `NEWLIB`, `UCRT`, `MSVCRT`, `BSD_LIBC`) and, in C++, the standard library (`LIBSTDCXX`, `LIBCXX`, `MSVC_STL`). musl has no identifying macro, so `MUSL` means a Linux libc that is none of the others. `platform.h` now includes `<limits.h>`, and `<version>` in C++.
+
+### Changed
+
+- **ABI break**: `Safe::Binary` is no longer `final`. It has a virtual destructor and four protected hooks, all doing nothing by default. `Discard(std::span<std::byte>)` receives every byte range the sequence is about to drop or release. `Acquire` and `Release` receive every allocated block that enters or leaves the object through reallocation, move or `swap`. `ConstantTimeCompare()` selects constant-time equality. The protected `Wipe` and `Storage` helpers are available to derived classes.
+- `Safe::Binary` manages its capacity itself instead of letting `Safe::Vector` reallocate, so every reallocation reaches `Discard`. Growth is still geometric. `assign`, `insert` and `append` no longer build a temporary `Vector`; a range that aliases the sequence is remapped in place. `insert` from a single-pass input iterator inserts byte by byte.
+- `Safe::Binary(R&&)` takes the block of any rvalue derived from `Binary`, not only of `Binary` itself.
+
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD
 
 ## [2.1.0] - 2026-10-19

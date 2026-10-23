@@ -23,6 +23,20 @@ set_target_properties(StormByte PROPERTIES
 
 if(WIN32)
 	target_link_libraries(StormByte PRIVATE Bcrypt.lib)
+else()
+	# Zeroing primitives the optimizer may not elide, used by Safe::Binary::Wipe.
+	# Probed rather than keyed on libc macros: musl defines none.
+	include(CheckCXXSymbolExists)
+	check_cxx_symbol_exists(explicit_bzero "string.h;strings.h" STORMBYTE_HAVE_EXPLICIT_BZERO)
+	check_cxx_symbol_exists(explicit_memset "string.h" STORMBYTE_HAVE_EXPLICIT_MEMSET)
+	set(CMAKE_REQUIRED_DEFINITIONS -D__STDC_WANT_LIB_EXT1__=1)
+	check_cxx_symbol_exists(memset_s "string.h" STORMBYTE_HAVE_MEMSET_S)
+	unset(CMAKE_REQUIRED_DEFINITIONS)
+	foreach(primitive EXPLICIT_BZERO EXPLICIT_MEMSET MEMSET_S)
+		if(STORMBYTE_HAVE_${primitive})
+			target_compile_definitions(StormByte PRIVATE STORMBYTE_HAVE_${primitive})
+		endif()
+	endforeach()
 endif()
 
 if(MSVC)

@@ -95,6 +95,10 @@ namespace StormByte {
 		 */
 		class Binary;
 		/**
+		 * @brief Forward declaration of Base-owned binary storage that zeroes what it drops.
+		 */
+		class SecureBinary;
+		/**
 		 * @brief Forward declaration of Base-owned UTF-8 text.
 		 */
 		class String;
@@ -151,6 +155,10 @@ namespace StormByte {
 		 * @brief Recognizes Base-owned binary storage.
 		 */
 		template<> struct IsSafe<Safe::Binary>: std::true_type {};
+		/**
+		 * @brief Recognizes Base-owned binary storage that zeroes what it drops.
+		 */
+		template<> struct IsSafe<Safe::SecureBinary>: std::true_type {};
 		/**
 		 * @brief Recognizes Base-owned UTF-8 text.
 		 */
@@ -342,6 +350,10 @@ namespace StormByte {
 		 * @brief Admits Base-owned binary storage.
 		 */
 		template<> struct IsSafeValue<Safe::Binary>: std::true_type {};
+		/**
+		 * @brief Admits Base-owned binary storage that zeroes what it drops.
+		 */
+		template<> struct IsSafeValue<Safe::SecureBinary>: std::true_type {};
 		/**
 		 * @brief Admits Base-owned UTF-8 text.
 		 */

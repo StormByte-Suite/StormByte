@@ -451,6 +451,9 @@ namespace StormByte {
 	class Serializable {
 		using DecayedT = std::remove_cvref_t<T>;	///< Value type stored by this wrapper.
 
+		static_assert(!Type::SameAs<DecayedT, Safe::SecureBinary>,
+			"Safe::SecureBinary is not serializable: the blob would hold the secret in memory that is never wiped");
+
 		public:
 			/**
 			 * @brief Binds @p data for a later @ref StormByte::Serializable::Serialize.

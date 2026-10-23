@@ -58,6 +58,7 @@ Public Base APIs do not take or return a raw `std::size_t` / `std::uint64_t` whe
     - [STORMBYTE_DECLARE_MAYBE_SAFE](#stormbyte_declare_maybe_safe)
     - [Text](#text)
     - [Binary](#binary)
+    - [SecureBinary](#securebinary)
     - [Collections](#collections)
       - [Vector](#vector)
       - [List](#list)
@@ -367,6 +368,33 @@ int main() {
 	if (loaded)
 		std::cout << (loaded.value() == back) << std::endl;
 }
+```
+
+`Binary` can be derived. Every byte range it is about to drop or release goes first to the protected virtual `Discard(std::span<std::byte>)`: erased, popped or truncated bytes, the previous contents on assign, and the whole old block when the storage is reallocated. `Binary` reallocates itself, never inside `Vector`, so no path skips the hook. The default does nothing. Every allocated block that enters or leaves the object, by reallocation, move or `swap`, goes through the protected virtuals `Acquire` and `Release`. Each block is released once by its owner. Neither hook is called from the constructors or the destructor, where the call would not reach the derived class: a derived class handles its own destructor.
+
+#### SecureBinary
+
+`Safe::SecureBinary` (`StormByte/safe/secure_binary.hxx`) is a `Binary` for keys, passwords and other secrets, in the spirit of Crypto++ `SecBlock`. It has the same API and passes wherever a `const Binary&` is expected.
+
+Every byte it drops is zeroed before it goes: `erase`, `pop_back`, `clear`, a smaller `resize`, the previous contents on `assign` or assignment, the old block when it grows (`append`, `insert`, `push_back`, `reserve`) or shrinks (`shrink_to_fit`), and the whole block in the destructor. The zeroing cannot be removed by the optimizer. It uses `explicit_bzero` (glibc, musl, FreeBSD, OpenBSD), `explicit_memset` (NetBSD), `memset_s` (macOS) or `SecureZeroMemory` (Windows) when available, and a volatile loop otherwise.
+
+Each block is also locked in memory (`mlock`, or `VirtualLock` on Windows) so it is not written to swap. This is best effort: past the process limit (`RLIMIT_MEMLOCK`, the Windows minimum working set) the block stays unlocked and everything else works the same. Pages shared by several blocks are counted and stay locked until the last of them is released. Equality is constant time when either side is a `SecureBinary`, also through a `const Binary&`. Sizes are compared first and are not secret. `<=>` is not constant time.
+
+Nothing that would copy the secret into memory that is never wiped is offered: `explicit operator std::vector<std::byte>` and `HexDump` are deleted, and `Serializable<Safe::SecureBinary>` does not compile. Use `span()` to read the bytes. A copy you make from that view is yours to wipe.
+
+Limits: moving, swapping or `append(&&)` between a `SecureBinary` and a plain `Binary` hands the block over as is, so a secret moved into a `Binary` is no longer wiped or locked. Calling `HexDump` through a `const Binary&` still prints. Locking does not cover core dumps, hibernation or copies outside the block.
+
+```cpp
+#include <StormByte/safe/secure_binary.hxx>
+
+using namespace StormByte;
+
+bool Check(std::span<const std::byte> typed) {
+	Safe::SecureBinary key{"correct horse battery staple"};
+	key.append(std::span<const std::byte>(typed));	// growth wipes the old block
+	key.resize(ByteSize{28});						// the dropped tail is zeroed
+	return key == typed;							// constant time
+}													// destructor zeroes the block
 ```
 
 #### Collections

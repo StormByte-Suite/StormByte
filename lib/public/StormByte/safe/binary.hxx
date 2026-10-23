@@ -73,8 +73,10 @@ namespace StormByte {
 		 * There is no separate backend. Bytes live in @ref Vector of @c std::byte, allocated with @ref Heap::Allocate. Names match @c std::vector. Length, capacity and offsets are @ref ByteSize. A hex-dump column count is @ref Size.
 		 *
 		 * A conversion to @c std::vector copies into the caller. It does not steal the Base pointer. An rvalue overload empties this object after the copy.
+		 *
+		 * The class can be derived. Every byte the sequence drops is first passed to @ref Discard: erased or popped bytes, the shrunk tail, previous contents on assign, and the whole old block when the storage is reallocated. Every allocated block that enters or leaves the object, by reallocation, move or @ref swap, goes through @ref Acquire and @ref Release. @ref SecureBinary overrides them to zero the bytes and lock the pages. A plain Binary does nothing there.
 		 */
-		class STORMBYTE_PUBLIC Binary final {
+		class STORMBYTE_PUBLIC Binary {
 			public:
 				using value_type = std::byte; ///< Element type.
 				using size_type = Size;	///< Count typedef. @ref size() returns @ref ByteSize.
@@ -176,15 +178,16 @@ namespace StormByte {
 				Binary(const Binary& other);
 
 				/**
-				 * @brief Move construct. @p other is left empty.
+				 * @brief Move construct. @p other is left empty and gets @ref Release for its block. @ref Acquire is not called on this object: a derived constructor that keeps the block calls it, or takes the block by move assignment in its body.
 				 * @param other Source sequence.
 				 */
 				Binary(Binary&& other) noexcept;
 
 				/**
 				 * @brief Destroy the sequence on Base's heap.
+				 * @note @ref Discard and @ref Release are not called here: a derived class wipes and releases its own storage in its destructor.
 				 */
-				~Binary() noexcept;
+				virtual ~Binary() noexcept;
 
 				/**
 				 * @brief Copy assign.
@@ -195,6 +198,8 @@ namespace StormByte {
 
 				/**
 				 * @brief Move assign. @p other is left empty.
+				 *
+				 * The previous block of this object goes through @ref Discard before it is released. The storage of @p other is taken as is, even when @p other is a @ref SecureBinary.
 				 * @param other Source sequence.
 				 * @return This sequence.
 				 */
@@ -209,6 +214,8 @@ namespace StormByte {
 
 				/**
 				 * @brief Equality of byte contents.
+				 *
+				 * Runs in time independent of the contents when either side reports @ref ConstantTimeCompare. Sizes are compared first and are not secret.
 				 * @param other Other sequence.
 				 * @return Whether sizes and bytes match.
 				 */
@@ -231,7 +238,7 @@ namespace StormByte {
 				}
 
 				/**
-				 * @brief Equality with a byte span.
+				 * @brief Equality with a byte span. Constant time when @ref ConstantTimeCompare is true.
 				 * @param bytes View to compare.
 				 * @return Whether sizes and bytes match.
 				 */
@@ -653,6 +660,8 @@ namespace StormByte {
 
 				/**
 				 * @brief Exchange storage with @p other.
+				 *
+				 * The blocks are swapped, not copied. Swapping a @ref SecureBinary with a plain Binary moves the secret into the plain object.
 				 * @param other Other sequence.
 				 */
 				void swap(Binary& other) noexcept;
@@ -670,8 +679,77 @@ namespace StormByte {
 				 */
 				String HexDump(Size columns) const;
 
+			protected:
+				/**
+				 * @brief Called with every byte range this sequence is about to drop or release.
+				 *
+				 * Default does nothing. Not called from constructors or from the destructor, where the call would not reach the derived class.
+				 * @param bytes Bytes to dispose of. They stay owned by this object.
+				 */
+				virtual void Discard(std::span<std::byte> bytes) noexcept;
+
+				/**
+				 * @brief Whether equality must not depend on where the bytes differ.
+				 * @return False here. @ref SecureBinary returns true.
+				 */
+				virtual bool ConstantTimeCompare() const noexcept;
+
+				/**
+				 * @brief Called when an allocated block becomes owned by this object: a new block on growth or shrinking, or a block taken from another sequence by move assignment or @ref swap.
+				 *
+				 * Called before the bytes are copied in. Every block passed here is later passed once to @ref Release, unless this object is destroyed while owning it. Default does nothing. Not called from constructors: a derived constructor that takes a block from its base calls it itself.
+				 * @param block Whole block, including unused capacity.
+				 */
+				virtual void Acquire(std::span<std::byte> block) noexcept;
+
+				/**
+				 * @brief Called when a block stops being owned by this object: the old block after a reallocation, or a block handed to another sequence by a move or @ref swap.
+				 *
+				 * The block may still be alive and owned by the other sequence. Called after @ref Discard. Default does nothing. Not called from the destructor: a derived destructor releases its own block.
+				 * @param block Whole block, as passed to @ref Acquire.
+				 */
+				virtual void Release(std::span<std::byte> block) noexcept;
+
+				/**
+				 * @brief Zero @p bytes. The compiler cannot drop the writes.
+				 * @param bytes Bytes to zero.
+				 */
+				static void Wipe(std::span<std::byte> bytes) noexcept;
+
+				/**
+				 * @brief The whole allocated block, including unused capacity.
+				 * @return Span over @ref capacity() bytes. Empty when nothing is allocated.
+				 */
+				std::span<std::byte> Storage() noexcept;
+
 			private:
 				Vector<std::byte> m_bytes; ///< Owned bytes.
+
+				/**
+				 * @brief Move the bytes into a block of exactly @p new_cap bytes. The old block goes through @ref Discard.
+				 * @param new_cap New capacity. Not less than @ref size().
+				 */
+				void Reallocate(std::size_t new_cap);
+
+				/**
+				 * @brief Ensure room for @p required bytes. Grows geometrically.
+				 * @param required Needed capacity.
+				 */
+				void Grow(std::size_t required);
+
+				/**
+				 * @brief Set the size without reallocating behind @ref Discard. New bytes are zero. Dropped bytes go through @ref Discard.
+				 * @param new_size New size.
+				 */
+				void SetSize(std::size_t new_size);
+
+				/**
+				 * @brief Open @p count zeroed bytes at @p offset, shifting the tail right.
+				 * @param offset Gap position.
+				 * @param count Gap size.
+				 * @return Pointer to the gap.
+				 */
+				std::byte* OpenGap(std::size_t offset, std::size_t count);
 		};
 
 		/**
@@ -724,8 +802,8 @@ namespace StormByte {
 		template<Type::ByteInputRange R>
 		Binary::Binary(R&& range): Binary() {
 			using U = std::remove_cvref_t<R>;
-			if constexpr (Type::SameAs<U, Binary> && !Type::LvalueReference<R>) {
-				*this = std::move(range);
+			if constexpr (Type::DerivedFrom<U, Binary> && !Type::LvalueReference<R>) {
+				*this = std::move(static_cast<Binary&>(range));
 			} else {
 				if constexpr (requires { std::size(range); })
 					reserve(ByteSize{std::size(range)});
@@ -749,10 +827,22 @@ namespace StormByte {
 
 		template<typename InputIt>
 		Binary::iterator Binary::insert(const_iterator pos, InputIt first, InputIt last) {
-			Vector<std::byte> copied;
-			for (; first != last; ++first)
-				copied.push_back(static_cast<std::byte>(*first));
-			return insert(pos, std::span<const std::byte>(copied.data(), static_cast<std::size_t>(copied.size())));
+			auto offset = static_cast<std::size_t>(pos - cbegin());
+			if constexpr (std::forward_iterator<InputIt>) {
+				const auto count = static_cast<std::size_t>(std::distance(first, last));
+				if (count == 0)
+					return begin() + offset;
+				std::byte* gap = OpenGap(offset, count);
+				for (std::size_t index = 0; first != last; ++first, ++index)
+					gap[index] = static_cast<std::byte>(*first);
+				return gap;
+			} else {
+				// Single-pass input: one byte at a time, so no unwiped scratch copy exists.
+				const std::size_t start = offset;
+				for (; first != last; ++first, ++offset)
+					insert(cbegin() + offset, static_cast<std::byte>(*first));
+				return begin() + start;
+			}
 		}
 	}
 }
