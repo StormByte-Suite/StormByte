@@ -46,6 +46,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -56,6 +57,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -67,6 +69,28 @@
 using namespace StormByte;
 
 namespace {
+	// Constructed before the page registry, populated in main, released during static teardown.
+	Safe::SecureBinary StaticSecret;
+
+	class LateSecureUse {
+		public:
+			LateSecureUse() = default;
+			LateSecureUse(const LateSecureUse&) = delete;
+			LateSecureUse(LateSecureUse&&) = delete;
+
+			~LateSecureUse() noexcept {
+				StaticSecret = Safe::SecureBinary{};
+				const Safe::SecureBinary late(ByteSize{8192}, std::byte{0x5A});
+				if (late.size() != ByteSize{8192} || late.front() != std::byte{0x5A})
+					std::abort();
+			}
+
+			LateSecureUse& operator=(const LateSecureUse&) = delete;
+			LateSecureUse& operator=(LateSecureUse&&) = delete;
+	};
+
+	LateSecureUse LateSecret;
+
 	// Records every Discard call, then wipes like SecureBinary does.
 	class SpyBinary final: public Safe::Binary {
 		public:
@@ -692,6 +716,26 @@ int test_secure_api_surface() {
 	RETURN_TEST(0);
 }
 
+int test_secure_page_registry_reuse_and_threads() {
+	for (unsigned cycle = 0; cycle < 100; ++cycle) {
+		const Safe::SecureBinary secret(ByteSize{16}, std::byte{0x5A});
+		ASSERT_EQUAL(std::byte{0x5A}, secret.front());
+	}
+	std::vector<std::thread> threads;
+	for (unsigned worker = 0; worker < 4; ++worker)
+		threads.emplace_back([] {
+			for (unsigned cycle = 0; cycle < 100; ++cycle) {
+				Safe::SecureBinary secret(ByteSize{8192}, std::byte{0xA5});
+				secret.reserve(ByteSize{16384});
+				secret.shrink_to_fit();
+			}
+		});
+	for (auto& thread : threads)
+		thread.join();
+	StaticSecret = Safe::SecureBinary(ByteSize{32}, std::byte{0x42});
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -737,6 +781,7 @@ int main() {
 	result += test_secure_cross_type_moves_hand_over_the_block();
 	result += test_secure_insert_ranges_and_aliasing();
 	result += test_secure_api_surface();
+	result += test_secure_page_registry_reuse_and_threads();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

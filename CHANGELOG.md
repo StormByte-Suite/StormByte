@@ -21,6 +21,11 @@ If you landed here from a release link and have not read the tree:
 - Since 2.0.0 license changed: original source in this repository is dual-licensed, LGPL v3 or later **or** a commercial license from the copyright holder. The grant does not cover other StormByte modules or `thirdparty/`. [LICENSE](https://github.com/StormBytePP/StormByte/blob/master/LICENSE)
 
 ## [Unreleased]
+
+### Fixed
+
+- `Safe::SecureBinary` page-lock bookkeeping no longer retains heap memory after the last locked block is released. The registry lives in static storage, and its empty hash table releases its buckets. Late static destructors can still acquire and release secure blocks without accessing a destroyed registry.
+
 [Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.2.0...HEAD
 
 ## [2.2.0] - 2026-10-23

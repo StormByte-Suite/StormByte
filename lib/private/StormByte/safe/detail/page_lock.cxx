@@ -41,6 +41,7 @@
 #include <StormByte/safe/detail/page_lock.hxx>
 
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 
@@ -61,9 +62,10 @@ namespace StormByte::Safe::Detail {
 			std::unordered_map<std::uintptr_t, std::size_t> holders; ///< Page address to number of blocks holding it.
 		};
 
-		// Leaked on purpose: static blocks may still release pages during static destruction.
+		// Static storage has no teardown: late static destructors may still acquire or release pages.
 		Registry& Pages() noexcept {
-			static Registry* registry = new Registry;
+			alignas(Registry) static std::byte storage[sizeof(Registry)];
+			static Registry* registry = std::construct_at(reinterpret_cast<Registry*>(storage));
 			return *registry;
 		}
 
@@ -141,6 +143,9 @@ namespace StormByte::Safe::Detail {
 				++run_pages;
 			}
 			flush();
+			// erase() releases nodes but retains buckets; release them when the last holder leaves.
+			if (registry.holders.empty())
+				decltype(registry.holders){}.swap(registry.holders);
 		}
 	}
 
