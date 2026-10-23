@@ -21,8 +21,11 @@ If you landed here from a release link and have not read the tree:
 - Since 2.0.0 license changed: original source in this repository is dual-licensed, LGPL v3 or later **or** a commercial license from the copyright holder. The grant does not cover other StormByte modules or `thirdparty/`. [LICENSE](https://github.com/StormBytePP/StormByte/blob/master/LICENSE)
 
 ## [Unreleased]
+[Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.2.0...HEAD
 
-Targets 2.2.0. The API is source compatible, but the `Safe::Binary` layout changed (it now has a vtable): modules built against 2.1.0 must be rebuilt.
+## [2.2.0] - 2026-10-23
+
+The API is source compatible, but the `Safe::Binary` layout changed (it now has a vtable): modules built against 2.1.0 must be rebuilt.
 
 ### Added
 
@@ -39,7 +42,7 @@ Targets 2.2.0. The API is source compatible, but the `Safe::Binary` layout chang
 - `Safe::Binary` manages its capacity itself instead of letting `Safe::Vector` reallocate, so every reallocation reaches `Discard`. Growth is still geometric. `assign`, `insert` and `append` no longer build a temporary `Vector`; a range that aliases the sequence is remapped in place. `insert` from a single-pass input iterator inserts byte by byte.
 - `Safe::Binary(R&&)` takes the block of any rvalue derived from `Binary`, not only of `Binary` itself.
 
-[Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.1.0...HEAD
+[2.2.0]: https://github.com/StormBytePP/StormByte/compare/2.1.0...2.2.0
 
 ## [2.1.0] - 2026-10-19
 
