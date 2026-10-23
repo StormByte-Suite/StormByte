@@ -34,6 +34,17 @@ if(ENABLE_DOC)
 		"CLANG="
 		"GCC="
 		"MSVC="
+		"GLIBC="
+		"MUSL="
+		"UCLIBC="
+		"BIONIC="
+		"NEWLIB="
+		"UCRT="
+		"MSVCRT="
+		"BSD_LIBC="
+		"LIBSTDCXX="
+		"LIBCXX="
+		"MSVC_STL="
 		"explicit(x):="
 	)
 	set(DOXYGEN_VERBATIM_VARS DOXYGEN_PREDEFINED)

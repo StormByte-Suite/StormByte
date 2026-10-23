@@ -83,6 +83,51 @@
 #endif
 
 // ---------------------------------------------------------------------------
+// C library. <limits.h> is the lightest header that makes each libc announce
+// itself (<features.h>, <sys/cdefs.h>, <_mingw.h>...). musl defines no
+// identifying macro on purpose, so it is what remains on Linux once the
+// others are ruled out.
+// ---------------------------------------------------------------------------
+#include <limits.h>
+
+#if defined(__NEWLIB__)
+    #define NEWLIB              // Cygwin, embedded
+#elif defined(__UCLIBC__)
+    #define UCLIBC              // checked before GLIBC: it also defines __GLIBC__
+#elif defined(__BIONIC__)
+    #define BIONIC              // Android
+#elif defined(__GLIBC__)
+    #define GLIBC
+#elif defined(WINDOWS)
+    #if defined(_UCRT) || (defined(_MSC_VER) && _MSC_VER >= 1900 && !defined(__MINGW32__))
+        #define UCRT            // MSVC since 2015, MinGW-w64 UCRT runtime
+    #else
+        #define MSVCRT          // legacy MinGW runtime
+    #endif
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) \
+    || defined(__OpenBSD__) || defined(__DragonFly__)
+    #define BSD_LIBC
+#elif defined(LINUX)
+    #define MUSL
+#endif
+
+// ---------------------------------------------------------------------------
+// C++ standard library. <version> (C++20) defines each implementation's
+// identifying macro without pulling anything else in.
+// ---------------------------------------------------------------------------
+#if defined(__cplusplus)
+    #include <version>
+
+    #if defined(_LIBCPP_VERSION)
+        #define LIBCXX          // LLVM libc++, checked first: it may sit beside GCC
+    #elif defined(__GLIBCXX__) || defined(_GLIBCXX_RELEASE)
+        #define LIBSTDCXX       // GNU libstdc++
+    #elif defined(_MSVC_STL_VERSION) || defined(_CPPLIB_VER)
+        #define MSVC_STL
+    #endif
+#endif
+
+// ---------------------------------------------------------------------------
 // Force the body into the caller. `inline` alone is only a hint.
 // ---------------------------------------------------------------------------
 #if defined(MSVC)
