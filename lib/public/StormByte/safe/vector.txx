@@ -40,7 +40,9 @@
 #pragma once
 
 #include <algorithm>
+#include <cstring>
 #include <iterator>
+#include <memory>
 #include <new>
 #include <utility>
 
@@ -80,8 +82,15 @@ namespace StormByte {
 		template<Type::SafeValue T>
 		Vector<T>::Vector(const Vector& other): m_data(nullptr), m_size(0), m_capacity(0) {
 			reserve(other.m_size);
-			for (const T& value : other)
-				push_back(value);
+			if constexpr (Type::TriviallyCopyable<T> && Type::TriviallyCopyConstructible<T>) {
+				if (other.m_size != 0)
+					std::memcpy(m_data, other.m_data, static_cast<std::size_t>(other.m_size) * sizeof(T));
+				m_size = other.m_size;
+			}
+			else {
+				for (const T& value : other)
+					push_back(value);
+			}
 		}
 
 		template<Type::SafeValue T>
@@ -424,18 +433,42 @@ namespace StormByte {
 
 		template<Type::SafeValue T>
 		void Vector<T>::assign(size_type count, const T& value) {
+			if (count == 0) {
+				clear();
+				return;
+			}
+			const T copied(value);
 			clear();
 			reserve(count);
-			for (size_type index = 0; index < count; ++index)
-				push_back(value);
+			if constexpr (Type::TriviallyCopyable<T> && Type::TriviallyCopyConstructible<T>) {
+				std::uninitialized_fill_n(m_data, static_cast<std::size_t>(count), copied);
+				m_size = count;
+			}
+			else {
+				for (size_type index = 0; index < count; ++index)
+					push_back(copied);
+			}
 		}
 
 		template<Type::SafeValue T>
 		template<std::input_iterator InputIt>
 		void Vector<T>::assign(InputIt first, InputIt last) {
 			Vector copied;
-			for (; first != last; ++first)
-				copied.push_back(static_cast<T>(*first));
+			if constexpr (Type::ContiguousIterator<InputIt>
+				&& Type::SameAs<std::iter_value_t<InputIt>, T>
+				&& Type::ConvertibleTo<std::iter_reference_t<InputIt>, const T&>
+				&& Type::TriviallyCopyable<T> && Type::TriviallyCopyConstructible<T>) {
+				if (first != last) {
+					const auto count = static_cast<std::size_t>(last - first);
+					copied.reserve(size_type{count});
+					std::memcpy(copied.m_data, std::to_address(first), count * sizeof(T));
+					copied.m_size = size_type{count};
+				}
+			}
+			else {
+				for (; first != last; ++first)
+					copied.push_back(static_cast<T>(*first));
+			}
 			swap(copied);
 		}
 
@@ -455,24 +488,41 @@ namespace StormByte {
 
 		template<Type::SafeValue T>
 		void Vector<T>::resize(size_type count) {
+			if (count == m_size)
+				return;
 			if (count < m_size) {
 				erase(m_data + count, end());
 				return;
 			}
 			reserve(count);
-			while (m_size < count)
-				emplace_back();
+			if constexpr (Type::TriviallyCopyable<T> && Type::TriviallyDefaultConstructible<T>) {
+				std::uninitialized_value_construct_n(m_data + m_size, static_cast<std::size_t>(count - m_size));
+				m_size = count;
+			}
+			else {
+				while (m_size < count)
+					emplace_back();
+			}
 		}
 
 		template<Type::SafeValue T>
 		void Vector<T>::resize(size_type count, const T& value) {
+			if (count == m_size)
+				return;
 			if (count < m_size) {
 				erase(m_data + count, end());
 				return;
 			}
+			const T copied(value);
 			reserve(count);
-			while (m_size < count)
-				push_back(value);
+			if constexpr (Type::TriviallyCopyable<T> && Type::TriviallyCopyConstructible<T>) {
+				std::uninitialized_fill_n(m_data + m_size, static_cast<std::size_t>(count - m_size), copied);
+				m_size = count;
+			}
+			else {
+				while (m_size < count)
+					push_back(copied);
+			}
 		}
 
 		template<Type::SafeValue T>

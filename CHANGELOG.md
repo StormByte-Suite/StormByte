@@ -22,7 +22,26 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
-[Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.2.1...HEAD
+[Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.2.2...HEAD
+
+## [2.2.2] - 2026-10-28
+
+### Fixed
+
+- `Safe::Vector` fill assignment and fill growth retain an element passed by reference before clearing or reallocating its own storage.
+- `Safe::String` and `Safe::WString` preserve self-referencing views during assignment, append growth and `shrink_to_fit`. Previously assignment freed the source before copying it, and append could invalidate its own input during reallocation. Short overlapping assignments use overlap-safe copies.
+- Base64 and string tests retain temporary owners while comparing their values. The Linux secure-page test explicitly skips the kernel lock-count assertion under AddressSanitizer, which intercepts `mlock`/`munlock` without locking pages; the remaining secure-buffer tests still run.
+
+### Changed
+
+- `Safe::Vector` copies trivially copyable elements and matching contiguous ranges in bulk, and initializes trivial growth without per-element `push_back` bookkeeping. This accelerates `Safe::Binary` copies and buffered I/O without changing ownership, layout, zero initialization, or `SecureBinary` discard and page-lock hooks. Nontrivial elements, converting ranges and single-pass input iterators retain their element-wise behavior.
+
+### Added
+
+- Regression coverage for large byte copies, independent storage, self-aliased range assignment, zero/fill growth, empty ranges, volatile and single-pass sources, and nontrivial elements.
+- A shared-library boundary regression exchanges, copies, grows and destroys owned vectors and narrow/wide strings on both sides of a module boundary. On MSVC the fixture uses a static CRT to check that owned storage still belongs to Base rather than the module's CRT.
+
+[2.2.2]: https://github.com/StormBytePP/StormByte/compare/2.2.1...2.2.2
 
 ## [2.2.1] - 2026-10-24
 

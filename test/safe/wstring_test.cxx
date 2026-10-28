@@ -518,8 +518,42 @@ int test_implode_vector_and_queue() {
 	RETURN_TEST(0);
 }
 
+int test_self_views_survive_assign_append_and_shrink() {
+	for (const std::size_t length : {std::size_t{2}, std::size_t{128}}) {
+		const std::wstring expected(length, L'x');
+		Safe::WString text{std::wstring_view{expected}};
+		text.assign(static_cast<std::wstring_view>(text).substr(1));
+		ASSERT_EQUAL(Safe::WString{std::wstring_view{expected}.substr(1)}, text);
+		text.assign(std::wstring_view{expected});
+		text.append(static_cast<std::wstring_view>(text));
+		ASSERT_EQUAL(Safe::WString{std::wstring_view{expected + expected}}, text);
+		text.reserve(Size{512});
+		text.shrink_to_fit();
+		ASSERT_EQUAL(Safe::WString{std::wstring_view{expected + expected}}, text);
+		text.assign(static_cast<std::wstring_view>(text).substr(1, 2));
+		ASSERT_EQUAL(Safe::WString{L"xx"}, text);
+		text.reserve(Size{256});
+		text.shrink_to_fit();
+		ASSERT_EQUAL(Safe::WString{L"xx"}, text);
+		text.assign(std::wstring_view{expected});
+		text.append(std::wstring_view{text.data() + length, 1});
+		ASSERT_EQUAL(Size{length + 1}, text.size());
+		ASSERT_EQUAL(L'\0', text.back());
+	}
+	Safe::WString short_text{Safe::WString::SSO_CAPACITY, L'a'};
+	const std::wstring expected{static_cast<std::wstring_view>(short_text)};
+	short_text.append(static_cast<std::wstring_view>(short_text));
+	ASSERT_EQUAL(Safe::WString{std::wstring_view{expected + expected}}, short_text);
+	short_text.append(static_cast<std::wstring_view>(short_text).substr(2));
+	ASSERT_EQUAL(Safe::WString{std::wstring_view{expected + expected + (expected + expected).substr(2)}}, short_text);
+	short_text.assign(Size{Safe::WString::SSO_CAPACITY}, L'a');
+	short_text.append(std::wstring_view{short_text.data() + Safe::WString::SSO_CAPACITY, 1});
+	ASSERT_EQUAL(L'\0', short_text.back());
+	RETURN_TEST(0);
+}
+
 int main() {
-	int result = 0;
+	int result = test_self_views_survive_assign_append_and_shrink();
 
 	// -------------------
 	// Algorithm

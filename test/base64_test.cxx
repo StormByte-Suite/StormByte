@@ -185,9 +185,12 @@ int test_encode_three_byte_no_padding() {
 }
 
 int test_encode_man_vectors() {
-	ASSERT_EQUAL(std::string_view{"TQ=="}, std::string_view{Base64Encode(ToBytes("M"))});
-	ASSERT_EQUAL(std::string_view{"TWE="}, std::string_view{Base64Encode(ToBytes("Ma"))});
-	ASSERT_EQUAL(std::string_view{"TWFu"}, std::string_view{Base64Encode(ToBytes("Man"))});
+	const auto m = Base64Encode(ToBytes("M"));
+	const auto ma = Base64Encode(ToBytes("Ma"));
+	const auto man = Base64Encode(ToBytes("Man"));
+	ASSERT_EQUAL(std::string_view{"TQ=="}, std::string_view{m});
+	ASSERT_EQUAL(std::string_view{"TWE="}, std::string_view{ma});
+	ASSERT_EQUAL(std::string_view{"TWFu"}, std::string_view{man});
 	RETURN_TEST(0);
 }
 

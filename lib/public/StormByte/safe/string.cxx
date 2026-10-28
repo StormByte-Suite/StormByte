@@ -44,6 +44,7 @@
 #include <StormByte/safe/wstring.hxx>
 
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <string>
 #include <utility>
@@ -76,7 +77,7 @@ void String::SetEmpty() noexcept {
 
 void String::SetShort(const char* text, std::size_t count) noexcept {
 	if (count != 0)
-		std::memcpy(m_storage.data, text, count);
+		std::memmove(m_storage.data, text, count);
 	m_storage.data[count] = '\0';
 	m_storage.m_tag = static_cast<std::uint8_t>(count);
 }
@@ -183,16 +184,18 @@ Size String::max_size() const noexcept {
 String& String::append(std::string_view text) {
 	if (text.empty())
 		return *this;
-	reserve(size() + Size{text.size()});
-	if (IsLong()) {
-		m_storage.long_ = sdscatlen(m_storage.long_, text.data(), text.size());
-		if (!m_storage.long_)
-			throw AllocationError();
-		return *this;
-	}
 	const std::size_t n = static_cast<std::size_t>(size());
-	std::memcpy(m_storage.data + n, text.data(), text.size());
-	SetShort(m_storage.data, n + text.size());
+	const bool aliased = !std::less<const char*>{}(text.data(), data())
+		&& !std::less<const char*>{}(data() + n, text.data());
+	const std::size_t offset = aliased ? static_cast<std::size_t>(text.data() - data()) : 0;
+	reserve(size() + Size{text.size()});
+	if (aliased)
+		text = std::string_view{data() + offset, text.size()};
+	std::memmove(data() + n, text.data(), text.size());
+	if (IsLong())
+		sdsIncrLen(m_storage.long_, static_cast<std::ptrdiff_t>(text.size()));
+	else
+		SetShort(m_storage.data, n + text.size());
 	return *this;
 }
 
@@ -214,14 +217,19 @@ String& String::append(size_type count, char character) {
 }
 
 String& String::assign(std::string_view text) {
-	ReleaseLong();
 	if (text.size() <= SSO_CAPACITY) {
-		SetShort(text.data(), text.size());
+		char copy[SSO_CAPACITY];
+		if (!text.empty())
+			std::memcpy(copy, text.data(), text.size());
+		ReleaseLong();
+		SetShort(copy, text.size());
 		return *this;
 	}
-	m_storage.long_ = sdsnewlen(text.data(), text.size());
-	if (!m_storage.long_)
+	sds created = sdsnewlen(text.data(), text.size());
+	if (!created)
 		throw AllocationError();
+	ReleaseLong();
+	m_storage.long_ = created;
 	m_storage.m_tag = kLongBit;
 	return *this;
 }

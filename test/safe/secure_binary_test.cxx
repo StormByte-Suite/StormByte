@@ -679,6 +679,15 @@ namespace {
 }
 
 int test_secure_pages_are_locked_best_effort() {
+#ifdef __SANITIZE_ADDRESS__
+	std::cout << "  (skipped: AddressSanitizer intercepts mlock/munlock without locking pages)" << std::endl;
+	RETURN_TEST(0);
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+	std::cout << "  (skipped: AddressSanitizer intercepts mlock/munlock without locking pages)" << std::endl;
+	RETURN_TEST(0);
+#endif
+#endif
 	constexpr std::size_t block = 256 * 1024;
 	rlimit limit{};
 	const long before = LockedKiB();

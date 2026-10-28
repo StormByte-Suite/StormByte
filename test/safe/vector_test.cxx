@@ -38,14 +38,18 @@
  */
 
 #include <StormByte/safe/exception.hxx>
+#include <StormByte/safe/string.hxx>
 #include <StormByte/safe/vector.hxx>
 #include <StormByte/size.hxx>
 #include <StormByte/test_handlers.h>
 
 #include <algorithm>
+#include <cstddef>
 #include <iostream>
+#include <iterator>
 #include <ranges>
 #include <span>
+#include <sstream>
 #include <vector>
 
 using namespace StormByte;
@@ -225,6 +229,73 @@ int test_mutate_insert_erase_and_order() {
 	RETURN_TEST(0);
 }
 
+int test_bulk_bytes_copy_assign_and_initialize() {
+	const Size count{2 * 1024 * 1024};
+	Safe::Vector<std::byte> bytes(count, std::byte{0xa5});
+	Safe::Vector<std::byte> copy(bytes);
+	ASSERT_TRUE(copy == bytes);
+	copy[Size{0}] = std::byte{0x42};
+	ASSERT_EQUAL(std::byte{0xa5}, bytes[Size{0}]);
+	copy.assign(bytes.begin() + 17, bytes.end() - 13);
+	ASSERT_EQUAL(count - 30, copy.size());
+	ASSERT_TRUE(std::all_of(copy.begin(), copy.end(), [](std::byte value) { return value == std::byte{0xa5}; }));
+	copy.assign(copy.begin() + 5, copy.end() - 7);
+	ASSERT_EQUAL(count - 42, copy.size());
+	copy.resize(count);
+	ASSERT_TRUE(std::all_of(copy.end() - 42, copy.end(), [](std::byte value) { return value == std::byte{0}; }));
+	copy.resize(count + 9, std::byte{0x7e});
+	ASSERT_TRUE(std::all_of(copy.end() - 9, copy.end(), [](std::byte value) { return value == std::byte{0x7e}; }));
+	copy.assign(Size{513}, std::byte{0x3c});
+	ASSERT_EQUAL(Size{513}, copy.size());
+	ASSERT_TRUE(std::all_of(copy.begin(), copy.end(), [](std::byte value) { return value == std::byte{0x3c}; }));
+	copy.assign(bytes.begin(), bytes.begin());
+	ASSERT_TRUE(copy.empty());
+	const std::byte* empty = nullptr;
+	copy.assign(empty, empty);
+	ASSERT_TRUE(copy.empty());
+	copy.resize(Size{0});
+	copy.resize(Size{0}, std::byte{1});
+	Safe::Vector<std::byte> empty_copy(copy);
+	ASSERT_TRUE(empty_copy.empty());
+	RETURN_TEST(0);
+}
+
+int test_bulk_paths_preserve_values_and_nontrivial_elements() {
+	Safe::Vector<int> integers(Size{1024}, 0x12345678);
+	Safe::Vector<int> copy(integers.begin(), integers.end());
+	ASSERT_TRUE(copy == integers);
+	copy.resize(Size{2048});
+	ASSERT_TRUE(std::all_of(copy.begin() + 1024, copy.end(), [](int value) { return value == 0; }));
+	Safe::Vector<bool> flags(std::vector<bool>{true, false, true});
+	ASSERT_EQUAL(Size{3}, flags.size());
+	ASSERT_TRUE(flags[Size{0}]);
+	ASSERT_FALSE(flags[Size{1}]);
+	Safe::Vector<Safe::String> text(Size{2}, Safe::String{"keep"});
+	Safe::Vector<Safe::String> text_copy(text);
+	text_copy.resize(Size{4});
+	ASSERT_TRUE(text_copy[Size{2}].empty());
+	text_copy.resize(Size{5}, Safe::String{"tail"});
+	ASSERT_EQUAL(Safe::String{"tail"}, text_copy.back());
+	ASSERT_EQUAL(Safe::String{"keep"}, text.front());
+	std::istringstream input("4 5 6");
+	Safe::Vector<int> streamed(std::istream_iterator<int>{input}, std::istream_iterator<int>{});
+	ASSERT_EQUAL(Size{3}, streamed.size());
+	ASSERT_EQUAL(6, streamed.back());
+	volatile int observed[] = {7, 8};
+	Safe::Vector<int> from_volatile(observed, observed + 2);
+	ASSERT_EQUAL(7, from_volatile.front());
+	ASSERT_EQUAL(8, from_volatile.back());
+	copy.assign(Size{17}, copy.front());
+	ASSERT_TRUE(std::all_of(copy.begin(), copy.end(), [](int value) { return value == 0x12345678; }));
+	copy.resize(copy.capacity() + 1, copy.front());
+	ASSERT_EQUAL(0x12345678, copy.back());
+	text.assign(Size{3}, text.front());
+	ASSERT_TRUE(std::all_of(text.begin(), text.end(), [](const Safe::String& value) { return value == Safe::String{"keep"}; }));
+	text.resize(text.capacity() + 1, text.front());
+	ASSERT_EQUAL(Safe::String{"keep"}, text.back());
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -242,6 +313,8 @@ int main() {
 	// Mutate
 	// -------------------
 	result += test_mutate_insert_erase_and_order();
+	result += test_bulk_bytes_copy_assign_and_initialize();
+	result += test_bulk_paths_preserve_values_and_nontrivial_elements();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;

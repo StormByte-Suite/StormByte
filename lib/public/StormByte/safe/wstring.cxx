@@ -44,6 +44,7 @@
 #include <StormByte/safe/wstring.hxx>
 
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <string>
 #include <utility>
@@ -81,7 +82,7 @@ void WString::SetEmpty() noexcept {
 
 void WString::SetShort(const wchar_t* text, std::size_t count) noexcept {
 	if (count != 0)
-		std::memcpy(m_storage.data, text, count * sizeof(wchar_t));
+		std::memmove(m_storage.data, text, count * sizeof(wchar_t));
 	m_storage.data[count] = L'\0';
 	m_storage.m_tag = static_cast<std::uint8_t>(count);
 }
@@ -184,17 +185,18 @@ Size WString::max_size() const noexcept {
 WString& WString::append(std::wstring_view text) {
 	if (text.empty())
 		return *this;
-	reserve(size() + Size{text.size()});
-	if (IsLong()) {
-		WBuf* grown = wbuf_append(Long(m_storage.long_), text.data(), text.size());
-		if (!grown)
-			throw AllocationError();
-		m_storage.long_ = grown;
-		return *this;
-	}
 	const std::size_t n = static_cast<std::size_t>(size());
-	std::memcpy(m_storage.data + n, text.data(), text.size() * sizeof(wchar_t));
-	SetShort(m_storage.data, n + text.size());
+	const bool aliased = !std::less<const wchar_t*>{}(text.data(), data())
+		&& !std::less<const wchar_t*>{}(data() + n, text.data());
+	const std::size_t offset = aliased ? static_cast<std::size_t>(text.data() - data()) : 0;
+	reserve(size() + Size{text.size()});
+	if (aliased)
+		text = std::wstring_view{data() + offset, text.size()};
+	std::memmove(data() + n, text.data(), text.size() * sizeof(wchar_t));
+	if (IsLong())
+		wbuf_set_len(Long(m_storage.long_), n + text.size());
+	else
+		SetShort(m_storage.data, n + text.size());
 	return *this;
 }
 
@@ -218,14 +220,18 @@ WString& WString::append(size_type count, wchar_t character) {
 }
 
 WString& WString::assign(std::wstring_view text) {
-	ReleaseLong();
 	if (text.size() <= SSO_CAPACITY) {
-		SetShort(text.data(), text.size());
+		wchar_t copy[SSO_CAPACITY];
+		if (!text.empty())
+			std::memcpy(copy, text.data(), text.size() * sizeof(wchar_t));
+		ReleaseLong();
+		SetShort(copy, text.size());
 		return *this;
 	}
 	WBuf* created = wbuf_new(text.data(), text.size());
 	if (!created)
 		throw AllocationError();
+	ReleaseLong();
 	m_storage.long_ = created;
 	m_storage.m_tag = kLongBit;
 	return *this;

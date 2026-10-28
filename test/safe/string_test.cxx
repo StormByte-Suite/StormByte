@@ -333,18 +333,18 @@ int test_search_helpers_and_order() {
 	ASSERT_EQUAL(Size{1}, text.find_first_not_of('a'));
 	ASSERT_EQUAL(Size{2}, text.find_last_not_of("ab"));
 	ASSERT_EQUAL(Size{3}, text.find_last_not_of('b'));
-	ASSERT_EQUAL(std::string_view("Xab"), std::string_view(text.substr(Size{2})));
-	ASSERT_EQUAL(std::string_view("bX"), std::string_view(text.substr(Size{1}, Size{2})));
+	ASSERT_EQUAL(Safe::String("Xab"), text.substr(Size{2}));
+	ASSERT_EQUAL(Safe::String("bX"), text.substr(Size{1}, Size{2}));
 	ASSERT_TRUE(text.substr(Size{9}).empty());
 	ASSERT_EQUAL(0, text.compare("abXab"));
 	ASSERT_TRUE(text.compare(Size{2}, Size{1}, "X") == 0);
-	ASSERT_EQUAL(std::string_view("abxab"), std::string_view(text.ToLower()));
-	ASSERT_EQUAL(std::string_view("ABXAB"), std::string_view(Safe::String::ToUpper("abXab")));
-	ASSERT_EQUAL(std::string_view("abxab"), std::string_view(Safe::String::ToLower("abXab")));
-	ASSERT_EQUAL(std::string_view("a\nb"), std::string_view(Safe::String::SanitizeNewlines("a\r\nb")));
-	ASSERT_EQUAL(std::string_view("a\nb"), std::string_view(Safe::String("a\r\nb").SanitizeNewlines()));
-	ASSERT_EQUAL(std::string_view("ab"), std::string_view(Safe::String::RemoveWhitespace(" a\tb ")));
-	ASSERT_EQUAL(std::string_view("ab"), std::string_view(Safe::String(" a b").RemoveWhitespace()));
+	ASSERT_EQUAL(Safe::String("abxab"), text.ToLower());
+	ASSERT_EQUAL(Safe::String("ABXAB"), Safe::String::ToUpper("abXab"));
+	ASSERT_EQUAL(Safe::String("abxab"), Safe::String::ToLower("abXab"));
+	ASSERT_EQUAL(Safe::String("a\nb"), Safe::String::SanitizeNewlines("a\r\nb"));
+	ASSERT_EQUAL(Safe::String("a\nb"), Safe::String("a\r\nb").SanitizeNewlines());
+	ASSERT_EQUAL(Safe::String("ab"), Safe::String::RemoveWhitespace(" a\tb "));
+	ASSERT_EQUAL(Safe::String("ab"), Safe::String(" a b").RemoveWhitespace());
 	ASSERT_TRUE(Safe::String::IsInteger("-12"));
 	ASSERT_TRUE(Safe::String("42").IsInteger());
 	ASSERT_FALSE(Safe::String("4a").IsInteger());
@@ -587,14 +587,14 @@ int test_implode_vector_and_queue() {
 	const Safe::String joined = Safe::String::Implode(words, ",");
 	ASSERT_EQUAL(std::string_view("a,,b"), std::string_view(joined));
 	ASSERT_EQUAL(Size{Safe::String::SSO_CAPACITY}, joined.capacity());
-	ASSERT_EQUAL(std::string_view("a,,b"), std::string_view(Safe::String::Implode(Safe::String::Explode("a,,b", ','), ",")));
+	ASSERT_EQUAL(Safe::String("a,,b"), Safe::String::Implode(Safe::String::Explode("a,,b", ','), ","));
 
 	Safe::Queue<Safe::String> fifo;
 	fifo.push(Safe::String("x"));
 	fifo.push(Safe::String("y"));
 	const Safe::Queue<Safe::String>& fifo_ref = fifo;
-	ASSERT_EQUAL(std::string_view("x | y"), std::string_view(Safe::String::Implode(fifo_ref, " | ")));
-	ASSERT_EQUAL(std::string_view("xy"), std::string_view(Safe::String::Implode(fifo_ref, "")));
+	ASSERT_EQUAL(Safe::String("x | y"), Safe::String::Implode(fifo_ref, " | "));
+	ASSERT_EQUAL(Safe::String("xy"), Safe::String::Implode(fifo_ref, ""));
 
 	Safe::Vector<Safe::String> long_parts;
 	long_parts.push_back(Safe::String("0123456789abcdef"));
@@ -607,8 +607,42 @@ int test_implode_vector_and_queue() {
 	RETURN_TEST(0);
 }
 
+int test_self_views_survive_assign_append_and_shrink() {
+	for (const std::size_t length : {std::size_t{8}, std::size_t{128}}) {
+		const std::string expected(length, 'x');
+		Safe::String text{std::string_view{expected}};
+		text.assign(static_cast<std::string_view>(text).substr(2));
+		ASSERT_EQUAL(Safe::String{std::string_view{expected}.substr(2)}, text);
+		text.assign(std::string_view{expected});
+		text.append(static_cast<std::string_view>(text));
+		ASSERT_EQUAL(Safe::String{std::string_view{expected + expected}}, text);
+		text.reserve(Size{512});
+		text.shrink_to_fit();
+		ASSERT_EQUAL(Safe::String{std::string_view{expected + expected}}, text);
+		text.assign(static_cast<std::string_view>(text).substr(1, 3));
+		ASSERT_EQUAL(Safe::String{"xxx"}, text);
+		text.reserve(Size{256});
+		text.shrink_to_fit();
+		ASSERT_EQUAL(Safe::String{"xxx"}, text);
+		text.assign(std::string_view{expected});
+		text.append(std::string_view{text.data() + length, 1});
+		ASSERT_EQUAL(Size{length + 1}, text.size());
+		ASSERT_EQUAL('\0', text.back());
+	}
+	Safe::String short_text{Safe::String::SSO_CAPACITY, 'a'};
+	const std::string expected{static_cast<std::string_view>(short_text)};
+	short_text.append(static_cast<std::string_view>(short_text));
+	ASSERT_EQUAL(Safe::String{std::string_view{expected + expected}}, short_text);
+	short_text.append(static_cast<std::string_view>(short_text).substr(2));
+	ASSERT_EQUAL(Safe::String{std::string_view{expected + expected + (expected + expected).substr(2)}}, short_text);
+	short_text.assign(Size{Safe::String::SSO_CAPACITY}, 'a');
+	short_text.append(std::string_view{short_text.data() + Safe::String::SSO_CAPACITY, 1});
+	ASSERT_EQUAL('\0', short_text.back());
+	RETURN_TEST(0);
+}
+
 int main() {
-	int result = 0;
+	int result = test_self_views_survive_assign_append_and_shrink();
 
 	// -------------------
 	// Algorithm

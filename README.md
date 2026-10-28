@@ -405,6 +405,8 @@ These types own their nodes on the Base heap. They are not aliases of the STL co
 
 `Safe::Vector` is the contiguous sequence. It borrows as `std::span`. `Split` fills one. `Implode` joins one with a view delimiter and does not copy the parts first.
 
+Copies of trivially copyable elements and matching contiguous ranges use bulk transfers. Trivial growth is value-initialized in bulk, including zeroed new bytes in `Safe::Binary`. Nontrivial elements and converting or single-pass ranges keep their element-wise construction. Storage still belongs to Base; these optimizations do not change layout or bypass `SecureBinary` hooks.
+
 ##### List
 
 `Safe::List` is a doubly linked list. It has splice, merge, unique, sort and reverse.
