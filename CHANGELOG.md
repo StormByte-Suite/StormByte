@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Fixed
+
+- `find_package(StormByte COMPONENTS Network)` discovers and links Crypto transitively, matching Network's public TLS dependency.
+
 ### TODO
 
 - Split the monolithic `FindStormByte.cmake` into component-owned configuration: Base will provide the shared CMake foundation, and each suite component will install its own configuration to discover and configure itself. Preserve the existing external `find_package(StormByte ... COMPONENTS ...)` interface and behavior so the change is transparent to consumers.

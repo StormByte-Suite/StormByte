@@ -41,7 +41,7 @@ set(_STORMBYTE_COMPONENT_DEPS_Buffer     "Logger" "System")
 set(_STORMBYTE_COMPONENT_DEPS_Crypto     "Buffer")
 set(_STORMBYTE_COMPONENT_DEPS_Database   "Logger")
 set(_STORMBYTE_COMPONENT_DEPS_Multimedia "Buffer")
-set(_STORMBYTE_COMPONENT_DEPS_Network    "Buffer")
+set(_STORMBYTE_COMPONENT_DEPS_Network    "Buffer" "Crypto")
 
 # ----------------------------------------------------------------------
 # Internal helpers
