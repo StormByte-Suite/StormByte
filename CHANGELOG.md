@@ -23,6 +23,7 @@ If you landed here from a release link and have not read the tree:
 ## [Unreleased]
 
 ### Fixed
+- Telemetry constructs its already-lazy clock drawer only when first used, so its `noexcept` constructor does not allocate.
 - Best-effort telemetry sampling returns an inactive token without allocating while an exception is unwinding, preventing nested allocation failures in instrumented cleanup. Focused fault-injection tests cover normal and unwinding cleanup, including sustained allocation rejection.
 
 [Unreleased]: https://github.com/StormByte-Suite/StormByte/compare/2.2.3...HEAD

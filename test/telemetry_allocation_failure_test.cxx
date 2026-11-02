@@ -83,6 +83,15 @@ int main() {
 	bool unwind_allocation_free = false;
 	// Initialize libc++abi exception state before denying its initial calloc.
 	try { throw std::bad_alloc{}; } catch (const std::bad_alloc&) {}
+	denied = 0;
+	exhausted = true;
+	{
+		Telemetry allocation_free;
+	}
+	exhausted = false;
+	if (denied != 0)
+		return 1;
+
 	exhausted = true;
 	{
 		Cleanup cleanup{normal, normal_active};

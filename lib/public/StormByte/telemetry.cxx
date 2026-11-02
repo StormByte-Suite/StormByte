@@ -61,6 +61,10 @@ namespace StormByte {
 
 using namespace StormByte;
 
+namespace {
+	std::mutex drawer_creation_lock;
+}
+
 // --- StormByte::Clock ---
 
 Clock::Clock() noexcept:
@@ -166,7 +170,7 @@ std::uint64_t Clock::Count() const noexcept {
 // --- StormByte::Telemetry ---
 
 Telemetry::Telemetry() noexcept:
-	m_store{Safe::MakeUnique<Store>()} {}
+	m_store{} {}
 
 Telemetry::Telemetry(Telemetry&& other) noexcept:
 	m_store{std::move(other.m_store)} {}
@@ -180,29 +184,39 @@ Telemetry& Telemetry::operator=(Telemetry&& other) noexcept {
 Telemetry::~Telemetry() noexcept = default;
 
 Clock& Telemetry::Clock(const std::string_view name) {
-	if (!m_store)
-		m_store = Safe::MakeUnique<Store>();
-	m_store->lock.Lock();
+	Store* store;
+	{
+		std::lock_guard lock(drawer_creation_lock);
+		if (!m_store)
+			m_store = Safe::MakeUnique<Store>();
+		store = m_store.get();
+	}
+	store->lock.Lock();
 	try {
-		auto [it, inserted] = m_store->clocks.try_emplace(std::string(name));
+		auto [it, inserted] = store->clocks.try_emplace(std::string(name));
 		(void)inserted;
-		m_store->lock.Unlock();
+		store->lock.Unlock();
 		return it->second;
 	} catch (...) {
-		m_store->lock.Unlock();
+		store->lock.Unlock();
 		Safe::Heap::RethrowException();
 	}
 }
 
 const Clock& Telemetry::Clock(const std::string_view name) const {
 	static const StormByte::Clock empty_clock;
-	if (!m_store)
+	Store* store;
+	{
+		std::lock_guard lock(drawer_creation_lock);
+		store = m_store.get();
+	}
+	if (!store)
 		return empty_clock;
-	m_store->lock.Lock();
-	const auto it = m_store->clocks.find(name);
-	const bool found = (it != m_store->clocks.end());
+	store->lock.Lock();
+	const auto it = store->clocks.find(name);
+	const bool found = (it != store->clocks.end());
 	const StormByte::Clock* result = found ? &it->second : &empty_clock;
-	m_store->lock.Unlock();
+	store->lock.Unlock();
 	return *result;
 }
 
