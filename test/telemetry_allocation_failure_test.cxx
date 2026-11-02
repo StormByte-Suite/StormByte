@@ -5,6 +5,8 @@
  */
 
 #include <StormByte/telemetry.hxx>
+#include <StormByte/safe/map.hxx>
+#include <StormByte/safe/set.hxx>
 
 #include <cerrno>
 #include <cstdio>
@@ -91,7 +93,45 @@ int main() {
 	exhausted = false;
 	if (denied != 0)
 		return 1;
-
+	using Map = StormByte::Safe::Map<int, int>;
+	static_assert(!noexcept(StormByte::Safe::Set<int>{}));
+	static_assert(!noexcept(Map{}));
+	static_assert(!noexcept(Map(std::declval<Map&&>())));
+	unsigned caught = 0;
+	Map source{{1, 2}};
+	exhausted = true;
+	try {
+		Map empty;
+	} catch (const StormByte::Safe::AllocationError&) {
+		++caught;
+	}
+	try {
+		Map compared{std::less<int>{}};
+	} catch (const StormByte::Safe::AllocationError&) {
+		++caught;
+	}
+	try {
+		Map moved{std::move(source)};
+	} catch (const StormByte::Safe::AllocationError&) {
+		++caught;
+	}
+	try {
+		StormByte::Safe::Set<int> empty;
+	} catch (const StormByte::Safe::AllocationError&) {
+		++caught;
+	}
+	exhausted = false;
+	if (caught != 4 || source.at(1) != 2)
+		return 1;
+	Map target{{3, 4}};
+	denied = 0;
+	exhausted = true;
+	target = std::move(source);
+	const bool assignment_allocation_free = denied == 0;
+	exhausted = false;
+	if (!assignment_allocation_free || !source.empty() || target.at(1) != 2)
+		return 1;
+	source.emplace(5, 6);
 	exhausted = true;
 	{
 		Cleanup cleanup{normal, normal_active};

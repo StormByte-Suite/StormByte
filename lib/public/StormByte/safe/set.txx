@@ -43,11 +43,11 @@ namespace StormByte {
 	namespace Safe {
 		template<Type::SafeValue K, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		Set<K, Compare>::Set() noexcept = default;
+		Set<K, Compare>::Set() = default;
 
 		template<Type::SafeValue K, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		Set<K, Compare>::Set(const Compare& compare) noexcept: m_values(compare) {}
+		Set<K, Compare>::Set(const Compare& compare): m_values(compare) {}
 
 		template<Type::SafeValue K, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
@@ -55,7 +55,7 @@ namespace StormByte {
 
 		template<Type::SafeValue K, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		Set<K, Compare>::Set(Set&& other) noexcept: m_values(std::move(other.m_values)) {}
+		Set<K, Compare>::Set(Set&& other): m_values(std::move(other.m_values)) {}
 
 		template<Type::SafeValue K, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>

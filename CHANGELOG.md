@@ -24,6 +24,7 @@ If you landed here from a release link and have not read the tree:
 
 ### Fixed
 - Telemetry constructs its already-lazy clock drawer only when first used, so its `noexcept` constructor does not allocate.
+- Allocating Safe map/set constructors propagate failures, failed move construction leaves the source intact, and map/set move assignment reuses the destination sentinel without allocating.
 - Best-effort telemetry sampling returns an inactive token without allocating while an exception is unwinding, preventing nested allocation failures in instrumented cleanup. Focused fault-injection tests cover normal and unwinding cleanup, including sustained allocation rejection.
 
 [Unreleased]: https://github.com/StormByte-Suite/StormByte/compare/2.2.3...HEAD

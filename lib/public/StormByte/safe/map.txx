@@ -110,13 +110,13 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		Map<K, V, Compare>::Map() noexcept: m_compare(), m_header(nullptr), m_size(0) {
+		Map<K, V, Compare>::Map(): m_compare(), m_header(nullptr), m_size(0) {
 			CreateHeader();
 		}
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		Map<K, V, Compare>::Map(const Compare& compare) noexcept: m_compare(compare), m_header(nullptr), m_size(0) {
+		Map<K, V, Compare>::Map(const Compare& compare): m_compare(compare), m_header(nullptr), m_size(0) {
 			CreateHeader();
 		}
 
@@ -137,10 +137,8 @@ namespace StormByte {
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
 		requires std::strict_weak_order<Compare, const K&, const K&>
-		Map<K, V, Compare>::Map(Map&& other) noexcept: m_compare(std::move(other.m_compare)), m_header(other.m_header), m_size(other.m_size) {
-			other.m_header = nullptr;
-			other.m_size = 0;
-			other.CreateHeader();
+		Map<K, V, Compare>::Map(Map&& other): Map(other.m_compare) {
+			swap(other);
 		}
 
 		template<Type::SafeValue K, Type::SafeValue V, class Compare>
@@ -172,13 +170,7 @@ namespace StormByte {
 			if (this == &other)
 				return *this;
 			clear();
-			DestroyHeader();
-			m_compare = std::move(other.m_compare);
-			m_header = other.m_header;
-			m_size = other.m_size;
-			other.m_header = nullptr;
-			other.m_size = 0;
-			other.CreateHeader();
+			swap(other);
 			return *this;
 		}
 

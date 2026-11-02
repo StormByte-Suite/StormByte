@@ -315,13 +315,13 @@ namespace StormByte {
 				/**
 				 * @brief Construct an empty set.
 				 */
-				Set() noexcept;
+				Set();
 
 				/**
 				 * @brief Construct an empty set with a comparator.
 				 * @param compare Value ordering.
 				 */
-				explicit Set(const Compare& compare) noexcept;
+				explicit Set(const Compare& compare);
 
 				/**
 				 * @brief Copy the values.
@@ -334,7 +334,7 @@ namespace StormByte {
 				 * @brief Take the values. @p other is left empty.
 				 * @param other Source.
 				 */
-				Set(Set&& other) noexcept;
+				Set(Set&& other);
 
 				/**
 				 * @brief Destroy the values.

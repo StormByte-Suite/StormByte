@@ -334,14 +334,16 @@ namespace StormByte {
 
 				/**
 				 * @brief Construct an empty map.
+				 * @throws AllocationError The sentinel could not be allocated.
 				 */
-				Map() noexcept;
+				Map();
 
 				/**
 				 * @brief Construct an empty map with a comparator.
 				 * @param compare Key ordering.
+				 * @throws AllocationError The sentinel could not be allocated.
 				 */
-				explicit Map(const Compare& compare) noexcept;
+				explicit Map(const Compare& compare);
 
 				/**
 				 * @brief Copy every node into new Base blocks.
@@ -353,8 +355,9 @@ namespace StormByte {
 				/**
 				 * @brief Take the tree. @p other is left empty.
 				 * @param other Source.
+				 * @throws AllocationError The replacement sentinel could not be allocated; the source is unchanged.
 				 */
-				Map(Map&& other) noexcept;
+				Map(Map&& other);
 
 				/**
 				 * @brief Copy a caller-owned STL map. Its state is unchanged.
