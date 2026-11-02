@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### TODO
+
+- Split the monolithic `FindStormByte.cmake` into component-owned configuration: Base will provide the shared CMake foundation, and each suite component will install its own configuration to discover and configure itself. Preserve the existing external `find_package(StormByte ... COMPONENTS ...)` interface and behavior so the change is transparent to consumers.
+
 [Unreleased]: https://github.com/StormByte-Suite/StormByte/compare/2.2.3...HEAD
 
 ## [2.2.3] - 2026-11-02
