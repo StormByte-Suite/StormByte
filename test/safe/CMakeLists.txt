@@ -116,6 +116,11 @@ target_compile_definitions(StringTests PRIVATE FMT_HEADER_ONLY)
 target_link_libraries(StringTests StormByte)
 add_test(NAME StringTests COMMAND StringTests)
 
+add_executable(StringAllocationFailureTests string_allocation_failure_test.cxx)
+target_link_libraries(StringAllocationFailureTests StormByte)
+add_test(NAME StringAllocationFailureTests COMMAND StringAllocationFailureTests)
+set_tests_properties(StringAllocationFailureTests PROPERTIES SKIP_RETURN_CODE 77)
+
 add_executable(ThreadTests thread_test.cxx)
 target_link_libraries(ThreadTests StormByte)
 add_test(NAME ThreadTests COMMAND ThreadTests)

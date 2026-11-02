@@ -162,7 +162,7 @@ namespace {
 	}
 }
 
-std::string StormByte::Safe::Utf8::FromWide(std::wstring_view str) noexcept {
+std::string StormByte::Safe::Utf8::FromWide(std::wstring_view str) {
 	std::string out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
@@ -170,7 +170,7 @@ std::string StormByte::Safe::Utf8::FromWide(std::wstring_view str) noexcept {
 	return out;
 }
 
-std::wstring StormByte::Safe::Utf8::ToWide(std::string_view str) noexcept {
+std::wstring StormByte::Safe::Utf8::ToWide(std::string_view str) {
 	std::wstring out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
@@ -178,7 +178,7 @@ std::wstring StormByte::Safe::Utf8::ToWide(std::string_view str) noexcept {
 	return out;
 }
 
-std::string StormByte::Safe::Utf8::ToUpper(std::string_view str) noexcept {
+std::string StormByte::Safe::Utf8::ToUpper(std::string_view str) {
 	std::string out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
@@ -186,7 +186,7 @@ std::string StormByte::Safe::Utf8::ToUpper(std::string_view str) noexcept {
 	return out;
 }
 
-std::string StormByte::Safe::Utf8::ToLower(std::string_view str) noexcept {
+std::string StormByte::Safe::Utf8::ToLower(std::string_view str) {
 	std::string out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
@@ -194,7 +194,7 @@ std::string StormByte::Safe::Utf8::ToLower(std::string_view str) noexcept {
 	return out;
 }
 
-std::wstring StormByte::Safe::Utf8::ToUpper(std::wstring_view str) noexcept {
+std::wstring StormByte::Safe::Utf8::ToUpper(std::wstring_view str) {
 	std::wstring out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )
@@ -202,7 +202,7 @@ std::wstring StormByte::Safe::Utf8::ToUpper(std::wstring_view str) noexcept {
 	return out;
 }
 
-std::wstring StormByte::Safe::Utf8::ToLower(std::wstring_view str) noexcept {
+std::wstring StormByte::Safe::Utf8::ToLower(std::wstring_view str) {
 	std::wstring out;
 	out.reserve(str.size());
 	for (std::size_t i = 0; i < str.size(); )

@@ -95,7 +95,7 @@ namespace StormByte {
 			 * @return New owned characters.
 			 */
 			template<typename Char>
-			inline std::basic_string<Char> SanitizeNewlines(std::basic_string_view<Char> str) noexcept {
+			inline std::basic_string<Char> SanitizeNewlines(std::basic_string_view<Char> str) {
 				std::basic_string<Char> out;
 				out.reserve(str.size());
 				const Char cr = static_cast<Char>('\r');
@@ -117,7 +117,7 @@ namespace StormByte {
 			 * @return New owned characters.
 			 */
 			template<typename Char>
-			inline std::basic_string<Char> RemoveWhitespace(std::basic_string_view<Char> str) noexcept {
+			inline std::basic_string<Char> RemoveWhitespace(std::basic_string_view<Char> str) {
 				std::basic_string<Char> out;
 				out.reserve(str.size());
 				for (Char c : str) {

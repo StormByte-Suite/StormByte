@@ -86,7 +86,7 @@ String::String() noexcept {
 	SetEmpty();
 }
 
-String::String(const char* str) noexcept {
+String::String(const char* str) {
 	if (!str) {
 		SetEmpty();
 		return;
@@ -95,7 +95,7 @@ String::String(const char* str) noexcept {
 	assign(std::string_view{str});
 }
 
-String::String(std::string_view str) noexcept {
+String::String(std::string_view str) {
 	SetEmpty();
 	assign(str);
 }
@@ -112,15 +112,14 @@ String::String(const String& other, size_type pos, size_type count) {
 	assign(static_cast<std::string_view>(other.substr(pos, count)));
 }
 
-String::String(const WString& other) noexcept {
+String::String(const WString& other) {
 	SetEmpty();
 	if (other)
 		assign(Utf8::FromWide(static_cast<std::wstring_view>(other)));
 }
 
-String::String(const String& other) noexcept {
-	SetEmpty();
-	assign(static_cast<std::string_view>(other));
+String::String(const String& other)
+: String(static_cast<std::string_view>(other)) {
 	if (other.IsLong())
 		reserve(other.capacity());
 }
@@ -134,7 +133,7 @@ String::~String() noexcept {
 	ReleaseLong();
 }
 
-String& String::operator=(const String& other) noexcept {
+String& String::operator=(const String& other) {
 	if (this != &other)
 		assign(static_cast<std::string_view>(other));
 	return *this;
@@ -285,8 +284,10 @@ void String::reserve(size_type new_capacity) {
 		if (!created)
 			throw AllocationError();
 		sds grown = sdsMakeRoomFor(created, requested - n);
-		if (!grown)
+		if (!grown) {
+			sdsfree(created);
 			throw AllocationError();
+		}
 		m_storage.long_ = grown;
 		m_storage.m_tag = kLongBit;
 		return;
@@ -412,29 +413,29 @@ void String::ReleaseLong() noexcept {
 	SetEmpty();
 }
 
-String::operator WString() const noexcept {
+String::operator WString() const {
 	return WString(*this);
 }
 
-String String::ToLower(std::string_view str) noexcept {
+String String::ToLower(std::string_view str) {
 	String result;
 	result.assign(Utf8::ToLower(str));
 	return result;
 }
 
-String String::ToUpper(std::string_view str) noexcept {
+String String::ToUpper(std::string_view str) {
 	String result;
 	result.assign(Utf8::ToUpper(str));
 	return result;
 }
 
-String String::SanitizeNewlines(std::string_view str) noexcept {
+String String::SanitizeNewlines(std::string_view str) {
 	String result;
 	result.assign(Text::SanitizeNewlines(str));
 	return result;
 }
 
-String String::RemoveWhitespace(std::string_view str) noexcept {
+String String::RemoveWhitespace(std::string_view str) {
 	String result;
 	result.assign(Text::RemoveWhitespace(str));
 	return result;

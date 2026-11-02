@@ -106,6 +106,9 @@ namespace StormByte {
 		 * Observers follow `std::string_view`. Size-changing modifiers follow `std::string` value semantics.
 		 * `capacity()` and `reserve(Size)` count UTF-8 bytes excluding NUL; reserve never shrinks.
 		 * `size_type` is @ref Size. There is no allocator.
+		 *
+		 * Text construction, copying, conversion and transformations may allocate and throw.
+		 * Default construction, moves and observers do not allocate and remain `noexcept`.
 		 */
 		class STORMBYTE_PUBLIC String {
 			public:
@@ -137,13 +140,13 @@ namespace StormByte {
 				 * @brief Copies a C string. A null pointer becomes empty.
 				 * @param str Source; may be null.
 				 */
-				String(const char* str) noexcept;
+				String(const char* str);
 
 				/**
 				 * @brief Copies a view into owned storage.
 				 * @param str Source. Embedded NUL counts.
 				 */
-				String(std::string_view str) noexcept;
+				String(std::string_view str);
 
 				/**
 				 * @brief Construct @p count copies of @p character.
@@ -179,13 +182,13 @@ namespace StormByte {
 				 * @brief UTF-8 from wide text.
 				 * @param other Wide source.
 				 */
-				explicit String(const WString& other) noexcept;
+				explicit String(const WString& other);
 
 				/**
 				 * @brief Copy constructor.
 				 * @param other Text to copy.
 				 */
-				String(const String& other) noexcept;
+				String(const String& other);
 
 				/**
 				 * @brief Move constructor.
@@ -203,7 +206,7 @@ namespace StormByte {
 				 * @param other Text to copy.
 				 * @return *this.
 				 */
-				String& operator=(const String& other) noexcept;
+				String& operator=(const String& other);
 
 				/**
 				 * @brief Move assignment.
@@ -751,7 +754,7 @@ namespace StormByte {
 				 * @brief Wide text (UTF-8 decoded in the module).
 				 * @return Owned @ref WString.
 				 */
-				explicit operator WString() const noexcept;
+				explicit operator WString() const;
 
 				/**
 				 * @brief Non-owning view of the owned bytes.
@@ -1063,28 +1066,28 @@ namespace StormByte {
 				 * @param str Source.
 				 * @return New text.
 				 */
-				static String ToLower(std::string_view str) noexcept;
+				static String ToLower(std::string_view str);
 
 				/**
 				 * @brief ASCII-letter upper case; UTF-8 otherwise copied.
 				 * @param str Source.
 				 * @return New text.
 				 */
-				static String ToUpper(std::string_view str) noexcept;
+				static String ToUpper(std::string_view str);
 
 				/**
 				 * @brief Turns CR LF into LF.
 				 * @param str Source.
 				 * @return New text.
 				 */
-				static String SanitizeNewlines(std::string_view str) noexcept;
+				static String SanitizeNewlines(std::string_view str);
 
 				/**
 				 * @brief Drops `isspace` bytes.
 				 * @param str Source.
 				 * @return New text.
 				 */
-				static String RemoveWhitespace(std::string_view str) noexcept;
+				static String RemoveWhitespace(std::string_view str);
 
 				/**
 				 * @brief Optional sign plus ASCII digits.
@@ -1141,7 +1144,7 @@ namespace StormByte {
 				 * @brief ASCII-letter lower case of this text.
 				 * @return New text.
 				 */
-				inline String ToLower() const noexcept {
+				inline String ToLower() const {
 					return ToLower(static_cast<std::string_view>(*this));
 				}
 
@@ -1149,7 +1152,7 @@ namespace StormByte {
 				 * @brief ASCII-letter upper case of this text.
 				 * @return New text.
 				 */
-				inline String ToUpper() const noexcept {
+				inline String ToUpper() const {
 					return ToUpper(static_cast<std::string_view>(*this));
 				}
 
@@ -1157,7 +1160,7 @@ namespace StormByte {
 				 * @brief CR LF to LF on this text.
 				 * @return New text.
 				 */
-				inline String SanitizeNewlines() const noexcept {
+				inline String SanitizeNewlines() const {
 					return SanitizeNewlines(static_cast<std::string_view>(*this));
 				}
 
@@ -1165,7 +1168,7 @@ namespace StormByte {
 				 * @brief Drops `isspace` bytes from this text.
 				 * @return New text.
 				 */
-				inline String RemoveWhitespace() const noexcept {
+				inline String RemoveWhitespace() const {
 					return RemoveWhitespace(static_cast<std::string_view>(*this));
 				}
 

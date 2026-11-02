@@ -97,6 +97,9 @@ namespace StormByte {
 		 * Observers follow `std::wstring_view`. Size-changing modifiers follow `std::wstring` value semantics.
 		 * `capacity()` and `reserve(Size)` count code units excluding NUL; reserve never shrinks.
 		 * `size_type` is @ref Size. There is no allocator.
+		 *
+		 * Text construction, copying, conversion and transformations may allocate and throw.
+		 * Default construction, moves and observers do not allocate and remain `noexcept`.
 		 */
 		class STORMBYTE_PUBLIC WString {
 			public:
@@ -128,13 +131,13 @@ namespace StormByte {
 				 * @brief Copies a wide C string. A null pointer becomes empty.
 				 * @param str Source; may be null.
 				 */
-				WString(const wchar_t* str) noexcept;
+				WString(const wchar_t* str);
 
 				/**
 				 * @brief Copies a view into owned storage.
 				 * @param str Source. Embedded NUL counts.
 				 */
-				WString(std::wstring_view str) noexcept;
+				WString(std::wstring_view str);
 
 				/**
 				 * @brief Construct @p count copies of @p character.
@@ -170,13 +173,13 @@ namespace StormByte {
 				 * @brief Wide text from UTF-8, including an empty source.
 				 * @param other UTF-8 source.
 				 */
-				explicit WString(const String& other) noexcept;
+				explicit WString(const String& other);
 
 				/**
 				 * @brief Copy constructor.
 				 * @param other Text to copy.
 				 */
-				WString(const WString& other) noexcept;
+				WString(const WString& other);
 
 				/**
 				 * @brief Move constructor.
@@ -194,7 +197,7 @@ namespace StormByte {
 				 * @param other Text to copy.
 				 * @return *this.
 				 */
-				WString& operator=(const WString& other) noexcept;
+				WString& operator=(const WString& other);
 
 				/**
 				 * @brief Move assignment.
@@ -742,7 +745,7 @@ namespace StormByte {
 				 * @brief UTF-8 text decoded in the module.
 				 * @return Owned @ref String.
 				 */
-				explicit operator String() const noexcept;
+				explicit operator String() const;
 
 				/**
 				 * @brief Non-owning view of the owned units.
@@ -1054,28 +1057,28 @@ namespace StormByte {
 				 * @param str Source.
 				 * @return New text.
 				 */
-				static WString ToLower(std::wstring_view str) noexcept;
+				static WString ToLower(std::wstring_view str);
 
 				/**
 				 * @brief ASCII-letter upper case; other units copied.
 				 * @param str Source.
 				 * @return New text.
 				 */
-				static WString ToUpper(std::wstring_view str) noexcept;
+				static WString ToUpper(std::wstring_view str);
 
 				/**
 				 * @brief Turns CR LF into LF.
 				 * @param str Source.
 				 * @return New text.
 				 */
-				static WString SanitizeNewlines(std::wstring_view str) noexcept;
+				static WString SanitizeNewlines(std::wstring_view str);
 
 				/**
 				 * @brief Drops wide space units.
 				 * @param str Source.
 				 * @return New text.
 				 */
-				static WString RemoveWhitespace(std::wstring_view str) noexcept;
+				static WString RemoveWhitespace(std::wstring_view str);
 
 				/**
 				 * @brief Optional sign plus ASCII digits.
@@ -1132,7 +1135,7 @@ namespace StormByte {
 				 * @brief ASCII-letter lower case of this text.
 				 * @return New text.
 				 */
-				inline WString ToLower() const noexcept {
+				inline WString ToLower() const {
 					return ToLower(static_cast<std::wstring_view>(*this));
 				}
 
@@ -1140,7 +1143,7 @@ namespace StormByte {
 				 * @brief ASCII-letter upper case of this text.
 				 * @return New text.
 				 */
-				inline WString ToUpper() const noexcept {
+				inline WString ToUpper() const {
 					return ToUpper(static_cast<std::wstring_view>(*this));
 				}
 
@@ -1148,7 +1151,7 @@ namespace StormByte {
 				 * @brief CR LF to LF on this text.
 				 * @return New text.
 				 */
-				inline WString SanitizeNewlines() const noexcept {
+				inline WString SanitizeNewlines() const {
 					return SanitizeNewlines(static_cast<std::wstring_view>(*this));
 				}
 
@@ -1156,7 +1159,7 @@ namespace StormByte {
 				 * @brief Drops wide space units from this text.
 				 * @return New text.
 				 */
-				inline WString RemoveWhitespace() const noexcept {
+				inline WString RemoveWhitespace() const {
 					return RemoveWhitespace(static_cast<std::wstring_view>(*this));
 				}
 

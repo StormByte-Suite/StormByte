@@ -62,42 +62,42 @@ namespace StormByte {
 			 * @param str Wide text.
 			 * @return Owned UTF-8.
 			 */
-			std::string FromWide(std::wstring_view str) noexcept;
+			std::string FromWide(std::wstring_view str);
 
 			/**
 			 * @brief Wide code units from UTF-8. Ill-formed input becomes U+FFFD.
 			 * @param str UTF-8 text.
 			 * @return Owned wide text.
 			 */
-			std::wstring ToWide(std::string_view str) noexcept;
+			std::wstring ToWide(std::string_view str);
 
 			/**
 			 * @brief ASCII + Latin-1 upper case of UTF-8 text.
 			 * @param str Source.
 			 * @return Owned UTF-8.
 			 */
-			std::string ToUpper(std::string_view str) noexcept;
+			std::string ToUpper(std::string_view str);
 
 			/**
 			 * @brief ASCII + Latin-1 lower case of UTF-8 text.
 			 * @param str Source.
 			 * @return Owned UTF-8.
 			 */
-			std::string ToLower(std::string_view str) noexcept;
+			std::string ToLower(std::string_view str);
 
 			/**
 			 * @brief ASCII + Latin-1 upper case of wide text.
 			 * @param str Source.
 			 * @return Owned wide text.
 			 */
-			std::wstring ToUpper(std::wstring_view str) noexcept;
+			std::wstring ToUpper(std::wstring_view str);
 
 			/**
 			 * @brief ASCII + Latin-1 lower case of wide text.
 			 * @param str Source.
 			 * @return Owned wide text.
 			 */
-			std::wstring ToLower(std::wstring_view str) noexcept;
+			std::wstring ToLower(std::wstring_view str);
 		}
 	}
 }

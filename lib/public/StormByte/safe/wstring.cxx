@@ -91,13 +91,13 @@ WString::WString() noexcept {
 	SetEmpty();
 }
 
-WString::WString(const wchar_t* str) noexcept {
+WString::WString(const wchar_t* str) {
 	SetEmpty();
 	if (str)
 		assign(std::wstring_view{str});
 }
 
-WString::WString(std::wstring_view str) noexcept {
+WString::WString(std::wstring_view str) {
 	SetEmpty();
 	assign(str);
 }
@@ -114,14 +114,13 @@ WString::WString(const WString& other, size_type pos, size_type count) {
 	assign(static_cast<std::wstring_view>(other.substr(pos, count)));
 }
 
-WString::WString(const String& other) noexcept {
+WString::WString(const String& other) {
 	SetEmpty();
 	assign(Utf8::ToWide(static_cast<std::string_view>(other)));
 }
 
-WString::WString(const WString& other) noexcept {
-	SetEmpty();
-	assign(static_cast<std::wstring_view>(other));
+WString::WString(const WString& other)
+: WString(static_cast<std::wstring_view>(other)) {
 	if (other.IsLong())
 		reserve(other.capacity());
 }
@@ -135,7 +134,7 @@ WString::~WString() noexcept {
 	ReleaseLong();
 }
 
-WString& WString::operator=(const WString& other) noexcept {
+WString& WString::operator=(const WString& other) {
 	if (this != &other)
 		assign(static_cast<std::wstring_view>(other));
 	return *this;
@@ -286,8 +285,10 @@ void WString::reserve(size_type new_capacity) {
 		if (!created)
 			throw AllocationError();
 		WBuf* grown = wbuf_make_room(created, requested - n);
-		if (!grown)
+		if (!grown) {
+			wbuf_free(created);
 			throw AllocationError();
+		}
 		m_storage.long_ = grown;
 		m_storage.m_tag = kLongBit;
 		return;
@@ -408,23 +409,23 @@ void WString::ReleaseLong() noexcept {
 	SetEmpty();
 }
 
-WString::operator String() const noexcept {
+WString::operator String() const {
 	return String(*this);
 }
 
-WString WString::ToLower(std::wstring_view str) noexcept {
+WString WString::ToLower(std::wstring_view str) {
 	return WString(StormByte::Safe::Utf8::ToLower(str));
 }
 
-WString WString::ToUpper(std::wstring_view str) noexcept {
+WString WString::ToUpper(std::wstring_view str) {
 	return WString(StormByte::Safe::Utf8::ToUpper(str));
 }
 
-WString WString::SanitizeNewlines(std::wstring_view str) noexcept {
+WString WString::SanitizeNewlines(std::wstring_view str) {
 	return WString(std::wstring_view(Text::SanitizeNewlines(str)));
 }
 
-WString WString::RemoveWhitespace(std::wstring_view str) noexcept {
+WString WString::RemoveWhitespace(std::wstring_view str) {
 	return WString(std::wstring_view(Text::RemoveWhitespace(str)));
 }
 
