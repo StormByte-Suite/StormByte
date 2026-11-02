@@ -40,6 +40,7 @@
 #include <StormByte/telemetry.hxx>
 #include <StormByte/thread_lock.hxx>
 
+#include <exception>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -206,6 +207,8 @@ const Clock& Telemetry::Clock(const std::string_view name) const {
 }
 
 Clock::Sample Telemetry::MeasureClock(const std::string_view name) noexcept {
+	if (std::uncaught_exceptions() != 0)
+		return {};
 	try {
 		return Clock(name).Measure();
 	} catch (...) {

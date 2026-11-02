@@ -333,8 +333,9 @@ namespace StormByte {
 			/**
 			 * @brief Start an independent sample on a named aggregate clock.
 			 * @param name Stable metric name.
-			 * @return Active sample token; inactive if telemetry storage allocation fails.
+			 * @return Active sample token; inactive during exception unwinding or if storage allocation fails.
 			 * @note Best-effort and non-throwing so it can be used in no-throw instrumentation paths.
+			 * Unwinding never creates telemetry storage or an additional allocation exception.
 			 */
 			class Clock::Sample MeasureClock(std::string_view name) noexcept;
 

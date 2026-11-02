@@ -30,6 +30,11 @@ if(ENABLE_TEST)
 	target_link_libraries(TelemetryTests StormByte)
 	add_test(NAME TelemetryTests COMMAND TelemetryTests)
 
+	add_executable(TelemetryAllocationFailureTests telemetry_allocation_failure_test.cxx)
+	target_link_libraries(TelemetryAllocationFailureTests StormByte)
+	add_test(NAME TelemetryAllocationFailureTests COMMAND TelemetryAllocationFailureTests)
+	set_tests_properties(TelemetryAllocationFailureTests PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 20)
+
 	add_executable(ThreadLockTests thread_lock_test.cxx)
 	target_link_libraries(ThreadLockTests StormByte)
 	add_test(NAME ThreadLockTests COMMAND ThreadLockTests)

@@ -260,6 +260,25 @@ int test_drawer_string_conversions() {
 	RETURN_TEST(0);
 }
 
+int test_drawer_cleanup_during_unwind_is_inactive() {
+	Dummy dummy;
+	bool active = true;
+	struct Cleanup {
+		Dummy& metrics;
+		bool& active;
+		~Cleanup() noexcept { active = metrics.Measure("unwinding").Active(); }
+	};
+	try {
+		Cleanup cleanup{dummy, active};
+		throw 1;
+	} catch (int) {
+	}
+	ASSERT_FALSE(active);
+	ASSERT_EQUAL(std::uint64_t{0}, dummy.Beats("unwinding"));
+	ASSERT_TRUE(dummy.Measure("recovered").Active());
+	RETURN_TEST(0);
+}
+
 int main() {
 	int result = 0;
 
@@ -281,6 +300,7 @@ int main() {
 	result += test_drawer_move_moves_counters();
 	result += test_drawer_multithread_same_key();
 	result += test_drawer_string_conversions();
+	result += test_drawer_cleanup_during_unwind_is_inactive();
 
 	if (result == 0)
 		std::cout << "All tests passed!" << std::endl;
