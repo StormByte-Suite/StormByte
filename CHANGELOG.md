@@ -22,11 +22,15 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+[Unreleased]: https://github.com/StormByte-Suite/StormByte/compare/2.2.3...HEAD
+
+## [2.2.3] - 2026-11-02
+
 ### Fixed
 
 - Allocating `Safe::String` and `Safe::WString` constructors, copies, conversions and text transformations propagate allocation failures instead of terminating through incorrect `noexcept` contracts. Default construction, moves and observers remain non-throwing. Failed capacity-preserving copies and short-string reserve growth release their intermediate buffers.
 
-[Unreleased]: https://github.com/StormBytePP/StormByte/compare/2.2.2...HEAD
+[2.2.3]: https://github.com/StormByte-Suite/StormByte/compare/2.2.2...2.2.3
 
 ## [2.2.2] - 2026-10-28
 
