@@ -29,6 +29,7 @@ If you landed here from a release link and have not read the tree:
 ### Fixed
 
 - `find_package(StormByte COMPONENTS Network)` discovers and links Crypto transitively, matching Network's public TLS dependency.
+- Reconfigure automatically when `VERSION` changes so rebuilt and installed artifacts use the updated project version.
 
 ### Changed
 
