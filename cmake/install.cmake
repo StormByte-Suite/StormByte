@@ -17,6 +17,7 @@ configure_file(
 )
 install(FILES
 	"${CMAKE_SOURCE_DIR}/cmake/FindStormByte.cmake"
+	"${CMAKE_SOURCE_DIR}/cmake/StormByteCommon.cmake"
 	"${CMAKE_BINARY_DIR}/StormByteCoreDependencies.cmake"
 	DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/cmake/Modules"
 )

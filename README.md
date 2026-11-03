@@ -116,6 +116,8 @@ A shared build keeps this library as its own `.so` / `.dll`. Under the LGPL that
 
 `thirdparty/sds` is the private submodule used for bundled builds. It is not installed.
 
+For installed CMake discovery and the component-owned finder contract, see [CMake integration](cmake/README.md).
+
 ## Usage
 
 Headers are `#include <StormByte/….hxx>`. Namespace root is `StormByte`.

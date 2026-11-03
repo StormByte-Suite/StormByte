@@ -2,6 +2,16 @@ option(ENABLE_TEST "Enable Unit Tests" OFF)
 if(ENABLE_TEST)
 	enable_testing()
 
+	foreach(_linkage Shared Static)
+		add_test(NAME CMakeDiscovery${_linkage}
+			COMMAND "${CMAKE_COMMAND}"
+				-S "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+				-B "${CMAKE_CURRENT_BINARY_DIR}/cmake-${_linkage}"
+				"-DSTORMBYTE_CMAKE_DIR=${CMAKE_SOURCE_DIR}/cmake"
+				"-DSTORMBYTE_TEST_STATIC=$<STREQUAL:${_linkage},Static>"
+		)
+	endforeach()
+
 	add_executable(Base64Tests base64_test.cxx)
 	target_link_libraries(Base64Tests StormByte)
 	add_test(NAME Base64Tests COMMAND Base64Tests)
