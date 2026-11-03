@@ -35,6 +35,8 @@ If you landed here from a release link and have not read the tree:
 
 - **Breaking:** Split installed CMake discovery into Base's shared foundation and component-owned `FindStormByte<Component>.cmake` files. The `find_package(StormByte ... COMPONENTS ...)` interface and target names remain, but older component releases without their own finder are unsupported.
 - Leave CPU targeting and build-type optimization levels to the toolchain instead of imposing architecture-specific flags; `ENABLE_LTO` still controls interprocedural optimization.
+- Build the same Linux amd64/arm64, glibc/musl and GCC/libstdc++ or Clang/libc++ variants in CI and releases. CI disables PGO and LTO; releases enable both and use the shared action's automatic CPU baselines.
+- **Breaking:** Linux release ZIP names now include `amd64` or `arm64`, libc and C++ standard library; previous asset names are not supported.
 
 [Unreleased]: https://github.com/StormByte-Suite/StormByte/compare/2.2.3...HEAD
 
