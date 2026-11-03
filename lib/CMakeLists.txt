@@ -55,15 +55,11 @@ else()
 endif()
 
 if(MSVC)
-	target_compile_options(StormByte PRIVATE
-		/EHsc
-		$<$<CONFIG:Release>:/O2>
-		$<$<CONFIG:Debug>:/Od>
-	)
+	target_compile_options(StormByte PRIVATE /EHsc)
 	target_compile_definitions(StormByte PUBLIC UNICODE NOMINMAX)
 else()
 	target_compile_options(StormByte PRIVATE
-		$<$<CONFIG:Debug>:-pipe -g -ggdb -Wall -Wextra -Wnon-virtual-dtor -pedantic -pedantic-errors -O0>
+		$<$<CONFIG:Debug>:-pipe -g -ggdb -Wall -Wextra -Wnon-virtual-dtor -pedantic -pedantic-errors>
 	)
 endif()
 

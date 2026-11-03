@@ -108,6 +108,8 @@ cmake --build build
 
 `-DENABLE_LTO=ON` (the default) enables link-time optimization for every build type. It is not tied to `Release`. It combines with `ENABLE_PGO`: both trees see the same value.
 
+The project does not select a CPU architecture or override CMake's build-type optimization levels. Set `CMAKE_C_FLAGS` and `CMAKE_CXX_FLAGS` when targeting a specific CPU; CI and release builds use the build-toolchain action's CPU baseline.
+
 Shared vs static follows CMake `BUILD_SHARED_LIBS` (declared in `lib/`, default ON). A plain configure builds the shared library. `-DBUILD_SHARED_LIBS=OFF` builds a static archive; on Windows the headers then do not use `dllimport`.
 
 SDS is built from the bundled sources by default. To use an installed SDS library instead, configure with `-DSTORMBYTE_USE_SYSTEM_SDS=ON`; this requires `pkg-config` metadata for `sds` version 2.0.0 or newer. For a static Base build, the installed CMake finder also requires the system SDS development package when consumers link Base.

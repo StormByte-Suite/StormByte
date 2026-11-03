@@ -33,6 +33,7 @@ If you landed here from a release link and have not read the tree:
 ### Changed
 
 - **Breaking:** Split installed CMake discovery into Base's shared foundation and component-owned `FindStormByte<Component>.cmake` files. The `find_package(StormByte ... COMPONENTS ...)` interface and target names remain, but older component releases without their own finder are unsupported.
+- Leave CPU targeting and build-type optimization levels to the toolchain instead of imposing architecture-specific flags; `ENABLE_LTO` still controls interprocedural optimization.
 
 [Unreleased]: https://github.com/StormByte-Suite/StormByte/compare/2.2.3...HEAD
 
