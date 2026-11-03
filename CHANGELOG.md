@@ -22,6 +22,10 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+[Unreleased]: https://github.com/StormByte-Suite/StormByte/compare/3.0.0...HEAD
+
+## [3.0.0] - 2026-11-03
+
 ### Added
 
 - Allow using the system SDS library with `-DSTORMBYTE_USE_SYSTEM_SDS=ON`; bundled SDS remains the default.
@@ -38,7 +42,7 @@ If you landed here from a release link and have not read the tree:
 - Build the same Linux amd64/arm64, glibc/musl and GCC/libstdc++ or Clang/libc++ variants in CI and releases. CI disables PGO and LTO; releases enable both and use the shared action's automatic CPU baselines.
 - **Breaking:** Linux release ZIP names now include `amd64` or `arm64`, libc and C++ standard library; previous asset names are not supported.
 
-[Unreleased]: https://github.com/StormByte-Suite/StormByte/compare/2.2.3...HEAD
+[3.0.0]: https://github.com/StormByte-Suite/StormByte/compare/2.2.3...3.0.0
 
 ## [2.2.3] - 2026-11-02
 
