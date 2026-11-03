@@ -1,14 +1,29 @@
 include(GNUInstallDirs)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+option(STORMBYTE_USE_SYSTEM_SDS "Use the system-installed SDS library" OFF)
 
-file(GLOB_RECURSE STORMBYTE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/*.cxx" "${CMAKE_CURRENT_LIST_DIR}/*.c" "${CMAKE_SOURCE_DIR}/thirdparty/sds/*.c")
+file(GLOB_RECURSE STORMBYTE_SOURCES CONFIGURE_DEPENDS
+	"${CMAKE_CURRENT_LIST_DIR}/*.cxx"
+	"${CMAKE_CURRENT_LIST_DIR}/*.c"
+)
+
+if(STORMBYTE_USE_SYSTEM_SDS)
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(SDS REQUIRED IMPORTED_TARGET sds>=2.0.0)
+else()
+	list(APPEND STORMBYTE_SOURCES "${CMAKE_SOURCE_DIR}/thirdparty/sds/sds.c")
+endif()
 
 if(BUILD_SHARED_LIBS)
 	add_library(StormByte SHARED ${STORMBYTE_SOURCES})
 	target_compile_definitions(StormByte PUBLIC STORMBYTE_SHARED)
 else()
 	add_library(StormByte STATIC ${STORMBYTE_SOURCES})
+endif()
+
+if(STORMBYTE_USE_SYSTEM_SDS)
+	target_link_libraries(StormByte PRIVATE PkgConfig::SDS)
 endif()
 
 set_target_properties(StormByte PROPERTIES
@@ -55,5 +70,8 @@ endif()
 target_include_directories(StormByte
 	SYSTEM BEFORE PUBLIC "${CMAKE_CURRENT_LIST_DIR}/public"
 	PRIVATE "${CMAKE_CURRENT_LIST_DIR}/private"
-	PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/sds"
 )
+
+if(NOT STORMBYTE_USE_SYSTEM_SDS)
+	target_include_directories(StormByte PRIVATE "${CMAKE_SOURCE_DIR}/thirdparty/sds")
+endif()

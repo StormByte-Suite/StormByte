@@ -88,8 +88,8 @@ endfunction()
 # ----------------------------------------------------------------------
 
 find_path(STORMBYTE_INCLUDE_DIR
-	NAMES visibility.h
-	PATH_SUFFIXES StormByte
+	NAMES StormByte/visibility.h
+	PATH_SUFFIXES include
 	PATHS
 		${CMAKE_PREFIX_PATH}
 		/usr/include
@@ -144,6 +144,7 @@ _stormbyte_expand_dependencies(_requested_components)
 # ----------------------------------------------------------------------
 
 if(STORMBYTE_LIBRARY)
+	include("${CMAKE_CURRENT_LIST_DIR}/StormByteCoreDependencies.cmake" OPTIONAL)
 	if(NOT TARGET StormByte)
 		add_library(StormByte UNKNOWN IMPORTED GLOBAL)
 		set_target_properties(StormByte PROPERTIES
@@ -157,6 +158,9 @@ if(STORMBYTE_LIBRARY)
 		_stormbyte_library_is_shared("${STORMBYTE_LIBRARY}" _sb_core_shared)
 		if(_sb_core_shared)
 			target_compile_definitions(StormByte INTERFACE STORMBYTE_SHARED)
+		endif()
+		if(STORMBYTE_CORE_EXTERNAL_LIBRARIES)
+			target_link_libraries(StormByte INTERFACE ${STORMBYTE_CORE_EXTERNAL_LIBRARIES})
 		endif()
 	endif()
 endif()

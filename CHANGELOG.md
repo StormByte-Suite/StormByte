@@ -22,13 +22,16 @@ If you landed here from a release link and have not read the tree:
 
 ## [Unreleased]
 
+### Added
+
+- Allow using the system SDS library with `-DSTORMBYTE_USE_SYSTEM_SDS=ON`; bundled SDS remains the default.
+
 ### Fixed
 
 - `find_package(StormByte COMPONENTS Network)` discovers and links Crypto transitively, matching Network's public TLS dependency.
 
 ### TODO
 
-- Add supported selection of system SDS instead of compiling the bundled sources, following the Gentoo ebuild's system-SDS patch. Discover and link the installed library without requiring downstream source patches, while retaining bundled builds.
 - Split the monolithic `FindStormByte.cmake` into component-owned configuration: Base will provide the shared CMake foundation, and each suite component will install its own configuration to discover and configure itself. Preserve the existing external `find_package(StormByte ... COMPONENTS ...)` interface and behavior so the change is transparent to consumers.
 
 [Unreleased]: https://github.com/StormByte-Suite/StormByte/compare/2.2.3...HEAD

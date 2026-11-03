@@ -10,4 +10,13 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/lib/public/StormByte/"
 	PATTERN "*.hxx"
 	PATTERN "*.txx"
 )
-install(FILES "${CMAKE_SOURCE_DIR}/cmake/FindStormByte.cmake" DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/cmake/Modules")
+configure_file(
+	"${CMAKE_SOURCE_DIR}/cmake/StormByteCoreDependencies.cmake.in"
+	"${CMAKE_BINARY_DIR}/StormByteCoreDependencies.cmake"
+	@ONLY
+)
+install(FILES
+	"${CMAKE_SOURCE_DIR}/cmake/FindStormByte.cmake"
+	"${CMAKE_BINARY_DIR}/StormByteCoreDependencies.cmake"
+	DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/cmake/Modules"
+)

@@ -110,9 +110,11 @@ cmake --build build
 
 Shared vs static follows CMake `BUILD_SHARED_LIBS` (declared in `lib/`, default ON). A plain configure builds the shared library. `-DBUILD_SHARED_LIBS=OFF` builds a static archive; on Windows the headers then do not use `dllimport`.
 
+SDS is built from the bundled sources by default. To use an installed SDS library instead, configure with `-DSTORMBYTE_USE_SYSTEM_SDS=ON`; this requires `pkg-config` metadata for `sds` version 2.0.0 or newer. For a static Base build, the installed CMake finder also requires the system SDS development package when consumers link Base.
+
 A shared build keeps this library as its own `.so` / `.dll`. Under the LGPL that is usually the simpler way to ship: the user can replace that file. A static archive is folded into your binary. The LGPL still applies to this code; you must give the recipient a way to relink your product with a different build of this library. If that does not fit how you distribute the final product, a commercial license is available from the copyright holder (see [License](#license)).
 
-`thirdparty/sds` is a private submodule compiled into StormByte. It is not installed.
+`thirdparty/sds` is the private submodule used for bundled builds. It is not installed.
 
 ## Usage
 
