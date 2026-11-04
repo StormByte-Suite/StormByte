@@ -41,6 +41,16 @@ visibility definition. Missing component finders, headers, libraries or
 dependencies make that component unavailable. Older component releases without
 their own finder are not supported.
 
+On Windows, the finder distinguishes MSVC `.lib` import libraries from static
+archives using the COFF linker index, and recognizes MinGW `.dll.a` import
+libraries. An import descriptor matching the `.lib` basename identifies a
+shared library even when the DLL is installed separately; a static archive may
+contain import descriptors for other DLLs without becoming shared. Archives
+without a recognizable linker index are rejected. For renamed or otherwise
+ambiguous archives, set `STORMBYTE_LIBRARY_IS_SHARED` for Base or
+`STORMBYTE_<Component>_LIBRARY_IS_SHARED` for a component to `ON` or `OFF`.
+The DLLs must still be available when the application runs.
+
 The public result variables remain `StormByte_FOUND`, `STORMBYTE_FOUND`,
 `STORMBYTE_INCLUDE_DIR`, `STORMBYTE_LIBRARY`, `StormByte_<Component>_FOUND` for
 requested components, and `STORMBYTE_<Component>_LIBRARY`.

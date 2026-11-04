@@ -33,6 +33,7 @@ If you landed here from a release link and have not read the tree:
 ### Fixed
 
 - PGO training runner now prepends its library directories to `LD_LIBRARY_PATH`/`DYLD_LIBRARY_PATH` with the `:` separator (previously `;`, which broke library lookup on musl) and no longer appends an empty entry when the variable is unset.
+- `find_package(StormByte)` identifies Windows import libraries and propagates DLL-import definitions for Base and its components, while retaining static-library behavior.
 - `find_package(StormByte COMPONENTS Network)` discovers and links Crypto transitively, matching Network's public TLS dependency.
 - Reconfigure automatically when `VERSION` changes so rebuilt and installed artifacts use the updated project version.
 

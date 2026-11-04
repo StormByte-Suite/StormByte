@@ -2,15 +2,58 @@ option(ENABLE_TEST "Enable Unit Tests" OFF)
 if(ENABLE_TEST)
 	enable_testing()
 
+	add_executable(CMakeDiscoveryArchiveFixtureGenerator cmake/windows_archive_fixture_generator.cxx)
 	foreach(_linkage Shared Static)
 		add_test(NAME CMakeDiscovery${_linkage}
 			COMMAND "${CMAKE_COMMAND}"
 				-S "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
 				-B "${CMAKE_CURRENT_BINARY_DIR}/cmake-${_linkage}"
 				"-DSTORMBYTE_CMAKE_DIR=${CMAKE_SOURCE_DIR}/cmake"
+				"-DSTORMBYTE_COFF_FIXTURE_GENERATOR=$<TARGET_FILE:CMakeDiscoveryArchiveFixtureGenerator>"
 				"-DSTORMBYTE_TEST_STATIC=$<STREQUAL:${_linkage},Static>"
 		)
+		foreach(_windows_toolchain MSVC MinGW)
+			add_test(NAME CMakeDiscoveryWindows${_windows_toolchain}${_linkage}
+				COMMAND "${CMAKE_COMMAND}"
+					-S "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+					-B "${CMAKE_CURRENT_BINARY_DIR}/cmake-Windows${_windows_toolchain}${_linkage}"
+					"-DSTORMBYTE_CMAKE_DIR=${CMAKE_SOURCE_DIR}/cmake"
+					"-DSTORMBYTE_COFF_FIXTURE_GENERATOR=$<TARGET_FILE:CMakeDiscoveryArchiveFixtureGenerator>"
+					"-DSTORMBYTE_TEST_STATIC=$<STREQUAL:${_linkage},Static>"
+					"-DSTORMBYTE_TEST_MINGW=$<STREQUAL:${_windows_toolchain},MinGW>"
+					-DCMAKE_SYSTEM_NAME=Windows
+			)
+		endforeach()
+		add_test(NAME CMakeDiscoveryWindowsMSVC${_linkage}CoreOverride
+			COMMAND "${CMAKE_COMMAND}"
+				-S "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+				-B "${CMAKE_CURRENT_BINARY_DIR}/cmake-WindowsMSVC${_linkage}CoreOverride"
+				"-DSTORMBYTE_CMAKE_DIR=${CMAKE_SOURCE_DIR}/cmake"
+				"-DSTORMBYTE_COFF_FIXTURE_GENERATOR=$<TARGET_FILE:CMakeDiscoveryArchiveFixtureGenerator>"
+				"-DSTORMBYTE_TEST_STATIC=$<STREQUAL:${_linkage},Static>"
+				"-DSTORMBYTE_TEST_CORE_OVERRIDE=$<STREQUAL:${_linkage},Static>"
+				-DCMAKE_SYSTEM_NAME=Windows
+		)
 	endforeach()
+	add_test(NAME CMakeDiscoveryWindowsInvalidArchives
+		COMMAND "${CMAKE_COMMAND}"
+			"-DSTORMBYTE_CMAKE_DIR=${CMAKE_SOURCE_DIR}/cmake"
+			"-DSTORMBYTE_COFF_FIXTURE_GENERATOR=$<TARGET_FILE:CMakeDiscoveryArchiveFixtureGenerator>"
+			"-DARCHIVE_TEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/cmake-WindowsInvalidArchives"
+			-P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/windows_archive_test.cmake"
+	)
+	if(WIN32)
+		add_library(CMakeDiscoveryStaticFixture STATIC cmake/windows_static_fixture.cxx)
+		add_test(NAME CMakeDiscoveryWindowsNativeArchives
+			COMMAND "${CMAKE_COMMAND}"
+				"-DSTORMBYTE_CMAKE_DIR=${CMAKE_SOURCE_DIR}/cmake"
+				"-DSTORMBYTE_COFF_FIXTURE_GENERATOR=$<TARGET_FILE:CMakeDiscoveryArchiveFixtureGenerator>"
+				"-DSHARED_LIBRARY=$<TARGET_LINKER_FILE:DLLBoundaryFixture>"
+				"-DSTATIC_LIBRARY=$<TARGET_LINKER_FILE:CMakeDiscoveryStaticFixture>"
+				"-DARCHIVE_TEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/cmake-WindowsNativeArchives"
+				-P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/windows_archive_test.cmake"
+		)
+	endif()
 
 	add_executable(Base64Tests base64_test.cxx)
 	target_link_libraries(Base64Tests StormByte)

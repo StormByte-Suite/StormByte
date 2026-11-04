@@ -19,7 +19,7 @@ if(STORMBYTE_LIBRARY AND STORMBYTE_INCLUDE_DIR AND NOT TARGET StormByte)
 		IMPORTED_LOCATION "${STORMBYTE_LIBRARY}"
 		INTERFACE_INCLUDE_DIRECTORIES "${STORMBYTE_INCLUDE_DIR}"
 	)
-	_stormbyte_library_is_shared("${STORMBYTE_LIBRARY}" _sb_core_shared)
+	_stormbyte_library_is_shared("${STORMBYTE_LIBRARY}" _sb_core_shared STORMBYTE_LIBRARY_IS_SHARED)
 	if(_sb_core_shared)
 		target_compile_definitions(StormByte INTERFACE STORMBYTE_SHARED)
 	endif()
