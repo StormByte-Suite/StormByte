@@ -1,7 +1,10 @@
 option(ENABLE_TEST "Enable Unit Tests" OFF)
+option(ENABLE_CI_FIXTURES "Enable CI-only CMake discovery fixtures" OFF)
 if(ENABLE_TEST)
 	enable_testing()
+endif()
 
+if(ENABLE_TEST AND ENABLE_CI_FIXTURES)
 	add_executable(CMakeDiscoveryArchiveFixtureGenerator cmake/windows_archive_fixture_generator.cxx)
 	foreach(_linkage Shared Static)
 		add_test(NAME CMakeDiscovery${_linkage}
@@ -55,6 +58,9 @@ if(ENABLE_TEST)
 		)
 	endif()
 
+endif()
+
+if(ENABLE_TEST)
 	add_executable(Base64Tests base64_test.cxx)
 	target_link_libraries(Base64Tests StormByte)
 	add_test(NAME Base64Tests COMMAND Base64Tests)

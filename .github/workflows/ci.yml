@@ -96,7 +96,7 @@ jobs:
           pgo: false
           lto: false
           cpu-baseline: auto
-          cmake-options: -DENABLE_TEST=ON
+          cmake-options: -DENABLE_TEST=ON -DENABLE_CI_FIXTURES=ON
           ctest: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
 
@@ -134,7 +134,7 @@ jobs:
           pgo: false
           lto: false
           cpu-baseline: auto
-          cmake-options: -DENABLE_TEST=ON
+          cmake-options: -DENABLE_TEST=ON -DENABLE_CI_FIXTURES=ON
           ctest: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test
 
@@ -164,6 +164,6 @@ jobs:
           pgo: false
           lto: false
           cpu-baseline: auto
-          cmake-options: -DENABLE_TEST=ON
+          cmake-options: -DENABLE_TEST=ON -DENABLE_CI_FIXTURES=ON
           ctest: true
           ctest-options: --output-on-failure --test-dir ${{ github.workspace }}/build/test

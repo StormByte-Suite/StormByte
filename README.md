@@ -97,6 +97,10 @@ Public Base APIs do not take or return a raw `std::size_t` / `std::uint64_t` whe
 
 Needs a C++26 compiler and CMake 3.28 or newer.
 
+`-DENABLE_TEST=ON` enables the normal local tests used for PGO training.
+CMake discovery and archive fixtures are CI-only: they remain disabled unless
+CI explicitly adds `-DENABLE_CI_FIXTURES=ON`.
+
 ```sh
 git clone --recurse-submodules https://github.com/StormBytePP/StormByte.git
 cd StormByte
